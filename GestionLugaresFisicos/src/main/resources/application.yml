@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: gestion-lugares
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares}
+      auto-index-creation: true
+
+server:
+  port: ${PORT:8080}
