@@ -83,46 +83,48 @@ La recepción de disponibilidad solo permite `publicado -> agotado` y `agotado -
 
 ### Contratos con otros servicios
 
-Las llamadas son REST directo en JSON, sin API Gateway ni autenticación entre servicios. La base de Reservas es configurable con `reservas.base-url`, por defecto `http://localhost:8080`. La base de Compras se configura con `compras.base-url`; su puerto está pendiente. Los timeouts de conexión y lectura de ambos clientes serán configurables y se definirán como propiedades de aplicación. Todas las rutas internas quedan fuera del Gateway, que solo expone una lista explícita de rutas públicas; los endpoints de callback e internos no se agregan a esa lista.
-
-Cada servicio externo se invoca a través de una interfaz propia (`ReservasClient`, `ComprasClient`) y una implementación HTTP que concentra base URL, rutas, serialización, timeouts y traducción de respuestas. En pruebas, se reemplaza cada interfaz por un cliente simulado.
+Las llamadas son REST directo en JSON, sin API Gateway ni autenticación entre servicios. Las bases URL y los timeouts son configurables. Cada servicio externo se invoca detrás de una interfaz propia (`ReservasClient`, `ComprasClient`) y un adaptador HTTP que concentra rutas, serialización, timeouts y traducción de respuestas; en pruebas se reemplazan las interfaces por clientes simulados.
 
 #### A) Disponibilidad y Reservas — contrato confirmado
 
 | Quién llama | Cuándo | Endpoint | Body | Respuestas |
 |---|---|---|---|---|
-| Este servicio -> Reservas | Inicializar disponibilidad al publicar | `PUT /disponibilidad/eventos/{eventoId}` | `{"limiteEntradasPorCliente":4,"sectores":[{"sectorId":"...","tipo":"NUMERADO","capacidadTotal":2,"asientos":[{"fila":1,"numero":1},{"fila":1,"numero":2}]},{"sectorId":"...","tipo":"NO_NUMERADO","capacidadTotal":500,"asientos":[]}]}` | `204` inicializado o reintento con iguales datos; `400`; `409` si se inicializó con datos distintos; `500`. Ante timeout, 5xx o 409, el evento permanece borrador y se responde `503`. |
-| Este servicio -> Reservas | Suspender/reactivar/cancelar/finalizar venta | `PUT /disponibilidad/eventos/{eventoId}/venta` | `{"estado":"ACTIVA"}` (también `SUSPENDIDA`, `CANCELADA`, `FINALIZADA`) | `204`; `400`; `404` si no está inicializado; `409` si el cambio es incompatible; `500`. Este servicio llama antes de cambiar su estado local; si falla, responde `503` y no modifica el estado. |
-| Este servicio -> Reservas | Consultar disponibilidad para detalle US-3.3 de `busqueda-eventos` | `GET /disponibilidad/eventos/{eventoId}` | Sin body | `200` con disponibilidad; `404`; `500`. Si falla, el detalle futuro devuelve disponibilidad `null`. Esta ruta se documenta aquí, no se implementa en este cambio. |
-| Reservas -> este servicio | Agotado/recuperación | `PUT /eventos/{eventoId}/disponibilidad` | `{"agotado":true}` o `{"agotado":false}` | `204` al aplicar, duplicado o aviso tardío para cancelado/finalizado; `404` evento inexistente; `409` si está en borrador. No requiere headers de usuario ni Gateway. |
+| Este servicio -> Reservas | Inicializar disponibilidad al publicar | `PUT /disponibilidad/eventos/{eventoId}` | `{"limiteEntradasPorCliente":4,"sectores":[{"sectorId":"...","tipo":"NUMERADO","capacidadTotal":2,"asientos":[{"fila":1,"numero":1},{"fila":1,"numero":2}]},{"sectorId":"...","tipo":"NO_NUMERADO","capacidadTotal":500,"asientos":[]}]}` | `204` inicializado o reintento con mismos datos; `400`; `409` si difieren; `500`. Ante timeout, 5xx o 409, el evento permanece borrador y se responde `503`. |
+| Este servicio -> Reservas | Suspender/reactivar/cancelar/finalizar venta | `PUT /disponibilidad/eventos/{eventoId}/venta` | `{"estado":"ACTIVA"}` (también `SUSPENDIDA`, `CANCELADA`, `FINALIZADA`) | `204`; `400`; `404` no inicializado; `409` incompatible; `500`. Este servicio llama antes de cambiar su estado local; si falla, responde `503` y no modifica el estado. |
+| Este servicio -> Reservas | Consultar disponibilidad para detalle US-3.3 de `busqueda-eventos` | `GET /disponibilidad/eventos/{eventoId}` | Sin body | `200` con disponibilidad; `404`; `500`. Si Reservas falla, el detalle devuelve disponibilidad `null`. Esta ruta se documenta aquí, no se implementa en este cambio. |
+| Reservas -> este servicio | Agotado/recuperación | `PUT /eventos/{eventoId}/disponibilidad` | `{"agotado":true}` o `{"agotado":false}` | `204` al aplicar, duplicado o aviso tardío cancelado/finalizado; `404` inexistente; `409` si está en borrador. Sin headers de usuario ni Gateway. |
 
-El cuerpo de inicialización siempre incluye `limiteEntradasPorCliente` y todos los sectores. Para cada sector numerado se construye la lista de asientos derivada de filas × asientosPorFila; no se persiste esa lista localmente. Reservas confirmó que `fila` se envía como entero en el rango 1..filas y que repetir un estado de venta ya aplicado responde `204`.
+El body de inicialización siempre incluye `limiteEntradasPorCliente` y todos los sectores. Para cada sector numerado se construye la lista de asientos derivada de filas × asientosPorFila; no se persiste localmente. Reservas identifica cada asiento mediante `(sectorId, fila, numero)`. `fila` se envía como entero y repetir el mismo estado de venta devuelve `204`.
 
-La consulta `GET /disponibilidad/eventos/{eventoId}` pertenece al detalle de F3/US-3.3 del cambio `busqueda-eventos`. Este cambio solo registra el contrato. Ejemplo `200`: `{"eventoId":"...","sectores":[{"sectorId":"...","tipo":"NO_NUMERADO","capacidadTotal":500,"cantidadDisponible":120},{"sectorId":"...","tipo":"NUMERADO","capacidadTotal":2,"cantidadDisponible":1,"asientosDisponibles":[{"fila":1,"numero":2}]}]}`. Otras respuestas: `404`, `500`.
+#### B) Compras y Devoluciones — contrato confirmado
 
-#### B) Compras y Devoluciones — pendiente de confirmación
+Las llamadas de Compras y Devoluciones también son directas, en JSON y sin headers de usuario ni Gateway.
 
-| Quién llama | Cuándo | Endpoint propuesto | Body | Respuestas |
+| Quién llama | Cuándo | Endpoint | Body | Respuestas |
 |---|---|---|---|---|
-| Compras -> este servicio | Consultar datos del evento | `GET /internal/eventos/{eventoId}` | Sin body | `200` con evento en cualquier estado; `404` si no existe. Sin headers de usuario ni Gateway. Ruta propuesta pendiente de confirmación. |
-| Este servicio -> Compras | Avisar cancelación e iniciar devoluciones | `POST /eventos-cancelados` | `{"eventoId":"...","motivo":"...","canceladoEn":"2026-11-06T18:00:00Z"}` | `202`; `200` si ya se procesó. Contrato propio borrador, pendiente de confirmación; `compras.base-url` configurable y puerto por definir. Si no responde, se conserva el aviso pendiente y la cancelación queda hecha. |
+| Compras -> este servicio | Consultar evento para compras | `GET /internal/eventos/{eventoId}` | Sin body | `200` en cualquier estado; `404` si no existe. Sin headers de usuario y fuera del Gateway. |
+| Este servicio -> Compras | Avisar cancelación | `POST /eventos-cancelados` | `{"eventoId":"...","motivo":"...","canceladoEn":"2026-11-06T18:00:00Z"}` | `202` aceptado; `200` si ya estaba procesado; ambos son éxito idempotente. |
 
-El GET interno propuesto devuelve `{"eventoId":"...","nombre":"...","fechaInicio":"2026-12-01T21:00:00Z","estado":"PUBLICADO","sectores":[{"sectorId":"...","nombre":"Platea","precio":15000.00}]}`. `fechaInicio` serializa el campo interno `fechaHora` como ISO-8601 UTC. `precio` se representa como decimal respaldado por `BigDecimal`/Decimal128. Al fijar el precio se guarda también una copia del nombre del sector en el documento del evento. Compras había propuesto `/eventos/{eventoId}`, pero se propone `/internal/eventos/{eventoId}` para no colisionar con el detalle público US-3.3, que tiene otro formato y reglas de visibilidad.
+La base URL de Compras se configura con `compras.base-url` (por defecto `http://localhost:8083`), `compras.connect-timeout` (2 s) y `compras.read-timeout` (5 s). La llamada al aviso ocurre después de que Reservas confirma la venta cancelada y el documento local pasa a `cancelado`. Si Compras falla, no responde o devuelve error, la cancelación se conserva y el administrador recibe `200`; el aviso queda pendiente para reenvío automático. El intervalo se configura con `eventos.cancelacion.reenvio-interval` (por ejemplo `60s`). Los reintentos son seguros porque Compras trata el aviso de forma idempotente.
 
-Al cancelar, registrar `canceladoEn`, motivo y aviso pendiente en el documento del evento. El envío a Compras puede reintentarse sin revertir cancelación; el receptor debe tratar el eventoId como clave idempotente según el contrato propuesto.
+El aviso pendiente se persiste junto con los datos de cancelación en el documento del evento: estado de entrega pendiente, motivo y `canceladoEn`. El proceso programado consulta documentos cancelados con aviso pendiente y los reenvía; ante `200` o `202`, actualiza el estado de entrega para no volver a enviar. Si el evento ya estaba cancelado, se responde `409` y no se crea un segundo aviso.
+
+El GET interno devuelve `{"eventoId":"...","nombre":"...","fechaInicio":"2026-12-01T21:00:00Z","estado":"publicado","sectores":[{"sectorId":"...","nombre":"Platea","precio":15000.00}]}`. Devuelve cualquier estado; `estado` usa minúsculas, `fechaInicio` serializa `fechaHora` como ISO-8601 UTC, y `precio` es decimal basado en BigDecimal/Decimal128 o `null` si el sector aún no tiene precio. Al definir el precio, el evento guarda una copia del nombre del sector para responder sin cruzar colecciones.
+
+El endpoint de cancelación acepta body opcional `{"motivo":"..."}`. Si se omite el body o el motivo, se usa un texto por defecto, por ejemplo `Cancelación del evento por el administrador`. `canceladoEn` registra el instante UTC efectivo de cancelación.
 
 ### Configuración y red local
 
-Configurar `server.port=${PORT:8081}` para evitar colisión con Reservas en `8080`. Configurar `reservas.base-url` con el valor por defecto indicado y `compras.base-url` según el puerto que confirme su equipo. Añadir propiedades explícitas para timeout de conexión y lectura por cliente; los valores iniciales deberán ajustarse al entorno local/de despliegue.
+Configurar `server.port=${PORT:8081}` para evitar colisión con Reservas en `8080`. Configurar `reservas.base-url` (por defecto `http://localhost:8080`) y `compras.base-url` (por defecto `http://localhost:8083`). Los timeouts de ambos clientes son configurables.
 
 Los timeouts del cliente de Reservas se configuran con `reservas.connect-timeout` (2 s por defecto) y `reservas.read-timeout` (5 s por defecto). Las operaciones de ciclo de vida se exponen como `PUT /eventos/{eventoId}/publicar`, `PUT /eventos/{eventoId}/venta/suspender`, `PUT /eventos/{eventoId}/venta/reactivar` y `PUT /eventos/{eventoId}/cancelar`. El callback `PUT /eventos/{eventoId}/disponibilidad` es interno, no requiere encabezados de usuario y queda fuera del Gateway.
 
 ## Risks / Trade-offs
 
-- [Compras aún no confirmó su consulta ni el aviso de cancelación] → aislar rutas y DTOs en `ComprasClient`; no exponer sus rutas en el Gateway.
 - [Un aviso tardío puede competir con una cancelación o finalización] → aplicar estado/versionado condicional e ignorar avisos tardíos con 204 como define el contrato.
 - [La copia de ciudad y sectores puede quedar desactualizada ante cambios del lugar] → conservar instantánea al crear evento; revisar con el grupo si lugares y sectores serán inmutables al estar referenciados.
 - [Una falla de Reservas bloquea el cambio local de venta/estado] → responder 503 sin mutar el estado y permitir reintento.
+- [Compras puede no estar disponible después de una cancelación] → persistir el aviso pendiente y reintentarlo automáticamente; la cancelación local no se revierte.
 
 ## Migration Plan
 
@@ -130,5 +132,4 @@ No hay migración de datos: se incorpora una colección nueva. Configurar el pue
 
 ## Open Questions
 
-- Con Compras: confirmar `GET /internal/eventos/{eventoId}`, `POST /eventos-cancelados`, sus cuerpos/respuestas y el puerto de servicio.
-- Definir valores iniciales para timeouts configurables de conexión y lectura en cada ambiente.
+No quedan preguntas abiertas sobre los contratos con Reservas y Compras, ya confirmados. Los timeouts pueden ajustarse por ambiente mediante sus propiedades de configuración.

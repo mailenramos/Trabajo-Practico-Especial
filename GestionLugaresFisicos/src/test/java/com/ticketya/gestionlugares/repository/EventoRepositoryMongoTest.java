@@ -83,4 +83,20 @@ class EventoRepositoryMongoTest {
                 List.of("A"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of()));
         assertEquals(1, eventoRepository.findByOrganizadorIdAndEstado("org-1", EstadoEvento.BORRADOR).size());
     }
+
+    @Test
+    void persisteAvisoDeCancelacionPendienteYPermiteBuscarloParaReenvio() {
+        Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", "Show", "Desc", "MUSICA",
+                List.of("A"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.cancelar("Cierre preventivo", Instant.parse("2026-11-06T18:00:00Z"));
+        eventoRepository.save(evento);
+
+        Evento recuperado = eventoRepository.findByAvisoCancelacionPendienteTrue().getFirst();
+
+        assertEquals(EstadoEvento.CANCELADO, recuperado.getEstado());
+        assertEquals("Cierre preventivo", recuperado.getMotivoCancelacion());
+        assertEquals(Instant.parse("2026-11-06T18:00:00Z"), recuperado.getCanceladoEn());
+        assertEquals(true, recuperado.isAvisoCancelacionPendiente());
+    }
 }

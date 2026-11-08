@@ -43,6 +43,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/eventos'].post").exists())
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/sectores/{sectorId}/precio'].put").exists())
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/limite-entradas-por-cliente'].put").exists())
+                .andExpect(jsonPath("$.paths['/internal/eventos/{eventoId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].get.parameters[?(@.name == 'X-User-Role')].schema.enum").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].get.responses['403']").exists())
@@ -103,6 +104,23 @@ class OpenApiDocumentationTest {
         assertTrue(callback.path("requestBody").path("content").path("application/json")
                 .path("examples").has("Agotado"));
         assertEventErrors(callback.path("responses"), "400", "404", "409", "500");
+
+        JsonNode internalEvent = paths.path("/internal/eventos/{eventoId}").path("get");
+        assertTrue(internalEvent.path("description").asText().contains("no requiere X-User-Id ni X-User-Role"));
+        assertTrue(internalEvent.path("description").asText().contains("no se expone por el API Gateway"));
+        JsonNode internalParameters = internalEvent.path("parameters");
+        assertTrue(internalParameters.isMissingNode()
+                || java.util.stream.StreamSupport.stream(internalParameters.spliterator(), false)
+                        .noneMatch(parameter -> parameter.path("name").asText().startsWith("X-User-")),
+                "El GET interno no debe documentar headers de usuario");
+        assertEventErrors(internalEvent.path("responses"), "404", "500");
+        assertTrue(internalEvent.path("responses").path("200").path("content").path("application/json")
+                .path("examples").has("Evento para Compras"));
+        JsonNode cancellationRequest = paths.path("/eventos/{eventoId}/cancelar").path("put").path("requestBody");
+        assertTrue(cancellationRequest.path("content").has("application/json"));
+        assertTrue(!cancellationRequest.path("required").asBoolean(false));
+        assertTrue(cancellationRequest.path("content").path("application/json").path("examples")
+                .has("Motivo"));
 
         assertTrue(paths.path("/eventos").path("post").path("requestBody").path("content")
                 .path("application/json").path("examples").has("Evento en borrador"));

@@ -3,6 +3,8 @@ package com.ticketya.gestionlugares.service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Service;
 
@@ -16,16 +18,23 @@ import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
+import com.ticketya.gestionlugares.compras.ComprasClient;
 
 @Service
 public class EventoLifecycleService {
 
+    private static final Logger log = LoggerFactory.getLogger(EventoLifecycleService.class);
+    private static final String MOTIVO_CANCELACION_POR_DEFECTO = "Cancelación del evento por el administrador";
+
     private final EventoService eventoService;
     private final ReservasClient reservasClient;
+    private final ComprasClient comprasClient;
 
-    public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient) {
+    public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient,
+            ComprasClient comprasClient) {
         this.eventoService = eventoService;
         this.reservasClient = reservasClient;
+        this.comprasClient = comprasClient;
     }
 
     public Evento publicar(String eventoId, String userId, String userRole) {
@@ -51,13 +60,20 @@ public class EventoLifecycleService {
     }
 
     public Evento cancelar(String eventoId, String userId, String userRole) {
+        return cancelar(eventoId, null, userId, userRole);
+    }
+
+    public Evento cancelar(String eventoId, String motivo, String userId, String userRole) {
         Evento evento = validarAdministracionVenta(eventoId, userId, userRole);
         if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
             throw new ConflictException("Solo se cancela un evento publicado o agotado");
         }
         invocarReservas("No se pudo cancelar la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.CANCELADA));
-        return eventoService.cancelarLocal(evento.getId());
+        String motivoEfectivo = motivo == null || motivo.isBlank()
+                ? MOTIVO_CANCELACION_POR_DEFECTO : motivo.trim();
+        Evento cancelado = eventoService.cancelarLocal(evento.getId(), motivoEfectivo, Instant.now());
+        return intentarAvisoCancelacion(cancelado);
     }
 
     public Evento aplicarDisponibilidad(String eventoId, boolean agotado) {
@@ -73,6 +89,22 @@ public class EventoLifecycleService {
             } catch (ServiceUnavailableException | ConflictException exception) {
                 // El siguiente ciclo reintenta sin alterar el estado local.
             }
+        }
+    }
+
+    public void reenviarAvisosCancelacionPendientes() {
+        for (Evento evento : eventoService.buscarAvisosCancelacionPendientes()) {
+            intentarAvisoCancelacion(evento);
+        }
+    }
+
+    private Evento intentarAvisoCancelacion(Evento evento) {
+        try {
+            comprasClient.notificarCancelacion(evento.getId(), evento.getMotivoCancelacion(), evento.getCanceladoEn());
+            return eventoService.marcarAvisoCancelacionEntregado(evento.getId());
+        } catch (RuntimeException exception) {
+            log.warn("No se pudo notificar a Compras la cancelación del evento {}; queda pendiente", evento.getId(), exception);
+            return evento;
         }
     }
 

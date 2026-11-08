@@ -34,6 +34,10 @@ public class Evento {
     private int limiteEntradasPorCliente;
     private List<EventoSector> sectores = new ArrayList<>();
     private BigDecimal precioMinimo;
+    private String motivoCancelacion;
+    private Instant canceladoEn;
+    @Indexed
+    private boolean avisoCancelacionPendiente;
     @Version
     private Long version;
 
@@ -103,6 +107,17 @@ public class Evento {
         estado = EstadoEvento.CANCELADO;
     }
 
+    public void cancelar(String motivo, Instant canceladoEn) {
+        cancelar();
+        this.motivoCancelacion = motivo;
+        this.canceladoEn = canceladoEn;
+        this.avisoCancelacionPendiente = true;
+    }
+
+    public void marcarAvisoCancelacionEntregado() {
+        this.avisoCancelacionPendiente = false;
+    }
+
     public void finalizar() {
         if (estado == EstadoEvento.CANCELADO || estado == EstadoEvento.FINALIZADO) return;
         estado = EstadoEvento.FINALIZADO;
@@ -150,6 +165,12 @@ public class Evento {
     public void setSectores(List<EventoSector> sectores) { this.sectores = sectores; }
     public BigDecimal getPrecioMinimo() { return precioMinimo; }
     public void setPrecioMinimo(BigDecimal precioMinimo) { this.precioMinimo = precioMinimo; }
+    public String getMotivoCancelacion() { return motivoCancelacion; }
+    public void setMotivoCancelacion(String motivoCancelacion) { this.motivoCancelacion = motivoCancelacion; }
+    public Instant getCanceladoEn() { return canceladoEn; }
+    public void setCanceladoEn(Instant canceladoEn) { this.canceladoEn = canceladoEn; }
+    public boolean isAvisoCancelacionPendiente() { return avisoCancelacionPendiente; }
+    public void setAvisoCancelacionPendiente(boolean avisoCancelacionPendiente) { this.avisoCancelacionPendiente = avisoCancelacionPendiente; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
 }

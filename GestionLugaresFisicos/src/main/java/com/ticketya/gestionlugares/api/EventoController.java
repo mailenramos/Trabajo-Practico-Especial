@@ -175,7 +175,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/cancelar")
-    @Operation(summary = "Cancelar evento y detener su venta")
+    @Operation(summary = "Cancelar evento y detener su venta", description = "El body y el motivo son opcionales. Si no se envían, se aplica el motivo predeterminado.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento cancelado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -187,8 +187,13 @@ public class EventoController {
     })
     public Evento cancelar(@PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        return eventoLifecycleService.cancelar(eventoId, userId, userRole);
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(required = false,
+                    description = "Motivo opcional de cancelación; si se omite, se usa el motivo predeterminado.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = CancelarEventoRequest.class),
+                            examples = @ExampleObject(name = "Motivo", value = "{\"motivo\":\"Cancelación por condiciones climáticas\"}")))
+            @RequestBody(required = false) CancelarEventoRequest request) {
+        return eventoLifecycleService.cancelar(eventoId, request == null ? null : request.motivo(), userId, userRole);
     }
 
     @PutMapping("/{eventoId}/disponibilidad")

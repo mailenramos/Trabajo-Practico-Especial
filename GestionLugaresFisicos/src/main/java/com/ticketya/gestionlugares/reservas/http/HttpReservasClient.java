@@ -2,6 +2,7 @@ package com.ticketya.gestionlugares.reservas.http;
 
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -16,7 +17,7 @@ public class HttpReservasClient implements ReservasClient {
 
     private final RestClient restClient;
 
-    public HttpReservasClient(RestClient reservasRestClient) {
+    public HttpReservasClient(@Qualifier("reservasRestClient") RestClient reservasRestClient) {
         this.restClient = reservasRestClient;
     }
 

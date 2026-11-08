@@ -28,6 +28,7 @@ import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
+import com.ticketya.gestionlugares.compras.ComprasClient;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
@@ -40,6 +41,7 @@ class EventoLifecycleServiceTest {
 
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
+    @Mock private ComprasClient comprasClient;
     @Mock private EventoRepository eventoRepository;
     @Mock private LugarRepository lugarRepository;
 
@@ -47,7 +49,7 @@ class EventoLifecycleServiceTest {
 
     @BeforeEach
     void setUp() {
-        lifecycleService = new EventoLifecycleService(eventoService, reservasClient);
+        lifecycleService = new EventoLifecycleService(eventoService, reservasClient, comprasClient);
     }
 
     @Test
@@ -140,7 +142,8 @@ class EventoLifecycleServiceTest {
         lifecycleService.reactivarVenta(EVENTO_ID, "admin-1", "administrador");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
 
-        when(eventoService.cancelarLocal(EVENTO_ID)).thenReturn(evento);
+        when(eventoService.cancelarLocal(org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
+        when(eventoService.marcarAvisoCancelacionEntregado(EVENTO_ID)).thenReturn(evento);
         lifecycleService.cancelar(EVENTO_ID, "admin-1", "administrador");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
     }
@@ -188,7 +191,7 @@ class EventoLifecycleServiceTest {
         when(eventoRepository.save(any(Evento.class)))
                 .thenThrow(new OptimisticLockingFailureException("version desactualizada"));
         EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository);
-        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient);
+        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient, comprasClient);
 
         assertThrows(ConflictException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "administrador"));
@@ -206,10 +209,11 @@ class EventoLifecycleServiceTest {
         when(eventoRepository.findById(EVENTO_ID)).thenReturn(
                 java.util.Optional.of(leidoAlValidar),
                 java.util.Optional.of(leidoPorCallback),
+                java.util.Optional.of(leidoPorCallback),
                 java.util.Optional.of(leidoPorCallback));
         when(eventoRepository.save(any(Evento.class))).thenAnswer(invocation -> invocation.getArgument(0));
         EventoService realEventService = new EventoService(eventoRepository, lugarRepository);
-        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient);
+        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient, comprasClient);
         org.mockito.Mockito.doAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);
             return null;
@@ -218,7 +222,7 @@ class EventoLifecycleServiceTest {
         Evento result = concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "administrador");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        verify(eventoRepository, org.mockito.Mockito.times(2)).save(any(Evento.class));
+        verify(eventoRepository, org.mockito.Mockito.times(3)).save(any(Evento.class));
     }
 
     private static Evento draft() {

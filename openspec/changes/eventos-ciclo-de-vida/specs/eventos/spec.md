@@ -181,10 +181,25 @@ El servicio SHALL permitir solo a un administrador suspender o reactivar ventas 
 - **WHEN** Reservas devuelve error o no responde antes del cambio local
 - **THEN** el estado y `ventaSuspendida` no cambian y se responde `503 Service Unavailable`
 
-#### Scenario: Cancelar tras confirmación de Reservas y avisar a Compras
+#### Scenario: Cancelar tras confirmación de Reservas y notificar a Compras
 - **GIVEN** un evento `publicado` o `agotado`
 - **WHEN** un administrador lo cancela y Reservas confirma con `204`
-- **THEN** pasa a `cancelado`, se registra el aviso a Compras con motivo y fecha, y responde `200 OK`
+- **THEN** pasa a `cancelado`, se registra el aviso con motivo y `canceladoEn` UTC, se intenta notificar a Compras y el administrador recibe `200 OK`
+
+#### Scenario: Cancelar con motivo omitido
+- **GIVEN** un evento `publicado` o `agotado`
+- **WHEN** un administrador cancela sin body o sin el campo `motivo` y Reservas confirma con `204`
+- **THEN** se usa un motivo por defecto, se registra el instante UTC de cancelación, y el evento queda `cancelado` con respuesta `200 OK`
+
+#### Scenario: Compras acepta el aviso de cancelación
+- **GIVEN** Reservas confirmó la cancelación y el evento local ya está `cancelado`
+- **WHEN** Compras responde `202 Accepted` al aviso
+- **THEN** el aviso queda registrado como entregado y el administrador recibe `200 OK`
+
+#### Scenario: Compras ya procesó el aviso de cancelación
+- **GIVEN** Reservas confirmó la cancelación y el evento local ya está `cancelado`
+- **WHEN** Compras responde `200 OK` porque ya procesó el aviso
+- **THEN** el aviso queda registrado como entregado y no se vuelve a reenviar
 
 #### Scenario: No cancelar si Reservas falla
 - **GIVEN** un evento `publicado` o `agotado`
@@ -193,8 +208,13 @@ El servicio SHALL permitir solo a un administrador suspender o reactivar ventas 
 
 #### Scenario: Compras no responde al aviso de cancelación
 - **GIVEN** un evento cancelado luego de la confirmación de Reservas
-- **WHEN** Compras no responde al aviso
-- **THEN** el evento sigue cancelado y el aviso queda pendiente para reenvío
+- **WHEN** Compras falla, no responde o devuelve un error al aviso
+- **THEN** la cancelación sigue hecha, el administrador recibe `200 OK` y el aviso queda persistido como pendiente de reenvío
+
+#### Scenario: Reenviar aviso de cancelación pendiente
+- **GIVEN** un aviso de cancelación persistido como pendiente
+- **WHEN** el proceso programado lo reenvía y Compras responde `202` o `200`
+- **THEN** el aviso queda registrado como entregado y no se vuelve a enviar
 
 #### Scenario: Rechazar cancelación de evento finalizado o cancelado
 - **GIVEN** un evento `finalizado` o `cancelado`
@@ -254,12 +274,17 @@ El servicio SHALL ofrecer a Compras una consulta interna independiente del detal
 
 #### Scenario: Compras consulta evento existente
 - **GIVEN** un evento existente en cualquier estado
-- **WHEN** Compras consulta `GET /internal/eventos/{eventoId}`
-- **THEN** responde `200 OK` con `eventoId`, `nombre`, `fechaInicio` en ISO-8601 UTC, `estado` y sectores con `sectorId`, nombre y precio decimal
+- **WHEN** Compras consulta `GET /internal/eventos/{eventoId}` sin headers de usuario
+- **THEN** responde `200 OK` con `eventoId`, `nombre`, `fechaInicio` en ISO-8601 UTC, `estado` en minúsculas y sectores con `sectorId`, nombre y precio decimal, cualquiera sea el estado del evento
+
+#### Scenario: Consulta interna de borrador con precio aún no definido
+- **GIVEN** un evento en `borrador` con uno o más sectores sin precio
+- **WHEN** Compras consulta `GET /internal/eventos/{eventoId}` sin headers de usuario
+- **THEN** responde `200 OK` y el precio de cada sector todavía no configurado es `null`
 
 #### Scenario: Compras consulta evento inexistente
 - **GIVEN** un identificador de evento que no existe
-- **WHEN** Compras consulta la ruta interna
+- **WHEN** Compras consulta `GET /internal/eventos/{eventoId}` sin headers de usuario
 - **THEN** responde `404 Not Found`
 
 ### Requirement: Mantener estados y formato de errores acordados

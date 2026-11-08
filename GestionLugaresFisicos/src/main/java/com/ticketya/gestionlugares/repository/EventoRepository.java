@@ -13,4 +13,5 @@ public interface EventoRepository extends MongoRepository<Evento, String> {
     List<Evento> findByEstadoAndFechaHoraBefore(EstadoEvento estado, Instant fechaHora);
     List<Evento> findByEstadoInAndFechaHoraBefore(List<EstadoEvento> estados, Instant fechaHora);
     List<Evento> findByCiudadAndEstadoAndFechaHoraAfter(String ciudad, EstadoEvento estado, Instant fechaHora);
+    List<Evento> findByAvisoCancelacionPendienteTrue();
 }

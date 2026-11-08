@@ -7,7 +7,7 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 - JDK 21 o superior.
 - Maven 3.9 o superior.
 - Docker Desktop con Docker Compose para MongoDB y las pruebas de integración.
-- Node.js (opcional, solo para simular Reservas desde Postman).
+- Node.js (opcional, para simular Reservas o Compras desde Postman).
 
 ## Levantar MongoDB y el servicio
 
@@ -45,7 +45,7 @@ docker compose down
 
 ## Endpoints
 
-El servicio local usa `http://localhost:8081` por defecto. Todas las rutas requieren `X-User-Id` junto con el rol indicado, salvo el callback interno de disponibilidad. Los valores canónicos de rol son `administrador` y `organizador`; el código recorta espacios externos y compara sin distinguir mayúsculas.
+El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas requieren `X-User-Id` junto con el rol indicado; los endpoints internos de callback y consulta entre servicios no exigen headers de usuario. Los valores canónicos de rol son `administrador` y `organizador`; el código recorta espacios externos y compara sin distinguir mayúsculas.
 
 | Método | Ruta | Rol requerido | Descripción |
 |---|---|---|---|
@@ -60,8 +60,9 @@ El servicio local usa `http://localhost:8081` por defecto. Todas las rutas requi
 | PUT | `/eventos/{eventoId}/publicar` | Organizador dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
 | PUT | `/eventos/{eventoId}/venta/suspender` | `administrador` | Suspende la venta sin crear un estado formal nuevo. |
 | PUT | `/eventos/{eventoId}/venta/reactivar` | `administrador` | Reactiva la venta. |
-| PUT | `/eventos/{eventoId}/cancelar` | `administrador` | Cancela el evento después de confirmarlo con Reservas. |
+| PUT | `/eventos/{eventoId}/cancelar` | `administrador` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Role`; no debe exponerse por el API Gateway. |
+| GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
 Las rutas de gestión de eventos y lugares devuelven errores controlados con `timestamp`, `status`, `error` y `mensaje`; `campos` se incluye como lista de `{campo, mensaje}` cuando corresponde.
 
@@ -85,9 +86,14 @@ Reservas llama a este servicio mediante el callback `PUT /eventos/{eventoId}/dis
 
 Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender, reactivar o cancelar, el servicio responde `503` y no cambia el estado local; la operación se puede reintentar.
 
-### Compras — contrato pendiente de confirmación
+### Compras — contrato confirmado
 
-La integración con Compras y Devoluciones está pendiente de confirmación y todavía no está implementada.
+Contrato confirmado con Compras y Devoluciones. URL base configurable con `compras.base-url` (default `http://localhost:8083`); timeouts: `compras.connect-timeout` (2 s) y `compras.read-timeout` (5 s).
+
+- **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
+- **Aviso de cancelación:** este servicio llama `POST /eventos-cancelados` después de que Reservas confirmó la cancelación y el evento local quedó cancelado. `202` y `200` se consideran éxito. Si Compras no responde o devuelve error, la cancelación permanece hecha y el administrador recibe `200`; el aviso queda guardado y se reenvía automáticamente cada `eventos.cancelacion.reenvio-interval` (default `60s`).
+
+El GET interno es una ruta directa entre servicios: no exige `X-User-Id` ni `X-User-Role` y no se publica por el Gateway. Los errores remotos del aviso no revierten la cancelación.
 
 ## Puertos
 
@@ -95,7 +101,7 @@ Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). 
 
 ## Variables de entorno y comandos
 
-`application.yml` y `ReservasProperties` definen estos nombres y defaults:
+`application.yml` y las clases de propiedades de los clientes definen estos nombres y defaults:
 
 | Variable de entorno | Propiedad | Default |
 |---|---|---|
@@ -104,7 +110,11 @@ Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). 
 | `RESERVAS_BASE_URL` | `reservas.base-url` | `http://localhost:8080` |
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
+| `COMPRAS_BASE_URL` | `compras.base-url` | `http://localhost:8083` |
+| `COMPRAS_CONNECT_TIMEOUT` | `compras.connect-timeout` | `2s` |
+| `COMPRAS_READ_TIMEOUT` | `compras.read-timeout` | `5s` |
 | `EVENTOS_FINALIZACION_INTERVAL` | `eventos.finalizacion.interval` | `60s` |
+| `EVENTOS_CANCELACION_REENVIO_INTERVAL` | `eventos.cancelacion.reenvio-interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `dev` (perfil predeterminado) |
 
 Ejemplos para configurar variables e iniciar el servicio desde la carpeta `GestionLugaresFisicos`:
@@ -117,7 +127,11 @@ $env:MONGODB_URI = "mongodb://localhost:27017/ticketya_lugares"
 $env:RESERVAS_BASE_URL = "http://localhost:8080"
 $env:RESERVAS_CONNECT_TIMEOUT = "2s"
 $env:RESERVAS_READ_TIMEOUT = "5s"
+$env:COMPRAS_BASE_URL = "http://localhost:8083"
+$env:COMPRAS_CONNECT_TIMEOUT = "2s"
+$env:COMPRAS_READ_TIMEOUT = "5s"
 $env:EVENTOS_FINALIZACION_INTERVAL = "60s"
+$env:EVENTOS_CANCELACION_REENVIO_INTERVAL = "60s"
 $env:SPRING_PROFILES_ACTIVE = "dev"
 mvn spring-boot:run
 ```
@@ -130,7 +144,11 @@ set MONGODB_URI=mongodb://localhost:27017/ticketya_lugares
 set RESERVAS_BASE_URL=http://localhost:8080
 set RESERVAS_CONNECT_TIMEOUT=2s
 set RESERVAS_READ_TIMEOUT=5s
+set COMPRAS_BASE_URL=http://localhost:8083
+set COMPRAS_CONNECT_TIMEOUT=2s
+set COMPRAS_READ_TIMEOUT=5s
 set EVENTOS_FINALIZACION_INTERVAL=60s
+set EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
 set SPRING_PROFILES_ACTIVE=dev
 mvn spring-boot:run
 ```
@@ -143,7 +161,11 @@ export MONGODB_URI=mongodb://localhost:27017/ticketya_lugares
 export RESERVAS_BASE_URL=http://localhost:8080
 export RESERVAS_CONNECT_TIMEOUT=2s
 export RESERVAS_READ_TIMEOUT=5s
+export COMPRAS_BASE_URL=http://localhost:8083
+export COMPRAS_CONNECT_TIMEOUT=2s
+export COMPRAS_READ_TIMEOUT=5s
 export EVENTOS_FINALIZACION_INTERVAL=60s
+export EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
 export SPRING_PROFILES_ACTIVE=dev
 mvn spring-boot:run
 ```
@@ -155,10 +177,30 @@ En `postman/` están las dos colecciones:
 - `TicketYa-Lugares.postman_collection.json`: pruebas de lugares y sectores.
 - `TicketYa-Eventos.postman_collection.json`: pruebas de eventos e integración con Reservas.
 
-Para el flujo de eventos, ejecutá primero la carpeta **00 Preparación**. La carpeta **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. Después elegí uno de estos escenarios y corrélos por separado:
+Para el flujo de eventos, ejecutá primero **00 Preparación**. La carpeta **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. La carpeta **08 GET interno para Compras** se puede ejecutar después de la preparación y no depende de los servicios externos.
+
+Las carpetas de aviso de cancelación se ejecutan en este orden y con estos servicios:
+
+1. **09 [Reservas y Compras ENCENDIDOS]** requiere ambos servicios respondiendo en `localhost:8080` y `localhost:8083`.
+2. **10 [Reservas ENCENDIDO, Compras APAGADO]** requiere Reservas respondiendo en `localhost:8080` y que Compras no esté disponible en `localhost:8083`.
+3. **11 [Correr después de la 10]** se ejecuta después de volver a encender Compras en `localhost:8083` y esperar el siguiente ciclo de reenvío, hasta `eventos.cancelacion.reenvio-interval` (60 s por defecto).
+
+Las carpetas **09 y 10 son excluyentes**: usan escenarios de cancelación separados. La 11 completa el caso de aviso pendiente creado en la 10.
+
+Para simular Compras, desde `GestionLugaresFisicos` ejecutá en otra terminal:
+
+```sh
+node postman/compras-stub.js
+```
+
+El stub escucha en `localhost:8083` por defecto (`PORT` permite cambiarlo), imprime y registra los avisos recibidos. Devuelve `202` al aceptar uno nuevo y `200` cuando ya lo procesó. Permite consultar los avisos con `GET /_stub/avisos`. Requiere Node.js.
+
+Para los escenarios anteriores que prueban publicación y fallas de Reservas, ejecutá **06** o **07** por separado:
 
 - **06 [Reservas ENCENDIDO]** necesita Reservas respondiendo en `localhost:8080`.
 - **07 [Reservas APAGADO]** requiere que no haya ningún proceso escuchando en el puerto `8080`.
+
+Las carpetas **06 y 07 también son excluyentes**.
 
 Para simular Reservas en local, desde la carpeta `GestionLugaresFisicos` ejecutá en otra terminal:
 
@@ -166,7 +208,7 @@ Para simular Reservas en local, desde la carpeta `GestionLugaresFisicos` ejecut�
 node postman/reservas-stub.js
 ```
 
-El stub escucha en el puerto `8080` por defecto (`PORT` permite cambiarlo), imprime los pedidos recibidos y valida el formato de las rutas y los cuerpos de Reservas. Requiere Node.js.
+El stub de Reservas escucha en el puerto `8080` por defecto (`PORT` permite cambiarlo), imprime los pedidos recibidos y valida el formato de las rutas y los cuerpos de Reservas. Requiere Node.js.
 
 ## Ejecutar las pruebas automatizadas
 

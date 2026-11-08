@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -36,7 +37,7 @@ import com.ticketya.gestionlugares.service.ConflictException;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 
-@WebMvcTest(EventoController.class)
+@WebMvcTest({EventoController.class, EventoInternoController.class})
 @Import(ApiExceptionHandler.class)
 class EventoControllerTest {
 
@@ -255,6 +256,55 @@ class EventoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"agotado\":false}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void consultaInternaDeComprasNoExigeHeadersYDevuelveCualquierEstadoConPreciosNulos() throws Exception {
+        Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", "Festival", "Descripción",
+                "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4,
+                List.of(new com.ticketya.gestionlugares.domain.EventoSector("sector-1", "Platea",
+                        com.ticketya.gestionlugares.domain.TipoSector.NUMERADO, 1, 2, null, null)));
+        evento.setEstado(EstadoEvento.CANCELADO);
+        evento.setId("evento-1");
+        when(eventoService.buscarEvento("evento-1")).thenReturn(evento);
+
+        mockMvc.perform(get("/internal/eventos/evento-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("cancelado"))
+                .andExpect(jsonPath("$.fechaInicio").value("2027-01-01T00:00:00Z"))
+                .andExpect(jsonPath("$.sectores[0].precio").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void consultaInternaResponde404SiElEventoNoExiste() throws Exception {
+        when(eventoService.buscarEvento("missing"))
+                .thenThrow(new ResourceNotFoundException("No existe el evento missing"));
+
+        mockMvc.perform(get("/internal/eventos/missing"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.mensaje").value("No existe el evento missing"));
+    }
+
+    @Test
+    void cancelarAceptaBodyOMotivoOpcionales() throws Exception {
+        Evento cancelado = Evento.borrador("org-1", "lugar-1", "CABA", "Festival", "Descripción",
+                "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
+        cancelado.setEstado(EstadoEvento.CANCELADO);
+        when(eventoLifecycleService.cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("administrador")))
+                .thenReturn(cancelado);
+
+        mockMvc.perform(put("/eventos/evento-1/cancelar")
+                        .header("X-User-Id", "admin-1").header("X-User-Role", "administrador"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("cancelado"));
+
+        mockMvc.perform(put("/eventos/evento-1/cancelar")
+                        .header("X-User-Id", "admin-1").header("X-User-Role", "administrador")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        verify(eventoLifecycleService, org.mockito.Mockito.times(2))
+                .cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("administrador"));
     }
 
     @Test

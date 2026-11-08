@@ -23,10 +23,12 @@
 - [x] 2.6 Documentar el contrato de consulta `GET /disponibilidad/eventos/{eventoId}` para el futuro detalle US-3.3 sin implementarlo en este cambio; verificar que se conserva la decisión de responder disponibilidad `null` si Reservas falla.
 - [x] 2.7 Probar integración de estados y concurrencia con cliente HTTP simulado, incluidos callback de agotado concurrente con cancelación y fallos/timeout de Reservas; verificar que no se publica ni cambia estado local sin confirmación remota.
 
-## 3. (B) Compras — pendiente de confirmar con el equipo
+## 3. (B) Compras — confirmado
 
-- [ ] 3.1 Confirmar ruta/cuerpo/respuestas de `GET /internal/eventos/{eventoId}`, contrato de `POST /eventos-cancelados`, puerto de Compras e idempotencia del aviso; registrar el acuerdo antes de implementar los endpoints/clientes.
-- [ ] 3.2 Crear interfaz `ComprasClient` y adaptador HTTP con `compras.base-url` y timeouts configurables; verificar serialización decimal/fecha y respuestas con un cliente simulado.
-- [ ] 3.3 Implementar la consulta interna del evento para Compras con cualquier estado, `fechaInicio` ISO-8601 UTC y sectores con nombre/precio; mantenerla fuera del Gateway y sin headers de usuario; verificar `200` y `404`.
-- [ ] 3.4 Persistir en el evento cancelado el aviso pendiente a Compras y reintentar cuando no responda, sin revertir la cancelación; verificar fallo, reenvío y no duplicación con cliente simulado.
-- [ ] 3.5 Ejecutar pruebas de integración del contrato de Compras con cliente simulado, incluyendo fecha UTC, precios decimales y aviso de cancelación idempotente; verificar que errores remotos no alteran el estado cancelado.
+- [x] 3.1 Crear interfaz `ComprasClient` y adaptador HTTP para `compras.base-url` (default `http://localhost:8083`), `compras.connect-timeout` (2 s) y `compras.read-timeout` (5 s); verificar rutas, serialización decimal/fecha, respuestas `200`/`202` y errores con un cliente simulado.
+- [x] 3.2 Implementar `GET /internal/eventos/{eventoId}` sin headers de usuario ni Gateway; devolver cualquier estado en minúsculas, `fechaInicio` ISO-8601 UTC y sectores con nombre/precio decimal o `null`; verificar `200` para distintos estados y `404` si no existe.
+- [x] 3.3 Permitir que `PUT /eventos/{eventoId}/cancelar` acepte body opcional y `motivo` opcional; aplicar un motivo por defecto y registrar `canceladoEn` como instante UTC. Verificar body omitido, motivo omitido y motivo provisto.
+- [x] 3.4 Persistir junto al evento cancelado el estado de entrega del aviso pendiente, el motivo y `canceladoEn`; verificar persistencia y que una cancelación que ya estaba hecha no genere un segundo aviso y conserve `409`.
+- [x] 3.5 Enviar `POST /eventos-cancelados` después de la confirmación de Reservas y de guardar el estado local `cancelado`; tratar `202` y `200` como éxito. Ante timeout, caída o error remoto, conservar la cancelación, responder `200` al administrador y dejar el aviso pendiente.
+- [x] 3.6 Implementar el proceso programado de reenvío de avisos pendientes con intervalo configurable mediante `eventos.cancelacion.reenvio-interval` (default `60s`); marcar como entregado al recibir `200` o `202` y reintentar errores con seguridad idempotente.
+- [x] 3.7 Probar GET interno, aceptación inicial/repetida, fallo de Compras y reenvío posterior mediante clientes simulados; documentar rutas internas fuera del Gateway y los contratos confirmados.

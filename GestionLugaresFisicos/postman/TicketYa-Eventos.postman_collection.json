@@ -1,13 +1,17 @@
 {
   "info": {
     "name": "TicketYa - Eventos",
-    "description": "Casos de prueba del servicio de eventos. Carpetas 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado (no dependen de Reservas). 06: flujo completo con Reservas encendido. 07: falla de Reservas. Puerto por defecto: 8081. Las carpetas 06 y 07 son excluyentes: correrlas por separado.",
+    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras (encendido, apagado y reenvío). Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://localhost:8081"
+    },
+    {
+      "key": "comprasUrl",
+      "value": "http://localhost:8083"
     },
     {
       "key": "lugarId",
@@ -47,6 +51,22 @@
     },
     {
       "key": "eventoSinReservasId",
+      "value": ""
+    },
+    {
+      "key": "eventoCompraId",
+      "value": ""
+    },
+    {
+      "key": "eventoCancelaId",
+      "value": ""
+    },
+    {
+      "key": "eventoCancelaSinMotivoId",
+      "value": ""
+    },
+    {
+      "key": "eventoPendienteId",
       "value": ""
     }
   ],
@@ -5437,6 +5457,1416 @@
         }
       ],
       "description": "Requiere la carpeta 00 y que NO haya nada escuchando en localhost:8080. Parar el stub o el servicio de Reservas antes de correr esta carpeta, y correrla sola."
+    },
+    {
+      "name": "08 GET interno para Compras (GET /internal/eventos/{id})",
+      "item": [
+        {
+          "name": "CG00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoCompraId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CG01 Definir precio solo del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCompraId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCompraId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CG02 GET interno: borrador con un sector sin precio (precio null)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"Datos básicos del evento\", function () {",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoCompraId\"));",
+                  "  pm.expect(j.nombre).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(j.fechaInicio).to.match(/^\\d{4}-\\d{2}-\\d{2}T.*Z$/);",
+                  "  pm.expect(j.estado).to.eql(\"borrador\");",
+                  "});",
+                  "pm.test(\"Sectores con sectorId, nombre y precio\", function () {",
+                  "  pm.expect(j.sectores).to.be.an(\"array\").with.lengthOf(2);",
+                  "  j.sectores.forEach(function (s) {",
+                  "    pm.expect(s.sectorId).to.be.a(\"string\");",
+                  "    pm.expect(s.nombre).to.be.a(\"string\");",
+                  "    pm.expect(s).to.have.property(\"precio\");",
+                  "  });",
+                  "});",
+                  "var num = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"sectorNumeradoId\"); });",
+                  "var no = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"sectorNoNumeradoId\"); });",
+                  "pm.test(\"Precio del sector numerado\", function () { pm.expect(num.precio).to.eql(15000); });",
+                  "pm.test(\"Precio del sector no numerado\", function () { pm.expect(no.precio).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoCompraId}}"
+              ]
+            },
+            "description": "Compras llama sin headers de usuario. Contrato: eventoId, nombre, fechaInicio (UTC), estado y sectores con sectorId, nombre y precio."
+          }
+        },
+        {
+          "name": "CG03 Definir precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCompraId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCompraId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CG04 GET interno: ambos sectores con precio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"Datos básicos del evento\", function () {",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoCompraId\"));",
+                  "  pm.expect(j.nombre).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(j.fechaInicio).to.match(/^\\d{4}-\\d{2}-\\d{2}T.*Z$/);",
+                  "  pm.expect(j.estado).to.eql(\"borrador\");",
+                  "});",
+                  "pm.test(\"Sectores con sectorId, nombre y precio\", function () {",
+                  "  pm.expect(j.sectores).to.be.an(\"array\").with.lengthOf(2);",
+                  "  j.sectores.forEach(function (s) {",
+                  "    pm.expect(s.sectorId).to.be.a(\"string\");",
+                  "    pm.expect(s.nombre).to.be.a(\"string\");",
+                  "    pm.expect(s).to.have.property(\"precio\");",
+                  "  });",
+                  "});",
+                  "var num = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"sectorNumeradoId\"); });",
+                  "var no = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"sectorNoNumeradoId\"); });",
+                  "pm.test(\"Precio del sector numerado\", function () { pm.expect(num.precio).to.eql(15000); });",
+                  "pm.test(\"Precio del sector no numerado\", function () { pm.expect(no.precio).to.eql(8000); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoCompraId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CG05 GET interno con headers de usuario (se ignoran)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "cliente"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoCompraId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CG06 GET interno de evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "000000000000000000000000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CG07 GET interno con id mal formado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 400 o 404\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 404]); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "abc"
+              ]
+            },
+            "description": "Se aceptan 400 o 404. Anotá cuál devuelve."
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00. No depende de Reservas ni de Compras."
+    },
+    {
+      "name": "09 [Reservas y Compras ENCENDIDOS] Aviso de cancelación",
+      "item": [
+        {
+          "name": "CN00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoCancelaId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CN00b Precio del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CN00c Precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CN01 Publicar (Reservas encendido)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CN02 Cancelar con motivo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaId}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Problemas de seguridad en el recinto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CN03 Compras recibió el aviso con el motivo enviado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var avisos = pm.response.json();",
+                  "var id = pm.collectionVariables.get(\"eventoCancelaId\");",
+                  "var a = avisos.find(function (x) { return x.eventoId === id; });",
+                  "pm.test(\"Compras recibió el aviso del evento\", function () { pm.expect(a, \"no llegó ningún aviso para \" + id).to.not.be.undefined; });",
+                  "if (a) {",
+                  "  pm.test(\"canceladoEn es una fecha UTC\", function () { pm.expect(a.canceladoEn).to.match(/Z$/); });",
+                  "  pm.test(\"Motivo enviado\", function () { pm.expect(a.motivo).to.eql(\"Problemas de seguridad en el recinto\"); });",
+                  "  pm.test(\"Llegó una sola vez (sin avisos duplicados)\", function () { pm.expect(a.veces).to.eql(1); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{comprasUrl}}/_stub/avisos",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "avisos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CN04 Cancelar de nuevo (409, no se vuelve a avisar)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CN05 Compras sigue con un solo aviso de ese evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var avisos = pm.response.json();",
+                  "var id = pm.collectionVariables.get(\"eventoCancelaId\");",
+                  "var a = avisos.find(function (x) { return x.eventoId === id; });",
+                  "pm.test(\"Compras recibió el aviso del evento\", function () { pm.expect(a, \"no llegó ningún aviso para \" + id).to.not.be.undefined; });",
+                  "if (a) {",
+                  "  pm.test(\"canceladoEn es una fecha UTC\", function () { pm.expect(a.canceladoEn).to.match(/Z$/); });",
+                  "  pm.test(\"Motivo enviado\", function () { pm.expect(a.motivo).to.eql(\"Problemas de seguridad en el recinto\"); });",
+                  "  pm.test(\"Llegó una sola vez (sin avisos duplicados)\", function () { pm.expect(a.veces).to.eql(1); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{comprasUrl}}/_stub/avisos",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "avisos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CN06 GET interno de un evento cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado cancelado\", function () { pm.expect(j.estado).to.eql(\"cancelado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{eventoCancelaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoCancelaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CS00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoCancelaSinMotivoId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CS00b Precio del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaSinMotivoId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CS00c Precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaSinMotivoId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CS01 Publicar el segundo evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaSinMotivoId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CS02 Cancelar sin body (motivo por defecto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoCancelaSinMotivoId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CS03 Compras recibió el aviso con motivo por defecto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var avisos = pm.response.json();",
+                  "var id = pm.collectionVariables.get(\"eventoCancelaSinMotivoId\");",
+                  "var a = avisos.find(function (x) { return x.eventoId === id; });",
+                  "pm.test(\"Compras recibió el aviso del evento\", function () { pm.expect(a, \"no llegó ningún aviso para \" + id).to.not.be.undefined; });",
+                  "if (a) {",
+                  "  pm.test(\"canceladoEn es una fecha UTC\", function () { pm.expect(a.canceladoEn).to.match(/Z$/); });",
+                  "  pm.test(\"Motivo por defecto no vacío\", function () { pm.expect(a.motivo).to.be.a(\"string\").and.not.empty; });",
+                  "  pm.test(\"Llegó una sola vez (sin avisos duplicados)\", function () { pm.expect(a.veces).to.eql(1); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{comprasUrl}}/_stub/avisos",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "avisos"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00, un Reservas respondiendo en localhost:8080 (reservas-stub.js) y el simulador de Compras en localhost:8083 (compras-stub.js)."
+    },
+    {
+      "name": "10 [Reservas ENCENDIDO, Compras APAGADO] Aviso pendiente",
+      "item": [
+        {
+          "name": "CR00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoPendienteId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CR00b Precio del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPendienteId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CR00c Precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPendienteId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CR01 Publicar (Reservas encendido)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPendienteId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CR02 Cancelar con Compras apagado (la cancelación igual se hace)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPendienteId}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cancelado con Compras apagado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CR03 El evento quedó cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado cancelado\", function () { pm.expect(j.estado).to.eql(\"cancelado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{eventoPendienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoPendienteId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CR04 Cancelar de nuevo (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPendienteId}}",
+                "cancelar"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00, Reservas en localhost:8080 y NADA escuchando en el 8083. Después: encender compras-stub.js, esperar el reenvío (intervalo configurable) y correr la carpeta 11."
+    },
+    {
+      "name": "11 [Correr después de la 10] Reenvío del aviso pendiente",
+      "item": [
+        {
+          "name": "CR10 Compras recibió el aviso reenviado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var avisos = pm.response.json();",
+                  "var id = pm.collectionVariables.get(\"eventoPendienteId\");",
+                  "var a = avisos.find(function (x) { return x.eventoId === id; });",
+                  "pm.test(\"Compras recibió el aviso del evento\", function () { pm.expect(a, \"no llegó ningún aviso para \" + id).to.not.be.undefined; });",
+                  "if (a) {",
+                  "  pm.test(\"canceladoEn es una fecha UTC\", function () { pm.expect(a.canceladoEn).to.match(/Z$/); });",
+                  "  pm.test(\"Motivo enviado\", function () { pm.expect(a.motivo).to.eql(\"Cancelado con Compras apagado\"); });",
+                  "  pm.test(\"Llegó al menos una vez\", function () { pm.expect(a.veces).to.be.at.least(1); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{comprasUrl}}/_stub/avisos",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "avisos"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-stub.js y esperado el intervalo de reenvío."
     }
   ]
 }
