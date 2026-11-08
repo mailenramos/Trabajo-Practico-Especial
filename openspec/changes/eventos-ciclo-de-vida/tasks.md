@@ -15,13 +15,13 @@
 
 ## 2. (B) Reservas — contratos confirmados, listo para implementar
 
-- [ ] 2.1 Crear interfaz `ReservasClient` y adaptador HTTP con `reservas.base-url` (default `http://localhost:8080`), timeouts configurables y manejo JSON; verificar rutas, cuerpos y respuestas con un cliente simulado.
-- [ ] 2.2 Construir el PUT de inicialización con `limiteEntradasPorCliente`, sectores y asientos numerados derivados de filas × asientosPorFila, enviando `fila` como entero; verificar capacidad total, asientos y no persistencia de asientos con pruebas del cliente simulado.
-- [ ] 2.3 Integrar publicación: cambiar a publicado solo tras respuesta `204`; ante timeout, 5xx o `409`, mantener borrador y responder `503`; verificar reintento idempotente que recibe `204` sin duplicar disponibilidad mediante cliente simulado.
-- [ ] 2.4 Integrar suspensión, reactivación, cancelación y finalización llamando a Reservas antes de mutar el estado local; ante fallo, mantenerlo y responder `503`; verificar éxito, fallos y repetición idempotente de estado `204` con cliente simulado.
-- [ ] 2.5 Implementar callback directo `PUT /eventos/{eventoId}/disponibilidad`, sin headers de usuario ni ruta del Gateway; verificar `204` para cambios/duplicados/avisos tardíos cancelado-finalizado, `404` inexistente y `409` borrador.
-- [ ] 2.6 Documentar el contrato de consulta `GET /disponibilidad/eventos/{eventoId}` para el futuro detalle US-3.3 sin implementarlo en este cambio; verificar que se conserva la decisión de responder disponibilidad `null` si Reservas falla.
-- [ ] 2.7 Probar integración de estados y concurrencia con cliente HTTP simulado, incluidos callback de agotado concurrente con cancelación y fallos/timeout de Reservas; verificar que no se publica ni cambia estado local sin confirmación remota.
+- [x] 2.1 Crear interfaz `ReservasClient` y adaptador HTTP con `reservas.base-url` (default `http://localhost:8080`), timeouts configurables y manejo JSON; verificar rutas, cuerpos y respuestas con un cliente simulado.
+- [x] 2.2 Construir el PUT de inicialización con `limiteEntradasPorCliente`, sectores y asientos numerados derivados de filas × asientosPorFila, enviando `fila` como entero; verificar capacidad total, asientos y no persistencia de asientos con pruebas del cliente simulado.
+- [x] 2.3 Integrar publicación: cambiar a publicado solo tras respuesta `204`; ante timeout, 5xx o `409`, mantener borrador y responder `503`; verificar reintento idempotente que recibe `204` sin duplicar disponibilidad mediante cliente simulado.
+- [x] 2.4 Integrar suspensión, reactivación, cancelación y finalización llamando a Reservas antes de mutar el estado local; ante fallo, mantenerlo y responder `503`; verificar éxito, fallos y repetición idempotente de estado `204` con cliente simulado.
+- [x] 2.5 Implementar callback directo `PUT /eventos/{eventoId}/disponibilidad`, sin headers de usuario ni ruta del Gateway; verificar `204` para cambios/duplicados/avisos tardíos cancelado-finalizado, `404` inexistente y `409` borrador.
+- [x] 2.6 Documentar el contrato de consulta `GET /disponibilidad/eventos/{eventoId}` para el futuro detalle US-3.3 sin implementarlo en este cambio; verificar que se conserva la decisión de responder disponibilidad `null` si Reservas falla.
+- [x] 2.7 Probar integración de estados y concurrencia con cliente HTTP simulado, incluidos callback de agotado concurrente con cancelación y fallos/timeout de Reservas; verificar que no se publica ni cambia estado local sin confirmación remota.
 
 ## 3. (B) Compras — pendiente de confirmar con el equipo
 

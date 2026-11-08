@@ -32,6 +32,8 @@ import com.ticketya.gestionlugares.service.UnauthorizedException;
 @RestController
 @RequestMapping("/lugares")
 @Tag(name = "Lugares y sectores", description = "Registro y consulta de lugares físicos y sus sectores.")
+@ApiResponse(responseCode = "500", description = "Error interno",
+        content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
 public class LugarController {
 
     private final LugarService lugarService;
@@ -49,18 +51,18 @@ public class LugarController {
                                     {"id":"507f1f77bcf86cd799439011","nombre":"Teatro Central","direccion":"Av. Corrientes 1234","ciudad":"Buenos Aires","latitud":-34.6037,"longitud":-58.3816,"sectores":[],"version":0}
                                     """))),
             @ApiResponse(responseCode = "400", description = "Campos obligatorios vacíos o coordenadas fuera de rango",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(name = "Coordenada inválida", value = """
                                     {"timestamp":"2026-11-07T12:00:00Z","status":400,"error":"Bad Request","mensaje":"latitud: must be less than or equal to 90.0"}
                                     """))),
             @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
             @ApiResponse(responseCode = "403", description = "El rol no es administrador",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un administrador puede gestionar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "409", description = "Conflicto de persistencia",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":409,\"error\":\"Conflict\",\"mensaje\":\"El recurso cambió en paralelo; vuelva a intentar la operación\"}")))
     })
     public ResponseEntity<Lugar> crearLugar(
@@ -89,10 +91,10 @@ public class LugarController {
                     content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = Lugar.class)),
                             examples = @ExampleObject(name = "Lista vacía", value = "[]"))),
             @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
             @ApiResponse(responseCode = "403", description = "El rol no es organizador ni administrador",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}")))
     })
     public List<Lugar> listarLugares(
@@ -116,13 +118,13 @@ public class LugarController {
                                     {"id":"507f1f77bcf86cd799439011","nombre":"Teatro Central","direccion":"Av. Corrientes 1234","ciudad":"Buenos Aires","latitud":-34.6037,"longitud":-58.3816,"sectores":[{"id":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","tipo":"NUMERADO","filas":20,"asientosPorFila":30,"capacidad":null}],"version":0}
                                     """))),
             @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
             @ApiResponse(responseCode = "403", description = "El rol no es organizador ni administrador",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":404,\"error\":\"Not Found\",\"mensaje\":\"No existe el lugar 507f1f77bcf86cd799439011\"}")))
     })
     public Lugar obtenerLugar(
@@ -150,13 +152,13 @@ public class LugarController {
                                     [{"id":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","tipo":"NUMERADO","filas":20,"asientosPorFila":30,"capacidad":null}]
                                     """))),
             @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
             @ApiResponse(responseCode = "403", description = "El rol no es organizador ni administrador",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":404,\"error\":\"Not Found\",\"mensaje\":\"No existe el lugar 507f1f77bcf86cd799439011\"}")))
     })
     public List<Sector> listarSectores(
@@ -189,19 +191,19 @@ public class LugarController {
                                             """)
                             })),
             @ApiResponse(responseCode = "400", description = "Configuración inválida para el tipo de sector",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":400,\"error\":\"Bad Request\",\"mensaje\":\"Un sector numerado requiere filas y asientosPorFila positivos, sin capacidad\"}"))),
             @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
             @ApiResponse(responseCode = "403", description = "El rol no es administrador",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un administrador puede gestionar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":404,\"error\":\"Not Found\",\"mensaje\":\"No existe el lugar 507f1f77bcf86cd799439011\"}"))),
             @ApiResponse(responseCode = "409", description = "Conflicto de actualización concurrente o clave duplicada",
-                    content = @Content(schema = @Schema(implementation = ApiError.class),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":409,\"error\":\"Conflict\",\"mensaje\":\"El recurso cambió en paralelo; vuelva a intentar la operación\"}")))
     })
     public ResponseEntity<Sector> agregarSector(

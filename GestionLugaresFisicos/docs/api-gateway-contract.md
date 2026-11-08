@@ -1,129 +1,32 @@
-# Contrato para el API Gateway
+﻿# Contrato para el API Gateway
 
-Este servicio publica las rutas backend de la tabla. El Gateway debe enrutar las rutas públicas correspondientes a estos paths conservándolos al reenviar la solicitud. El prefijo público del Gateway no está definido en este repositorio.
+La tabla contiene todas las rutas públicas actuales de `GestionLugaresFisicos`. El Gateway debe exponer cada una (marcada **Sí**) y reenviar el path backend sin cambios al servicio. En local, el backend escucha en `http://localhost:8081` por defecto; `PORT` puede sobrescribirlo. El prefijo público del Gateway no está definido en este repositorio.
 
-El Gateway debe propagar `X-User-Id` y `X-User-Role` en todas las solicitudes y obtenerlos de la identidad autenticada del usuario. El microservicio aplica la autorización final.
+Para las rutas públicas, el Gateway obtiene la identidad del usuario autenticado y propaga `X-User-Id` y `X-User-Role`. El microservicio aplica la autorización final. Los roles se comparan sin distinguir mayúsculas y quitando espacios externos; los valores canónicos son `administrador` y `organizador`.
 
-| Método | Path backend | Headers | Body de solicitud | Respuestas esperadas |
-|---|---|---|---|---|
-| `POST` | `/lugares` | `X-User-Id` no vacío; `X-User-Role: administrador` | `CreateLugarRequest` (ejemplo debajo) | `201`, `400`, `401`, `403`, `409` |
-| `GET` | `/lugares` | `X-User-Id` no vacío; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403` |
-| `GET` | `/lugares/{id}` | `X-User-Id` no vacío; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403`, `404` |
-| `GET` | `/lugares/{id}/sectores` | `X-User-Id` no vacío; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403`, `404` |
-| `POST` | `/lugares/{id}/sectores` | `X-User-Id` no vacío; `X-User-Role: administrador` | `CreateSectorRequest` (uno de los ejemplos debajo) | `201`, `400`, `401`, `403`, `404`, `409` |
-| `POST` | `/eventos` | `X-User-Id` no vacío; `X-User-Role: organizador` | `CreateEventoRequest` | `201`, `400`, `401`, `403`, `404` |
-| `PUT` | `/eventos/{eventoId}/sectores/{sectorId}/precio` | `X-User-Id` no vacío; `X-User-Role: organizador` | `{"precio":15000.00}` | `200`, `400`, `401`, `403`, `404`, `409` |
-| `PUT` | `/eventos/{eventoId}/limite-entradas-por-cliente` | `X-User-Id` no vacío; `X-User-Role: organizador` | `{"limiteEntradasPorCliente":8}` | `200`, `400`, `401`, `403`, `404`, `409` |
+| Método | Path backend | Se publica por Gateway | Headers requeridos | Body | Respuestas esperadas |
+|---|---|---:|---|---|---|
+| `POST` | `/lugares` | Sí | `X-User-Id`; `X-User-Role: administrador` | Datos del lugar | `201`, `400`, `401`, `403`, `409`, `500` |
+| `GET` | `/lugares` | Sí | `X-User-Id`; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403`, `500` |
+| `GET` | `/lugares/{id}` | Sí | `X-User-Id`; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403`, `404`, `500` |
+| `GET` | `/lugares/{id}/sectores` | Sí | `X-User-Id`; rol `organizador` o `administrador` | Ninguno | `200`, `401`, `403`, `404`, `500` |
+| `POST` | `/lugares/{id}/sectores` | Sí | `X-User-Id`; `X-User-Role: administrador` | Datos del sector | `201`, `400`, `401`, `403`, `404`, `409`, `500` |
+| `POST` | `/eventos` | Sí | `X-User-Id`; `X-User-Role: organizador` | Datos del evento en borrador | `201`, `400`, `401`, `403`, `404`, `409`, `500` |
+| `PUT` | `/eventos/{eventoId}/sectores/{sectorId}/precio` | Sí | `X-User-Id`; organizador dueño | `{"precio":15000.00}` | `200`, `400`, `401`, `403`, `404`, `409`, `500` |
+| `PUT` | `/eventos/{eventoId}/limite-entradas-por-cliente` | Sí | `X-User-Id`; organizador dueño | `{"limiteEntradasPorCliente":8}` | `200`, `400`, `401`, `403`, `404`, `409`, `500` |
+| `PUT` | `/eventos/{eventoId}/publicar` | Sí | `X-User-Id`; organizador dueño | Ninguno | `200`, `400`, `401`, `403`, `404`, `409`, `503`, `500` |
+| `PUT` | `/eventos/{eventoId}/venta/suspender` | Sí | `X-User-Id`; `X-User-Role: administrador` | Ninguno | `200`, `401`, `403`, `404`, `409`, `503`, `500` |
+| `PUT` | `/eventos/{eventoId}/venta/reactivar` | Sí | `X-User-Id`; `X-User-Role: administrador` | Ninguno | `200`, `401`, `403`, `404`, `409`, `503`, `500` |
+| `PUT` | `/eventos/{eventoId}/cancelar` | Sí | `X-User-Id`; `X-User-Role: administrador` | Ninguno | `200`, `401`, `403`, `404`, `409`, `503`, `500` |
 
-Los valores de rol se comparan sin distinguir mayúsculas y minúsculas después de quitar espacios externos. Por ejemplo, ` Organizador ` equivale a `organizador`. Los roles `cliente` u otros roles reciben `403` en las consultas; los POST de gestión aceptan únicamente administrador. Headers ausentes o vacíos reciben `401`.
+Para requests con body, el Gateway conserva `Content-Type: application/json`. Las consultas de lugares aceptan los roles `organizador` y `administrador`; los POST de gestión de lugares/sectores requieren `administrador`. Crear, publicar y modificar precio/límite de eventos requiere el organizador dueño. Suspender, reactivar y cancelar requiere `administrador`. Headers ausentes o vacíos reciben `401`; un rol sin permiso recibe `403`.
 
-Los eventos se crean con estado `borrador`, asociando el usuario de `X-User-Id` como organizador. El límite por cliente es opcional al crear y vale 4 si se omite; solo se cambia durante el borrador. La fecha/hora de inicio debe ser futura. Los precios son decimales mayores o iguales a cero y solo se asignan a sectores del lugar del evento mientras está en borrador.
+Al crear un evento, `limiteEntradasPorCliente` es opcional y vale `4` por defecto. `fechaHora` debe ser futura. Los precios son decimales mayores o iguales a cero y solo se asignan a sectores del lugar del evento mientras está en borrador. La API serializa los estados como `borrador`, `publicado`, `agotado`, `cancelado` y `finalizado`.
 
-## Ejemplos de solicitud
+## Rutas internas excluidas del Gateway
 
-### Registrar lugar
+`PUT /eventos/{eventoId}/disponibilidad` es un callback interno que **no se publica** por el Gateway. Reservas lo llama directamente con `{"agotado":true}` o `{"agotado":false}`; no exige `X-User-Id` ni `X-User-Role`. Responde `204` al aplicar el aviso, si es duplicado o si llega tarde para un evento cancelado/finalizado; `404` si no existe el evento y `409` si sigue en borrador.
 
-```http
-POST /lugares
-X-User-Id: admin-1
-X-User-Role: administrador
-Content-Type: application/json
-```
+Tampoco se publican rutas internas bajo `/internal/` ni las llamadas salientes de Eventos a Reservas o Compras. En la Entrega 1, la comunicación entre microservicios es directa y sin autenticación entre servicios. La integración con Compras todavía está pendiente de confirmación y no está implementada.
 
-```json
-{
-  "nombre": "Teatro Central",
-  "direccion": "Av. Corrientes 1234",
-  "ciudad": "Buenos Aires",
-  "latitud": -34.6037,
-  "longitud": -58.3816
-}
-```
-
-### Agregar sector numerado
-
-```http
-POST /lugares/507f1f77bcf86cd799439011/sectores
-X-User-Id: admin-1
-X-User-Role: administrador
-Content-Type: application/json
-```
-
-```json
-{
-  "nombre": "Platea",
-  "tipo": "NUMERADO",
-  "filas": 20,
-  "asientosPorFila": 30
-}
-```
-
-### Agregar sector no numerado
-
-```json
-{
-  "nombre": "Campo",
-  "tipo": "NO_NUMERADO",
-  "capacidad": 500
-}
-```
-
-### Crear evento en borrador
-
-```http
-POST /eventos
-X-User-Id: organizador-1
-X-User-Role: organizador
-Content-Type: application/json
-```
-
-```json
-{
-  "nombre": "Festival Central",
-  "descripcion": "Música en vivo",
-  "tipo": "MUSICA",
-  "participantes": ["Artista A", "Artista B"],
-  "fechaHora": "2027-05-16T00:00:00Z",
-  "lugarId": "507f1f77bcf86cd799439011"
-}
-```
-
-### Definir precio y límite durante el borrador
-
-```http
-PUT /eventos/672a1f77bcf86cd799439011/sectores/550e8400-e29b-41d4-a716-446655440000/precio
-X-User-Id: organizador-1
-X-User-Role: organizador
-Content-Type: application/json
-```
-
-```json
-{"precio":15000.00}
-```
-
-Para actualizar el límite, `PUT /eventos/{eventoId}/limite-entradas-por-cliente` recibe `{"limiteEntradasPorCliente":8}`. Si se omite el campo al crear el evento, se usa 4.
-
-## Respuestas y errores
-
-- `200 OK`: consulta correcta; las listas pueden estar vacías.
-- `201 Created`: lugar o sector creado; la respuesta JSON contiene el recurso y su ID.
-- `400 Bad Request`: cuerpo inválido, campos obligatorios vacíos, coordenadas fuera de rango o configuración incompatible con el tipo de sector.
-- `401 Unauthorized`: falta `X-User-Id` o `X-User-Role`, o su valor está vacío.
-- `403 Forbidden`: el rol no tiene permiso para la operación solicitada.
-- `404 Not Found`: el ID del lugar no existe.
-- `409 Conflict`: conflicto de clave o de actualización concurrente.
-
-Todos los errores controlados usan este formato común; `campos` aparece para errores de validación y se omite si no aplica:
-
-```json
-{
-  "timestamp": "2026-11-07T12:00:00Z",
-  "status": 404,
-  "error": "Not Found",
-  "mensaje": "No existe el lugar 507f1f77bcf86cd799439011"
-}
-```
-
-Las rutas de integración con Reservas y Compras no se incluyen en el Gateway. Reservas y Compras se documentan por separado en `openspec/changes/eventos-ciclo-de-vida/design.md`.
-
-La especificación OpenAPI completa, con schemas, ejemplos y respuestas por endpoint, está disponible en `/v3/api-docs`; Swagger UI está en `/swagger-ui/index.html`.
+Los errores controlados usan `timestamp`, `status`, `error`, `mensaje` y, si corresponde, `campos` como lista de `{campo, mensaje}`. OpenAPI está disponible en `/v3/api-docs`; Swagger UI, en `/swagger-ui/index.html`.

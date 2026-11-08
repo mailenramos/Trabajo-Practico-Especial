@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.ticketya.gestionlugares.service.ConflictException;
 import com.ticketya.gestionlugares.service.ForbiddenException;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
+import com.ticketya.gestionlugares.service.ServiceUnavailableException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 
 @RestControllerAdvice
@@ -52,6 +53,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> manejarNoEncontrado(ResourceNotFoundException exception) {
         return error(HttpStatus.NOT_FOUND, exception.getMessage(), null);
+    }
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<ApiError> manejarServicioExternoNoDisponible(ServiceUnavailableException exception) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), null);
     }
 
     @ExceptionHandler({ConflictException.class, IllegalStateException.class,

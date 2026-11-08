@@ -174,6 +174,23 @@ class EventoServiceTest {
     }
 
     @Test
+    void disponibilidadEsIdempotenteYLosAvisosTardiosNoAlteranEstadoTerminal() {
+        Evento evento = eventoBorrador();
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoRepository.findById(EVENTO_ID)).thenReturn(Optional.of(evento));
+
+        assertEquals(EstadoEvento.AGOTADO, service.aplicarDisponibilidadLocal(EVENTO_ID, true).getEstado());
+        assertEquals(EstadoEvento.AGOTADO, service.aplicarDisponibilidadLocal(EVENTO_ID, true).getEstado());
+        assertEquals(EstadoEvento.PUBLICADO, service.aplicarDisponibilidadLocal(EVENTO_ID, false).getEstado());
+        assertEquals(EstadoEvento.PUBLICADO, service.aplicarDisponibilidadLocal(EVENTO_ID, false).getEstado());
+
+        evento.setEstado(EstadoEvento.CANCELADO);
+        assertEquals(EstadoEvento.CANCELADO, service.aplicarDisponibilidadLocal(EVENTO_ID, true).getEstado());
+        evento.setEstado(EstadoEvento.FINALIZADO);
+        assertEquals(EstadoEvento.FINALIZADO, service.aplicarDisponibilidadLocal(EVENTO_ID, false).getEstado());
+    }
+
+    @Test
     void convierteConflictoDeVersionMongoEnConflictoDeDominio() {
         Evento evento = eventoBorrador();
         evento.fijarPrecio("sector-uuid-1", BigDecimal.ONE);

@@ -8,6 +8,6 @@ import org.springframework.context.annotation.Configuration;
 @OpenAPIDefinition(info = @Info(
         title = "TicketYa - Gestión de lugares, sectores y eventos",
         version = "1.0.0",
-        description = "API para lugares, sectores y gestión inicial del ciclo de vida de eventos."))
+        description = "API para lugares y sectores, y para el ciclo de vida completo de eventos: creación en borrador, precios, límite por cliente, publicación con inicialización en Reservas, suspensión y reactivación de venta, cancelación y callback interno de disponibilidad."))
 public class OpenApiConfiguration {
 }

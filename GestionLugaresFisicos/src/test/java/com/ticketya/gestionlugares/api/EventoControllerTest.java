@@ -30,6 +30,9 @@ import org.mockito.ArgumentCaptor;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.service.EventoService;
+import com.ticketya.gestionlugares.service.EventoLifecycleService;
+import com.ticketya.gestionlugares.service.ServiceUnavailableException;
+import com.ticketya.gestionlugares.service.ConflictException;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 
@@ -39,6 +42,7 @@ class EventoControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private EventoService eventoService;
+    @MockBean private EventoLifecycleService eventoLifecycleService;
 
     @Test
     void creaEventoUsandoLimitePorDefectoYErrorComun() throws Exception {
@@ -213,6 +217,44 @@ class EventoControllerTest {
                 .andExpect(jsonPath("$.mensaje").value(
                         "El sector sector-ajeno no pertenece al lugar del evento"))
                 .andExpect(jsonPath("$.campos").doesNotExist());
+    }
+
+    @Test
+    void publicarDevuelve503EstandarSiReservasNoConfirma() throws Exception {
+        when(eventoLifecycleService.publicar(any(), any(), any()))
+                .thenThrow(new ServiceUnavailableException("Reservas no disponible", new RuntimeException()));
+        mockMvc.perform(put("/eventos/evento-1/publicar")
+                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.error").value("Service Unavailable"))
+                .andExpect(jsonPath("$.mensaje").value("Reservas no disponible"));
+    }
+
+    @Test
+    void callbackDeDisponibilidadNoRequiereHeadersYResponde204() throws Exception {
+        mockMvc.perform(put("/eventos/evento-1/disponibilidad")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"agotado\":true}"))
+                .andExpect(status().isNoContent());
+        verify(eventoLifecycleService).aplicarDisponibilidad("evento-1", true);
+    }
+
+    @Test
+    void callbackDeDisponibilidadResponde404SiEventoNoExisteY409SiEstaEnBorrador() throws Exception {
+        org.mockito.Mockito.doThrow(new ResourceNotFoundException("No existe el evento evento-1"))
+                .when(eventoLifecycleService).aplicarDisponibilidad("evento-1", true);
+        mockMvc.perform(put("/eventos/evento-1/disponibilidad")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"agotado\":true}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+
+        org.mockito.Mockito.doThrow(new ConflictException("El evento está en borrador"))
+                .when(eventoLifecycleService).aplicarDisponibilidad("evento-2", false);
+        mockMvc.perform(put("/eventos/evento-2/disponibilidad")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"agotado\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
     }
 
     @Test

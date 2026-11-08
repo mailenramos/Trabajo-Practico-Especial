@@ -13,3 +13,12 @@ spring:
 
 server:
   port: ${PORT:8081}
+
+reservas:
+  base-url: ${RESERVAS_BASE_URL:http://localhost:8080}
+  connect-timeout: ${RESERVAS_CONNECT_TIMEOUT:2s}
+  read-timeout: ${RESERVAS_READ_TIMEOUT:5s}
+
+eventos:
+  finalizacion:
+    interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}

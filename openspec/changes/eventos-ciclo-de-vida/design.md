@@ -115,6 +115,8 @@ Al cancelar, registrar `canceladoEn`, motivo y aviso pendiente en el documento d
 
 Configurar `server.port=${PORT:8081}` para evitar colisión con Reservas en `8080`. Configurar `reservas.base-url` con el valor por defecto indicado y `compras.base-url` según el puerto que confirme su equipo. Añadir propiedades explícitas para timeout de conexión y lectura por cliente; los valores iniciales deberán ajustarse al entorno local/de despliegue.
 
+Los timeouts del cliente de Reservas se configuran con `reservas.connect-timeout` (2 s por defecto) y `reservas.read-timeout` (5 s por defecto). Las operaciones de ciclo de vida se exponen como `PUT /eventos/{eventoId}/publicar`, `PUT /eventos/{eventoId}/venta/suspender`, `PUT /eventos/{eventoId}/venta/reactivar` y `PUT /eventos/{eventoId}/cancelar`. El callback `PUT /eventos/{eventoId}/disponibilidad` es interno, no requiere encabezados de usuario y queda fuera del Gateway.
+
 ## Risks / Trade-offs
 
 - [Compras aún no confirmó su consulta ni el aviso de cancelación] → aislar rutas y DTOs en `ComprasClient`; no exponer sus rutas en el Gateway.

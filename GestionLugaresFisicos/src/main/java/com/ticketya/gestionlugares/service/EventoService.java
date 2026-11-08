@@ -83,6 +83,19 @@ public class EventoService {
     }
 
     /** Invocado por la orquestación de publicación después de que Reservas confirme la inicialización. */
+    public Evento validarPublicacion(String eventoId, String userId, String userRole) {
+        Evento evento = buscarEvento(eventoId);
+        validarDuenoOrganizador(evento, userId, userRole);
+        if (evento.getEstado() != EstadoEvento.BORRADOR) {
+            throw new ConflictException("Solo se puede publicar un evento en borrador");
+        }
+        if (evento.getSectores().isEmpty()
+                || evento.getSectores().stream().anyMatch(sector -> sector.getPrecio() == null)) {
+            throw new IllegalArgumentException("Todos los sectores deben tener precio para publicar");
+        }
+        return evento;
+    }
+
     public Evento confirmarPublicacion(String eventoId, String userId, String userRole) {
         Evento evento = buscarEvento(eventoId);
         validarDuenoOrganizador(evento, userId, userRole);
@@ -119,6 +132,11 @@ public class EventoService {
         Evento evento = buscarEvento(eventoId);
         evento.aplicarDisponibilidad(agotado);
         return guardar(evento);
+    }
+
+    public List<Evento> buscarPendientesDeFinalizacion(Instant ahora) {
+        return eventoRepository.findByEstadoInAndFechaHoraBefore(
+                List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO), ahora);
     }
 
     private Evento guardar(Evento evento) {

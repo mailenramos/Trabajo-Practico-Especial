@@ -5,12 +5,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.ticketya.gestionlugares.repository.LugarRepository;
 
@@ -52,5 +55,67 @@ class OpenApiDocumentationTest {
     @Test
     void elPuertoPredeterminadoEs8081() {
         org.junit.jupiter.api.Assertions.assertEquals("8081", environment.getProperty("server.port"));
+    }
+
+    @Test
+    void documentaCicloDeEventosCallbacksErroresYEjemplos() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode api = new ObjectMapper().readTree(body);
+
+        assertTrue(api.path("info").path("description").asText().contains("publicación con inicialización en Reservas"));
+        JsonNode eventsTag = api.path("tags").findValues("name").isEmpty()
+                ? api.path("tags").get(0)
+                : java.util.stream.StreamSupport.stream(api.path("tags").spliterator(), false)
+                        .filter(tag -> tag.path("name").asText().equals("Eventos")).findFirst().orElseThrow();
+        assertTrue(eventsTag.path("description").asText().contains("callback interno de disponibilidad"));
+
+        JsonNode paths = api.path("paths");
+        assertEventErrors(paths.path("/lugares").path("post").path("responses"), "400", "401", "403", "409", "500");
+        assertEventErrors(paths.path("/lugares").path("get").path("responses"), "401", "403", "500");
+        assertEventErrors(paths.path("/lugares/{id}").path("get").path("responses"), "401", "403", "404", "500");
+        assertEventErrors(paths.path("/lugares/{id}/sectores").path("get").path("responses"), "401", "403", "404", "500");
+        assertEventErrors(paths.path("/lugares/{id}/sectores").path("post").path("responses"), "400", "401", "403", "404", "409", "500");
+        assertEventErrors(paths.path("/eventos").path("post").path("responses"), "400", "401", "403", "404", "409", "500");
+        assertEventErrors(paths.path("/eventos/{eventoId}/sectores/{sectorId}/precio").path("put").path("responses"),
+                "400", "401", "403", "404", "409", "500");
+        assertEventErrors(paths.path("/eventos/{eventoId}/limite-entradas-por-cliente").path("put").path("responses"),
+                "400", "401", "403", "404", "409", "500");
+
+        JsonNode publicationResponses = paths.path("/eventos/{eventoId}/publicar").path("put").path("responses");
+        assertEventErrors(publicationResponses, "400", "401", "403", "404", "409", "503", "500");
+        assertTrue(publicationResponses.path("200").path("content").path("application/json")
+                .path("examples").has("Evento publicado"));
+        for (String action : java.util.List.of("suspender", "reactivar")) {
+            JsonNode responses = paths.path("/eventos/{eventoId}/venta/" + action).path("put").path("responses");
+            assertEventErrors(responses, "401", "403", "404", "409", "503", "500");
+            assertTrue(responses.path("200").path("content").path("application/json").path("examples").size() > 0);
+        }
+        JsonNode cancellationResponses = paths.path("/eventos/{eventoId}/cancelar").path("put").path("responses");
+        assertEventErrors(cancellationResponses, "401", "403", "404", "409", "503", "500");
+        assertTrue(cancellationResponses.path("200").path("content").path("application/json")
+                .path("examples").has("Evento cancelado"));
+
+        JsonNode callback = paths.path("/eventos/{eventoId}/disponibilidad").path("put");
+        assertTrue(callback.path("description").asText().contains("No exige X-User-Id ni X-User-Role"));
+        assertTrue(callback.path("description").asText().contains("no se expone por el API Gateway"));
+        assertTrue(callback.path("requestBody").path("content").path("application/json")
+                .path("examples").has("Agotado"));
+        assertEventErrors(callback.path("responses"), "400", "404", "409", "500");
+
+        assertTrue(paths.path("/eventos").path("post").path("requestBody").path("content")
+                .path("application/json").path("examples").has("Evento en borrador"));
+        assertTrue(paths.path("/eventos/{eventoId}/sectores/{sectorId}/precio").path("put")
+                .path("requestBody").path("content").path("application/json").path("examples").has("Precio"));
+        assertTrue(paths.path("/eventos/{eventoId}/limite-entradas-por-cliente").path("put")
+                .path("requestBody").path("content").path("application/json").path("examples").has("Límite"));
+    }
+
+    private static void assertEventErrors(JsonNode responses, String... codes) {
+        for (String code : codes) {
+            JsonNode errorSchema = responses.path(code).path("content").path("application/json").path("schema");
+            assertTrue(!errorSchema.isMissingNode(), "Falta el schema de error para HTTP " + code);
+        }
     }
 }

@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TicketYa - Eventos (grupo A, sin integraciones)",
-    "description": "Casos de prueba de eventos que no dependen de otros servicios: crear en borrador, límite por cliente y precio por sector. Ejecutar en orden (la carpeta 00 crea los lugares y sectores, la 01 crea el evento). Puerto por defecto: 8081. Faltan los casos de publicar, suspender, cancelar y consultar, que todavía no están expuestos.",
+    "name": "TicketYa - Eventos",
+    "description": "Casos de prueba del servicio de eventos. Carpetas 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado (no dependen de Reservas). 06: flujo completo con Reservas encendido. 07: falla de Reservas. Puerto por defecto: 8081. Las carpetas 06 y 07 son excluyentes: correrlas por separado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -31,6 +31,22 @@
     },
     {
       "key": "eventoId",
+      "value": ""
+    },
+    {
+      "key": "eventoSinPreciosId",
+      "value": ""
+    },
+    {
+      "key": "eventoParcialId",
+      "value": ""
+    },
+    {
+      "key": "eventoPublicadoId",
+      "value": ""
+    },
+    {
+      "key": "eventoSinReservasId",
       "value": ""
     }
   ],
@@ -2913,6 +2929,2514 @@
         }
       ],
       "description": "Requiere la carpeta 00 (lugares y sectores). El primer request crea el evento que usa el resto."
+    },
+    {
+      "name": "05 Publicar y gestión: validaciones previas (no dependen de Reservas)",
+      "item": [
+        {
+          "name": "PB00 Crear evento sin precios",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoSinPreciosId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PB00b Crear evento para el caso de un solo precio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoParcialId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PB00c Definir precio solo en el sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoParcialId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoParcialId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PB01 Publicar sin ningún precio (rechazado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 400 o 409\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 409]); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "publicar"
+              ]
+            },
+            "description": "La spec pide un error que indique qué sectores faltan. Se aceptan 400 o 409; revisá que el mensaje nombre los sectores."
+          }
+        },
+        {
+          "name": "PB02 Publicar con un sector sin precio (rechazado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 400 o 409\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 409]); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoParcialId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoParcialId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB03 Publicar evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB04 Publicar evento de otro organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "99"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB05 Publicar con rol cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "cliente"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB06 Publicar con rol administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB07 Publicar sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SU01 Suspender un evento en borrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SU02 Suspender evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SU03 Suspender con rol organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SU04 Suspender con rol cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "cliente"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SU05 Suspender sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RE01 Reactivar un evento en borrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RE02 Reactivar evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RE03 Reactivar con rol organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RE04 Reactivar sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CA01 Cancelar un evento en borrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "cancelar"
+              ]
+            },
+            "description": "La spec habla de cancelar eventos publicados o agotados. Si devuelve 200, hay que decidir si se permite cancelar borradores."
+          }
+        },
+        {
+          "name": "CA02 Cancelar evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CA03 Cancelar con rol organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CA04 Cancelar con rol cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "cliente"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CA05 Cancelar sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "AG01 Agotado sobre un evento en borrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AG02 Agotado sobre evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AG03 Agotado: body sin el campo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AG04 Agotado: valor texto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": \"si\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AG05 Agotado: null",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AG06 Agotado: sin body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 400 o 415\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 415]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinPreciosId}}",
+                "disponibilidad"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00. Se puede correr con Reservas encendido o apagado: ninguna de estas validaciones llega a llamarlo."
+    },
+    {
+      "name": "06 [Reservas ENCENDIDO] Flujo completo",
+      "item": [
+        {
+          "name": "FL00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoPublicadoId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL00b Precio del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL00c Precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL01 Publicar (Reservas responde 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL02 Publicar de nuevo un evento ya publicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 200 o 409\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 409]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "publicar"
+              ]
+            },
+            "description": "Se aceptan 200 (idempotente) o 409. Anotá cuál devuelve."
+          }
+        },
+        {
+          "name": "FL03 Cambiar un precio con el evento publicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 20000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL04 Cambiar el límite con el evento publicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/limite-entradas-por-cliente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "limite-entradas-por-cliente"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL05 Suspender la venta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL06 Suspender de nuevo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 200 o 409\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 409]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL07 Reactivar la venta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL08 Reactivar con la venta ya activa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 200 o 409\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 409]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL09 Reservas avisa: agotado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL10 Reservas repite: agotado (idempotente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL11 Reservas avisa: vuelve a haber lugares",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL12 Cancelar el evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL13 Cancelar de nuevo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "cancelar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL14 Aviso tardío de agotado sobre evento cancelado (se ignora)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "FL15 Suspender un evento cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL16 Reactivar un evento cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "FL17 Publicar un evento cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}",
+                "publicar"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00 y un servicio de Reservas respondiendo en localhost:8080 (el real o reservas-stub.js). Correr esta carpeta sola, no junto con la 07."
+    },
+    {
+      "name": "07 [Reservas APAGADO] Falla de Reservas al publicar",
+      "item": [
+        {
+          "name": "SD00 Crear evento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"eventoSinReservasId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "SD00b Precio del sector numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinReservasId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "SD00c Precio del sector no numerado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNoNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinReservasId}}",
+                "sectores",
+                "{{sectorNoNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "SD01 Publicar con Reservas apagado (503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 503\", function () { pm.response.to.have.status(503); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinReservasId}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "SD02 El evento sigue en borrador (todavía se puede cambiar el precio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNumeradoId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinReservasId}}",
+                "sectores",
+                "{{sectorNumeradoId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 16000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "SD03 Reintentar la publicación (sigue 503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 503\", function () { pm.response.to.have.status(503); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "organizador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoSinReservasId}}",
+                "publicar"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 00 y que NO haya nada escuchando en localhost:8080. Parar el stub o el servicio de Reservas antes de correr esta carpeta, y correrla sola."
     }
   ]
 }
