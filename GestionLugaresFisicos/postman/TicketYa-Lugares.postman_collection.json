@@ -1,0 +1,728 @@
+{
+  "info": {
+    "name": "TicketYa - Lugares y sectores",
+    "description": "Casos de prueba del microservicio de gestión de lugares y sectores (cambio lugares-y-sectores). Ejecutar en orden: el request 01 guarda el id del lugar en la variable lugarId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "lugarId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Crear lugar válido",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+              "var json = pm.response.json();",
+              "pm.collectionVariables.set(\"lugarId\", json.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Teatro Central\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Guarda el id del lugar creado en la variable lugarId, que usan los requests siguientes."
+      }
+    },
+    {
+      "name": "02 Crear lugar con latitud fuera de rango",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Teatro Central\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": 95,\n  \"longitud\": -58.3816\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "03 Crear lugar sin nombre",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "04 Crear lugar con rol cliente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "2"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "cliente"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Teatro Central\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "05 Crear lugar sin headers de identificación",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Teatro Central\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "06 Agregar sector numerado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}",
+            "sectores"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 20,\n  \"asientosPorFila\": 30\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Requiere haber ejecutado antes el request 01 (usa la variable lugarId)."
+      }
+    },
+    {
+      "name": "07 Agregar sector no numerado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}",
+            "sectores"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "08 Sector no numerado con capacidad 0",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}",
+            "sectores"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Campo VIP\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "09 Sector numerado con filas 0",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}",
+            "sectores"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Palco\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 0,\n  \"asientosPorFila\": 10\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "10 Agregar sector a un lugar inexistente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/000000000000000000000000/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "000000000000000000000000",
+            "sectores"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "11 Listar lugares",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12 Consultar lugar por id",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "13 Consultar lugar inexistente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/000000000000000000000000",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "000000000000000000000000"
+          ]
+        }
+      }
+    },
+    {
+      "name": "14 Listar sectores de un lugar",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "1"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "administrador"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares",
+            "{{lugarId}}",
+            "sectores"
+          ]
+        }
+      }
+    },
+    {
+      "name": "15 [Pendiente tarea 4.1] Listar lugares con rol cliente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "2"
+          },
+          {
+            "key": "X-User-Role",
+            "value": "cliente"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "description": "La spec exige 403 para clientes. Hoy el código devuelve 200; este request falla hasta implementar la tarea 4.1."
+      }
+    },
+    {
+      "name": "16 [Pendiente tarea 4.1] Listar lugares sin headers",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/lugares",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "lugares"
+          ]
+        },
+        "description": "La spec exige 401 sin identificación. Hoy el código devuelve 200; falla hasta implementar la tarea 4.1."
+      }
+    }
+  ]
+}

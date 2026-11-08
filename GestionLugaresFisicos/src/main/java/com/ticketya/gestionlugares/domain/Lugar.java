@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bson.types.ObjectId;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -12,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "lugares")
 @CompoundIndex(name = "idx_lugares_ciudad_nombre", def = "{'ciudad': 1, 'nombre': 1}")
+@Schema(description = "Lugar físico con sus sectores embebidos.")
 public class Lugar {
 
     @Id

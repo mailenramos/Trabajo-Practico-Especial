@@ -1,10 +1,9 @@
-# Spec Delta
+# lugares-y-sectores Specification
 
 ## Purpose
-
 Esta capacidad define el registro, la configuración y la consulta de lugares físicos y sus sectores en TicketYa. Establece validaciones de datos, acceso administrativo a las operaciones de gestión y respuestas HTTP observables.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Registrar lugares con datos válidos
 El servicio SHALL permitir registrar un lugar con nombre, dirección, latitud y longitud. El nombre y la dirección SHALL contener texto no vacío; la latitud SHALL estar entre -90 y 90 inclusive y la longitud entre -180 y 180 inclusive.
@@ -81,19 +80,29 @@ El servicio SHALL permitir que un administrador agregue a un lugar existente un 
 - **THEN** responde `401 Unauthorized` si falta `X-User-Id` o `X-User-Role`, o `403 Forbidden` si el rol autenticado no es administrador, y no crea el sector
 
 ### Requirement: Consultar lugares y sectores
-El servicio SHALL permitir consultar los lugares registrados y el detalle de un lugar con sus sectores y la configuración correspondiente. La consulta SHALL responder `404 Not Found` cuando el identificador del lugar no exista.
+El servicio SHALL permitir que usuarios con rol `organizador` o `administrador` consulten los lugares registrados y el detalle de un lugar con sus sectores y la configuración correspondiente. La solicitud SHALL incluir `X-User-Id` y `X-User-Role`; si falta alguno responderá `401 Unauthorized`, y si el rol es `cliente` responderá `403 Forbidden`. La consulta SHALL responder `404 Not Found` cuando el identificador del lugar no exista.
 
 #### Scenario: Consultar colección de lugares
-- **GIVEN** que existen cero o más lugares registrados
+- **GIVEN** que existen cero o más lugares registrados y la solicitud tiene identidad de organizador o administrador
 - **WHEN** un consumidor consulta los lugares
 - **THEN** el servicio responde `200 OK` con la colección de lugares, que puede estar vacía
 
 #### Scenario: Consultar lugar existente con sus sectores
-- **GIVEN** un lugar registrado con sus sectores
+- **GIVEN** un lugar registrado con sus sectores y la solicitud tiene identidad de organizador o administrador
 - **WHEN** un consumidor consulta el lugar por identificador
 - **THEN** el servicio responde `200 OK` con los datos del lugar, sus sectores y la configuración de asientos o capacidad de cada sector
 
 #### Scenario: Consultar lugar inexistente
-- **GIVEN** un identificador de lugar no registrado
+- **GIVEN** un identificador de lugar no registrado y la solicitud tiene identidad de organizador o administrador
 - **WHEN** un consumidor consulta el detalle del lugar o sus sectores
 - **THEN** el servicio responde `404 Not Found`
+
+#### Scenario: Rechazar consulta sin identidad
+- **GIVEN** una solicitud GET de lugares o sectores sin `X-User-Id` o sin `X-User-Role`
+- **WHEN** consulta la colección o un recurso
+- **THEN** el servicio responde `401 Unauthorized`
+
+#### Scenario: Rechazar consulta de un cliente
+- **GIVEN** una solicitud GET con `X-User-Id` y `X-User-Role: cliente`
+- **WHEN** consulta la colección de lugares o un lugar con sus sectores
+- **THEN** el servicio responde `403 Forbidden`

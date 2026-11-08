@@ -3,12 +3,13 @@ package com.ticketya.gestionlugares.api;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.Optional;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,7 +74,10 @@ class LugarControllerTest {
                         .content("""
                                 {"nombre":"Teatro","direccion":"Calle 1","latitud":91,"longitud":0}
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.campos[0].campo").value("latitud"));
     }
 
     @Test
@@ -113,8 +117,12 @@ class LugarControllerTest {
         when(lugarService.buscarLugar("507f1f77bcf86cd799439011"))
                 .thenThrow(new ResourceNotFoundException("No existe el lugar"));
 
-        mockMvc.perform(get("/lugares/507f1f77bcf86cd799439011"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/lugares/507f1f77bcf86cd799439011")
+                        .header("X-User-Id", "organizador-1")
+                        .header("X-User-Role", "organizador"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.mensaje").value("No existe el lugar"))
+                .andExpect(jsonPath("$.campos").doesNotExist());
     }
 
     @Test
@@ -130,5 +138,69 @@ class LugarControllerTest {
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":2,"asientosPorFila":5}
                                 """))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void rechazaTodosLosGetSinEncabezados() throws Exception {
+        for (String ruta : List.of("/lugares", "/lugares/507f1f77bcf86cd799439011",
+                "/lugares/507f1f77bcf86cd799439011/sectores")) {
+            mockMvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void rechazaTodosLosGetParaClientes() throws Exception {
+        for (String ruta : List.of("/lugares", "/lugares/507f1f77bcf86cd799439011",
+                "/lugares/507f1f77bcf86cd799439011/sectores")) {
+            mockMvc.perform(get(ruta)
+                            .header("X-User-Id", "cliente-1")
+                            .header("X-User-Role", "cliente"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void permiteTodosLosGetAOrganizadoresYAdministradores() throws Exception {
+        String id = "507f1f77bcf86cd799439011";
+        when(lugarService.listarLugares()).thenReturn(List.of());
+        when(lugarService.buscarLugar(id)).thenReturn(new Lugar(id, "Teatro", "Calle 1", null,
+                -34.0, -58.0, List.of()));
+        when(lugarService.listarSectores(id)).thenReturn(List.of());
+
+        for (String rol : List.of("organizador", "administrador")) {
+            for (String ruta : List.of("/lugares", "/lugares/" + id, "/lugares/" + id + "/sectores")) {
+                mockMvc.perform(get(ruta)
+                                .header("X-User-Id", rol + "-1")
+                                .header("X-User-Role", rol))
+                        .andExpect(status().isOk());
+            }
+        }
+    }
+
+    @Test
+    void listaVaciaResponde200ConColeccionVacia() throws Exception {
+        when(lugarService.listarLugares()).thenReturn(List.of());
+
+        mockMvc.perform(get("/lugares")
+                        .header("X-User-Id", "organizador-1")
+                        .header("X-User-Role", "organizador"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void agregarSectorAUnLugarInexistenteResponde404() throws Exception {
+        String id = "507f1f77bcf86cd799439011";
+        when(lugarService.agregarSector(eq(id), any()))
+                .thenThrow(new ResourceNotFoundException("No existe el lugar " + id));
+
+        mockMvc.perform(post("/lugares/" + id + "/sectores")
+                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Role", "administrador")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nombre":"Platea","tipo":"NUMERADO","filas":2,"asientosPorFila":5}
+                                """))
+                .andExpect(status().isNotFound());
     }
 }

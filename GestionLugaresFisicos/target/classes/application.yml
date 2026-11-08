@@ -1,4 +1,9 @@
 spring:
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+  profiles:
+    default: dev
   application:
     name: gestion-lugares
   data:
@@ -7,4 +12,4 @@ spring:
       auto-index-creation: true
 
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8081}
