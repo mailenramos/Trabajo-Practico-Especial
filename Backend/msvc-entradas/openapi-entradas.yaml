@@ -1,0 +1,338 @@
+openapi: 3.0.3
+info:
+  title: TicketYa - Gestión de entradas (Microservicio 5)
+  version: 1.1.0
+  description: |
+    Emite y administra las entradas con código QR correspondientes a compras confirmadas.
+    Los endpoints públicos requieren `X-User-Id`; los de `/internal` son para el servicio de
+    Compras y devoluciones. Estados: `VIGENTE` -> `EN_REINTEGRO` -> `DEVUELTA`.
+servers:
+  - url: http://localhost:8085
+    description: Ejecución local del microservicio
+tags:
+  - name: Entradas
+    description: Consultas del cliente vía API Gateway
+  - name: Interno
+    description: Operaciones del servicio de Compras y devoluciones
+
+paths:
+  /entradas:
+    get:
+      tags: [Entradas]
+      summary: Listar mis entradas
+      operationId: listarMisEntradas
+      security: [{UserId: []}]
+      parameters:
+        - name: estado
+          in: query
+          schema: {$ref: '#/components/schemas/EstadoEntrada'}
+        - name: idEvento
+          in: query
+          description: Identificador textual del evento.
+          schema: {type: string}
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: size
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+      responses:
+        '200':
+          description: Página de entradas del usuario, que puede estar vacía.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaginaEntradas'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/NoIdentificado'}
+
+  /entradas/{id}:
+    get:
+      tags: [Entradas]
+      summary: Ver una entrada con su QR
+      description: Solo el titular de la entrada puede consultarla.
+      operationId: obtenerMiEntrada
+      security: [{UserId: []}]
+      parameters: [{$ref: '#/components/parameters/IdEntrada'}]
+      responses:
+        '200':
+          description: Detalle de la entrada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Entrada'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/NoIdentificado'}
+        '403': {$ref: '#/components/responses/AccesoDenegado'}
+        '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+
+  /internal/entradas/emision:
+    post:
+      tags: [Interno]
+      summary: Emitir las entradas de una compra
+      description: |
+        Genera una entrada por cada lugar comprado, cada una con un QR único.
+        Es idempotente por `idCompra`: si se procesó con los mismos datos devuelve `200`; con
+        datos distintos devuelve `409`. Si `numero` tiene valor, `fila` es obligatoria. La misma
+        combinación de sector, fila y número no puede repetirse dentro de una solicitud.
+      operationId: emitirEntradas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EmisionRequest'}
+            examples:
+              sectorNumerado:
+                value:
+                  idCompra: 7c1e5b0a-3f4d-4a8e-9c21-0d5e6f7a8b90
+                  idCliente: cliente-123
+                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00'}
+                  lugares:
+                    - {idSector: platea-a, nombreSector: Platea A, fila: A, numero: 10}
+                    - {idSector: platea-a, nombreSector: Platea A, fila: A, numero: 11}
+              sectorNoNumerado:
+                value:
+                  idCompra: 8d2f6c1b-4a5e-4b9f-8d32-1e6f7a8b9c01
+                  idCliente: cliente-123
+                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00'}
+                  lugares:
+                    - {idSector: campo, nombreSector: Campo, fila: null, numero: null}
+                    - {idSector: campo, nombreSector: Campo, fila: null, numero: null}
+      responses:
+        '201':
+          description: Entradas emitidas.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmisionResponse'}
+        '200':
+          description: Reintento idempotente; no crea nuevas entradas.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EmisionResponse'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '409': {$ref: '#/components/responses/ConflictoEmision'}
+
+  /internal/entradas/{id}:
+    get:
+      tags: [Interno]
+      summary: Consultar una entrada
+      operationId: consultarEntradaInterna
+      parameters: [{$ref: '#/components/parameters/IdEntrada'}]
+      responses:
+        '200':
+          description: Datos de la entrada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Entrada'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+
+  /internal/entradas/{id}/reintegro:
+    post:
+      tags: [Interno]
+      summary: Pasar una entrada a EN_REINTEGRO
+      description: Idempotente para una entrada ya `EN_REINTEGRO`; una `DEVUELTA` devuelve `409`.
+      operationId: marcarEnReintegro
+      parameters: [{$ref: '#/components/parameters/IdEntrada'}]
+      responses:
+        '200':
+          description: Entrada en reintegro, o que ya lo estaba.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Entrada'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+        '409': {$ref: '#/components/responses/TransicionInvalida'}
+
+  /internal/entradas/{id}/devolucion:
+    post:
+      tags: [Interno]
+      summary: Pasar una entrada a DEVUELTA
+      description: Idempotente para una entrada ya `DEVUELTA`; una `VIGENTE` devuelve `409`.
+      operationId: marcarDevuelta
+      parameters: [{$ref: '#/components/parameters/IdEntrada'}]
+      responses:
+        '200':
+          description: Entrada devuelta, o que ya lo estaba.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Entrada'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+        '409': {$ref: '#/components/responses/TransicionInvalida'}
+
+  /internal/eventos/{idEvento}/entradas/reintegro:
+    post:
+      tags: [Interno]
+      summary: Pasar a EN_REINTEGRO las entradas vigentes de un evento
+      description: "Es idempotente; si no quedan entradas vigentes, devuelve `entradasMarcadas: 0`."
+      operationId: marcarEventoEnReintegro
+      parameters:
+        - name: idEvento
+          in: path
+          required: true
+          description: Identificador textual del evento cancelado.
+          schema: {type: string}
+          example: evento-rock-2026
+      responses:
+        '200':
+          description: Resultado de la operación.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReintegroEventoResponse'}
+
+components:
+  securitySchemes:
+    UserId:
+      type: apiKey
+      in: header
+      name: X-User-Id
+      description: Identificador del usuario remitido por el API Gateway.
+
+  parameters:
+    IdEntrada:
+      name: id
+      in: path
+      required: true
+      description: Identificador UUID de la entrada.
+      schema: {type: string, format: uuid}
+      example: 11111111-aaaa-4bbb-8ccc-000000000001
+
+  responses:
+    Validacion:
+      description: Error de validación en los datos o parámetros enviados.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example:
+            timestamp: '2026-11-08T14:30:00'
+            status: 400
+            error: Bad Request
+            codigo: VALIDACION
+            mensaje: Datos inválidos
+            campos: {'lugares[0].idSector': no debe estar vacío}
+    NoIdentificado:
+      description: Falta el encabezado de identificación del usuario.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {timestamp: '2026-11-08T14:30:00', status: 401, error: Unauthorized, codigo: FALTA_IDENTIFICACION, mensaje: Falta el encabezado X-User-Id}
+    AccesoDenegado:
+      description: El usuario no es el titular de la entrada.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {timestamp: '2026-11-08T14:30:00', status: 403, error: Forbidden, codigo: ACCESO_DENEGADO, mensaje: La entrada no pertenece al usuario}
+    EntradaNoEncontrada:
+      description: No existe una entrada con ese identificador.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {timestamp: '2026-11-08T14:30:00', status: 404, error: Not Found, codigo: ENTRADA_NO_ENCONTRADA, mensaje: No existe la entrada indicada}
+    TransicionInvalida:
+      description: La entrada no está en un estado que permita la operación.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: TRANSICION_INVALIDA, mensaje: La entrada no puede pasar al estado solicitado desde su estado actual}
+    ConflictoEmision:
+      description: La compra fue procesada con datos distintos o algún lugar ya tiene una entrada vigente.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          examples:
+            idempotenciaConflicto:
+              value: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: IDEMPOTENCIA_CONFLICTO, mensaje: La compra ya fue procesada con datos diferentes}
+            lugarDuplicado:
+              value: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: ENTRADA_VIGENTE_DUPLICADA, mensaje: Ya existe una entrada vigente para alguno de los lugares indicados}
+
+  schemas:
+    EstadoEntrada:
+      type: string
+      enum: [VIGENTE, EN_REINTEGRO, DEVUELTA]
+      description: VIGENTE tiene QR válido; EN_REINTEGRO lo invalida; DEVUELTA confirma el reintegro.
+    EventoResumen:
+      type: object
+      required: [id, nombre, comienzaEn]
+      properties:
+        id: {type: string, description: Identificador textual del evento, example: evento-rock-2026}
+        nombre: {type: string, example: Recital Rock Nacional}
+        comienzaEn: {type: string, format: date-time, example: '2026-12-12T21:00:00'}
+    SectorResumen:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: {type: string, description: Identificador textual del sector, example: platea-a}
+        nombre: {type: string, example: Platea A}
+    Entrada:
+      type: object
+      required: [idEntrada, codigoQr, estado, evento, sector, idCompra, idCliente]
+      properties:
+        idEntrada: {type: string, format: uuid}
+        codigoQr: {type: string, format: uuid, description: Solo es válido para ingresar si la entrada está VIGENTE.}
+        estado: {$ref: '#/components/schemas/EstadoEntrada'}
+        evento: {$ref: '#/components/schemas/EventoResumen'}
+        sector: {$ref: '#/components/schemas/SectorResumen'}
+        fila: {type: string, nullable: true, description: Nula en sectores no numerados.}
+        numero: {type: integer, nullable: true, description: Nulo en sectores no numerados.}
+        idCompra: {type: string, format: uuid}
+        idCliente: {type: string, description: Identificador textual del cliente, example: cliente-123}
+    PaginaEntradas:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/Entrada'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+    LugarAEmitir:
+      type: object
+      required: [idSector, nombreSector]
+      properties:
+        idSector: {type: string, description: Identificador textual del sector, example: platea-a}
+        nombreSector: {type: string, example: Platea A}
+        fila: {type: string, nullable: true, description: Obligatoria si se informa numero.}
+        numero: {type: integer, nullable: true, description: Nulo en sectores no numerados.}
+    EmisionRequest:
+      type: object
+      required: [idCompra, idCliente, evento, lugares]
+      properties:
+        idCompra: {type: string, format: uuid, description: Clave de idempotencia de la emisión.}
+        idCliente: {type: string, description: Identificador textual del cliente.}
+        evento: {$ref: '#/components/schemas/EventoResumen'}
+        lugares: {type: array, minItems: 1, items: {$ref: '#/components/schemas/LugarAEmitir'}}
+    EntradaEmitida:
+      type: object
+      required: [idEntrada, idSector, codigoQr, estado]
+      properties:
+        idEntrada: {type: string, format: uuid}
+        idSector: {type: string, description: Identificador textual del sector.}
+        fila: {type: string, nullable: true}
+        numero: {type: integer, nullable: true}
+        codigoQr: {type: string, format: uuid}
+        estado: {$ref: '#/components/schemas/EstadoEntrada'}
+    EmisionResponse:
+      type: object
+      required: [idCompra, entradas]
+      properties:
+        idCompra: {type: string, format: uuid}
+        entradas: {type: array, items: {$ref: '#/components/schemas/EntradaEmitida'}}
+    ReintegroEventoResponse:
+      type: object
+      required: [idEvento, entradasMarcadas]
+      properties:
+        idEvento: {type: string, description: Identificador textual del evento.}
+        entradasMarcadas: {type: integer, description: Cantidad de entradas que pasaron a EN_REINTEGRO.}
+    Error:
+      type: object
+      required: [timestamp, status, error, codigo, mensaje]
+      properties:
+        timestamp: {type: string, format: date-time, description: Momento UTC en que se generó el error.}
+        status: {type: integer, description: Código HTTP, example: 404}
+        error: {type: string, description: Texto estándar asociado al estado HTTP, example: Not Found}
+        codigo: {type: string, description: Código estable para consumidores programáticos, example: ENTRADA_NO_ENCONTRADA}
+        mensaje: {type: string, example: No existe la entrada indicada}
+        campos:
+          type: object
+          nullable: true
+          additionalProperties: {type: string}
+          description: Mensajes de validación por campo, presente solo cuando corresponde.
