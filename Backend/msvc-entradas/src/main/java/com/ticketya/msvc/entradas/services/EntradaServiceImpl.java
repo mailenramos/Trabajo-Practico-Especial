@@ -189,22 +189,39 @@ public class EntradaServiceImpl implements EntradaService {
         return pedidos.equals(emitidos);
     }
 
-    /** Un lugar numerado necesita fila y número, y no puede repetirse dentro del mismo pedido. */
+    /**
+     * Valida que los lugares tengan una ubicación coherente
+     * y que no se repitan dentro del mismo pedido.
+     */
     private void validarLugares(EmisionRequestDTO request) {
         Set<String> vistos = new HashSet<>();
+
         for (LugarAEmitirDTO lugar : request.lugares()) {
+
+            // Sector no numerado: fila y numero deben ser nulos.
             if (lugar.numero() == null) {
-                continue;   // sector no numerado
+                if (lugar.fila() != null) {
+                    throw new ValidacionException(
+                            "En un sector no numerado, fila y número deben ser nulos");
+                }
+                continue;
             }
-            if (lugar.fila() == null || lugar.fila().isBlank()) {
+
+            // Sector numerado: necesita fila.
+            if (lugar.fila() == null) {
                 throw new ValidacionException(
-                        "El lugar numerado " + lugar.numero() + " del sector " + lugar.idSector()
+                        "El lugar numerado " + lugar.numero()
+                                + " del sector " + lugar.idSector()
                                 + " necesita una fila");
             }
+
             String clave = lugar.idSector() + "|" + lugar.fila() + "|" + lugar.numero();
+
             if (!vistos.add(clave)) {
-                throw new ValidacionException("El lugar " + lugar.fila() + "-" + lugar.numero()
-                        + " del sector " + lugar.idSector() + " está repetido en la solicitud");
+                throw new ValidacionException(
+                        "El lugar " + lugar.fila() + "-" + lugar.numero()
+                                + " del sector " + lugar.idSector()
+                                + " está repetido en la solicitud");
             }
         }
     }

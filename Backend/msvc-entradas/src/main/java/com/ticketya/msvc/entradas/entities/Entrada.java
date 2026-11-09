@@ -38,8 +38,8 @@ public class Entrada {
     private CopiaSector sector;
 
     /** Nulo en sectores no numerados. */
-    @Column(updatable = false, length = 50)
-    private String fila;
+    @Column(updatable = false)
+    private Integer fila;
 
     /** Nulo en sectores no numerados. */
     @Column(updatable = false)
@@ -60,7 +60,7 @@ public class Entrada {
 
     /** Crea una entrada nueva: estado VIGENTE y un código QR aleatorio e impredecible. */
     public Entrada(SolicitudEmision solicitudEmision, UUID idCompra, CopiaEvento evento,
-                   CopiaSector sector, String fila, Integer numero, String idCliente) {
+                   CopiaSector sector, Integer fila, Integer numero, String idCliente) {
         this.solicitudEmision = solicitudEmision;
         this.idCompra = idCompra;
         this.evento = evento;

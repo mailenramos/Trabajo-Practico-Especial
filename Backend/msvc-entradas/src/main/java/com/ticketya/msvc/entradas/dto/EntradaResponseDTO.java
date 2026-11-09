@@ -10,7 +10,7 @@ public record EntradaResponseDTO(
         EstadoEntrada estado,
         EventoResumenDTO evento,
         SectorResumenDTO sector,
-        String fila,
+        Integer fila,
         Integer numero,
         UUID idCompra,
         String idCliente) {

@@ -6,6 +6,6 @@ import jakarta.validation.constraints.NotBlank;
 public record LugarAEmitirDTO(
         @NotBlank String idSector,
         @NotBlank String nombreSector,
-        String fila,
+        Integer fila,
         Integer numero) {
 }

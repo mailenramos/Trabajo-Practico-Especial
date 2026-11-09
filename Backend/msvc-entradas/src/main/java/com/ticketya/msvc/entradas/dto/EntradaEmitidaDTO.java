@@ -7,7 +7,7 @@ import java.util.UUID;
 public record EntradaEmitidaDTO(
         UUID idEntrada,
         String idSector,
-        String fila,
+        Integer fila,
         Integer numero,
         UUID codigoQr,
         EstadoEntrada estado) {

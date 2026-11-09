@@ -59,7 +59,7 @@ public class EntradaController {
     @PostMapping("/internal/entradas/emision")
     public ResponseEntity<EmisionResponseDTO> emitirEntradas(
             @Valid @RequestBody EmisionRequestDTO request) {
-
+        System.out.println(">>> ENTRE AL ENDPOINT DE EMISION");
         ResultadoEmisionDTO resultado = entradaService.emitirEntradas(request);
         HttpStatus estado = resultado.creada() ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(estado).body(resultado.emision());
