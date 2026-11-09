@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import ar.edu.unicen.ms_disponibilidad_reservas.model.EstadoNotificacionOutbox;
+import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoNotificacionOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.NotificacionDisponibilidadOutbox;
 import jakarta.persistence.LockModeType;
 

@@ -84,6 +84,94 @@ class DisponibilidadHttpTests {
     }
 
     @Test
+    void httpInitializationAcceptsDifferentPositiveEventLimits() throws Exception {
+        for (int limit : List.of(1, 4, 6)) {
+            String path = "/disponibilidad/eventos/PER-EVENT-" + limit;
+            String body = INITIALIZATION.replace("\"limiteEntradasPorCliente\": 4",
+                    "\"limiteEntradasPorCliente\": " + limit);
+            mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isNoContent());
+            mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isNoContent());
+            org.junit.jupiter.api.Assertions.assertEquals(limit, jdbcTemplate.queryForObject(
+                    "SELECT limite_entradas_por_cliente FROM eventos_disponibilidad WHERE evento_id=?",
+                    Integer.class, "PER-EVENT-" + limit));
+        }
+    }
+
+    @Test
+    void malformedReleaseJsonUsesCommon400InsteadOf500() throws Exception {
+        mockMvc.perform(post("/disponibilidad/reservas/00000000-0000-0000-0000-000000000099/liberacion")
+                .contentType(MediaType.APPLICATION_JSON).content("{bad"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error", is("Bad Request")));
+    }
+
+    @Test
+    void malformedRouteUuidsReturnSpecific400ForEveryReservationOperation() throws Exception {
+        String path = "/disponibilidad/reservas/not-a-uuid";
+        for (var request : List.of(get(path), post(path + "/confirmacion"),
+                post(path + "/liberacion").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motivo\":\"PAGO_RECHAZADO\"}"))) {
+            mockMvc.perform(request).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error", is("PARAMETRO_INVALIDO")))
+                    .andExpect(jsonPath("$.status", is(400)));
+        }
+    }
+
+    @Test
+    void validMissingRouteUuidsReturn404AndMalformedRefundIdReturnsSpecific400() throws Exception {
+        String path = "/disponibilidad/reservas/00000000-0000-0000-0000-000000000099";
+        mockMvc.perform(get(path)).andExpect(status().isNotFound());
+        mockMvc.perform(post(path + "/confirmacion")).andExpect(status().isNotFound());
+        mockMvc.perform(post(path + "/liberacion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"motivo\":\"PAGO_RECHAZADO\"}")).andExpect(status().isNotFound());
+        mockMvc.perform(post(path + "/liberacion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"motivo\":\"DEVOLUCION_APROBADA\",\"devolucionId\":\"bad\","
+                        + "\"detalles\":[{\"sectorId\":\"SEC\",\"cantidad\":1}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("PARAMETRO_INVALIDO")));
+    }
+
+    @Test
+    void unknownJsonAndBodyOwnerAreRejectedAtRootAndNestedLevels() throws Exception {
+        for (String body : List.of(INITIALIZATION.replace("\"limiteEntradasPorCliente\": 4",
+                "\"extra\": true, \"limiteEntradasPorCliente\": 4"),
+                INITIALIZATION.replace("\"fila\": 2", "\"extra\": true, \"fila\": 2"))) {
+            mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "OWNER")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"clienteId\":\"OTHER\",\"solicitudId\":\"S\","
+                        + "\"detalles\":[{\"sectorId\":\"SEC\",\"cantidad\":1}]}"))
+                .andExpect(status().isBadRequest());
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas", Integer.class));
+    }
+
+    @Test
+    void paymentRejectionRejectsRefundFieldsEvenWhenExplicitlyNull() throws Exception {
+        String path = "/disponibilidad/reservas/00000000-0000-0000-0000-000000000099/liberacion";
+        for (String extra : List.of("\"devolucionId\":null", "\"detalles\":null",
+                "\"detalles\":[]", "\"unknown\":true")) {
+            mockMvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"motivo\":\"PAGO_RECHAZADO\"," + extra + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void initializationRejectsNullInventoryElementsWithoutWriting() throws Exception {
+        for (String body : List.of("{\"limiteEntradasPorCliente\":4,\"sectores\":[null]}",
+                INITIALIZATION.replace("{ \"fila\": 2, \"numero\": 1 }", "null"))) {
+            mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM eventos_disponibilidad", Integer.class));
+    }
+
+    @Test
     void postCreatesReservationAndIdenticalRetryReturnsTheExistingResource() throws Exception {
         mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
                 .andExpect(status().isNoContent());
@@ -327,7 +415,7 @@ class DisponibilidadHttpTests {
                 .andExpect(jsonPath("$.campos[0].campo", is("limiteEntradasPorCliente")))
                 .andExpect(jsonPath("$.campos[0].mensaje").isNotEmpty());
 
-        for (String invalidLimit : List.of("-1", "1", "3", "5", "null")) {
+        for (String invalidLimit : List.of("-1", "null")) {
             mockMvc.perform(put(BASE_PATH)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(INITIALIZATION.replace("\"limiteEntradasPorCliente\": 4",
@@ -371,7 +459,7 @@ class DisponibilidadHttpTests {
         mockMvc.perform(put(BASE_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(changed))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
 
         org.junit.jupiter.api.Assertions.assertEquals(4, jdbcTemplate.queryForObject(
                 "SELECT limite_entradas_por_cliente FROM eventos_disponibilidad WHERE evento_id = 'EVT-HTTP'",

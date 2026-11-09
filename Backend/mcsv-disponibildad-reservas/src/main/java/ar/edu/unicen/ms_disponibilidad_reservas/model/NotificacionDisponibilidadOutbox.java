@@ -1,5 +1,7 @@
 package ar.edu.unicen.ms_disponibilidad_reservas.model;
 
+import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoNotificacionOutbox;
+
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;

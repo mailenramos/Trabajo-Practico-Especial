@@ -225,10 +225,8 @@ class FilaIntegerMySqlMigrationTests {
         }
 
         private static TemporaryDatabase create() throws IOException, SQLException {
-            Properties properties = new Properties();
-            try (var input = new ClassPathResource("application.properties").getInputStream()) {
-                properties.load(input);
-            }
+            Properties properties = ar.edu.unicen.ms_disponibilidad_reservas.support.IsolatedMySqlConfiguration.load();
+
             String configuredUrl = properties.getProperty("spring.datasource.url");
             String prefix = "jdbc:mysql://";
             if (configuredUrl == null || !configuredUrl.startsWith(prefix)) {

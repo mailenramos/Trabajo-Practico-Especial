@@ -25,9 +25,9 @@ MS2 SHALL preserve event lifecycle separately from sales suspension and inventor
 - **THEN** MS2 applies the agreed publication behavior through the existing local model without introducing an endpoint or persisted state
 
 ### Requirement: Event availability is initialized from MS1
-MS1 SHALL initialize availability through direct REST, outside the Gateway and without inter-service authentication, using `PUT /disponibilidad/eventos/{eventoId}`. The JSON body SHALL contain `limiteEntradasPorCliente` and `sectores`. `limiteEntradasPorCliente` SHALL be the fixed integer `4` for every event; it is not organizer-configurable. MS1 SHALL always send `4`, and MS2 SHALL validate that the received value is exactly `4`. The limit SHALL remain fixed throughout the event lifecycle and SHALL NOT be modified later; no limit-update endpoint is part of this contract. Each sector contains `sectorId`, `tipo`, `capacidadTotal` and `asientos`. Numbered sectors contain the complete list of seats with integer `fila` and positive integer `numero`; non-numbered sectors contain an empty `asientos` list. MS2 SHALL atomically persist the event, sectors and seats and initialize numbered seats as `LIBRE` and non-numbered reserved/sold quantities as zero. A successful initialization persists the event as `PENDIENTE_PUBLICACION` and is acknowledged only after commit.
+MS1 SHALL initialize availability through direct REST, outside the Gateway and without inter-service authentication, using `PUT /disponibilidad/eventos/{eventoId}`. The JSON body SHALL contain `limiteEntradasPorCliente` and `sectores`. `limiteEntradasPorCliente` SHALL be a positive integer specific to the event. MS1 SHALL send the organizer-configured limit, or `4` when none is configured; MS2 SHALL store and enforce the received value. The limit SHALL remain fixed throughout the event lifecycle and SHALL NOT be modified later; no limit-update endpoint is part of this contract. Each sector contains `sectorId`, `tipo`, `capacidadTotal` and `asientos`. Numbered sectors contain the complete list of seats with integer `fila` and positive integer `numero`; non-numbered sectors contain an empty `asientos` list. MS2 SHALL atomically persist the event, sectors and seats and initialize numbered seats as `LIBRE` and non-numbered reserved/sold quantities as zero. A successful initialization persists the event as `PENDIENTE_PUBLICACION` and is acknowledged only after commit.
 
-An identical retry SHALL NOT duplicate or reset data. A retry with different content for an already initialized event SHALL return HTTP `409 Conflict` without changing existing data. A successful new initialization and an identical retry SHALL return HTTP `204 No Content`, only after commit. Invalid request data returns `400 Bad Request`, unsupported content type returns `415 Unsupported Media Type`, and unrecoverable internal errors return `500 Internal Server Error`. The fixed limit of `4` SHALL remain unchanged after initialization and publication; no update operation is part of this contract.
+An identical retry SHALL NOT duplicate or reset data. A retry with different content for an already initialized event SHALL return HTTP `409 Conflict` without changing existing data. A successful new initialization and an identical retry SHALL return HTTP `204 No Content`, only after commit. Invalid request data returns `400 Bad Request`, unsupported content type returns `415 Unsupported Media Type`, and unrecoverable internal errors return `500 Internal Server Error`. The received event limit SHALL remain unchanged after publication; no update operation is part of this contract.
 
 #### Scenario: Initialize a numbered and non-numbered event
 - **WHEN** MS1 sends complete sector inventory, with numbered seats or `asientos: []` for non-numbered sectors
@@ -39,12 +39,12 @@ An identical retry SHALL NOT duplicate or reset data. A retry with different con
 
 The numbered `asientos` list represents the complete sector inventory. Whether `capacidadTotal` SHALL equal the number of listed seats is not explicitly defined and remains pending; MS2 SHALL NOT enforce that equality until confirmed.
 
-#### Scenario: Initialize with the fixed per-event limit
-- **WHEN** MS1 initializes availability and sends `limiteEntradasPorCliente: 4`
-- **THEN** MS2 persists the fixed limit of four entries for that event
+#### Scenario: Initialize with the received per-event limit
+- **WHEN** MS1 initializes availability with a positive per-event limit (or sends 4 as its default)
+- **THEN** MS2 persists and applies that received limit for that event
 
-#### Scenario: Reject a missing or non-four limit
-- **WHEN** the initialization request omits the limit or supplies a value other than `4`
+#### Scenario: Reject a missing or non-positive limit
+- **WHEN** the initialization request omits the limit or supplies zero or a negative value
 - **THEN** MS2 rejects the request as invalid and persists no event, sector or seat
 
 #### Scenario: Keep the limit fixed from initialization
@@ -114,7 +114,7 @@ MS1 SHALL query `GET /disponibilidad/eventos/{eventoId}` using direct REST, outs
 - **THEN** MS2 returns zero available quantity but does not treat the event as exhausted or notify MS1 as sold out
 
 ### Requirement: Client reservations are atomic and temporary
-The customer SHALL create a reservation through the Gateway using `POST /disponibilidad/eventos/{eventoId}/reservas`. The owner SHALL be derived from the required `X-User-Id` header, never from the request body. MS2 SHALL NOT require `X-User-Role`; authorization is handled by the Gateway. The body SHALL contain `solicitudId` and `detalles`. A numbered detail contains `sectorId`, integer `fila` and positive integer `numero`; a non-numbered detail contains `sectorId` and positive `cantidad`. Each temporary reservation SHALL last exactly 10 minutes; this duration is fixed and not configurable. MS2 SHALL reserve every requested place or quantity or none. It SHALL accept reservations only while event sales are active, and SHALL enforce capacity and the fixed maximum of 4 entries per client and event across active reservations and confirmed sales.
+The customer SHALL create a reservation through the Gateway using `POST /disponibilidad/eventos/{eventoId}/reservas`. The owner SHALL be derived from the required `X-User-Id` header, never from the request body. MS2 SHALL NOT require `X-User-Role`; authorization is handled by the Gateway. The body SHALL contain `solicitudId` and `detalles`. A numbered detail contains `sectorId`, integer `fila` and positive integer `numero`; a non-numbered detail contains `sectorId` and positive `cantidad`. Each temporary reservation SHALL last exactly 10 minutes; this duration is fixed and not configurable. MS2 SHALL reserve every requested place or quantity or none. It SHALL accept reservations only while event sales are active, and SHALL enforce capacity and the received per-event maximum across each client’s entries across active reservations and confirmed sales.
 
 #### Scenario: Create a complete reservation
 - **WHEN** a client requests available places or capacity for an active event and remains within the event limit
@@ -128,9 +128,9 @@ The customer SHALL create a reservation through the Gateway using `POST /disponi
 - **WHEN** availability is not initialized, the event is not published, is suspended, canceled, finalized or exhausted
 - **THEN** MS2 rejects new reservations without allocating capacity
 
-#### Scenario: Ignore a body-supplied owner
+#### Scenario: Reject a body-supplied owner
 - **WHEN** a request body contains a client identifier that differs from `X-User-Id`
-- **THEN** MS2 never assigns ownership from the body
+- **THEN** MS2 rejects the undeclared field with HTTP 400 and never assigns ownership from the body
 
 ### Requirement: Reservation creation recognizes retries
 The request identity SHALL be `(clienteId, solicitudId)`, where `clienteId` is derived from `X-User-Id`; `eventoId` is not part of this idempotency key. The client SHALL preserve `solicitudId` across retries. For content comparison, MS2 SHALL include both the `eventoId` path parameter and the complete request body; therefore, using the same client and `solicitudId` with a different `eventoId` SHALL count as different content and return `409 Conflict`. If the same client repeats the same identifier, same `eventoId` and same body content while the original reservation remains `VIGENTE` and its expiration instant has not passed, MS2 SHALL return `200 OK` with the existing reservation and SHALL NOT reserve the places again. Reuse of that client/identifier with different content SHALL return `409 Conflict` without changing the original reservation. If the associated reservation has expired (even if automatic expiration has not yet changed its stored state) or is `LIBERADA`, MS2 SHALL return `409 Conflict` indicating that the original reservation is no longer active; it SHALL NOT create a new reservation automatically. A new request with a new identifier SHALL return `201 Created`. Requests for distinct clients SHALL have independent request identities and limits. Concurrent requests SHALL NOT double-book a numbered seat or exceed non-numbered capacity or a client/event limit.
@@ -162,7 +162,7 @@ Creating a new reservation SHALL return HTTP `201 Created`; an identical retry w
 - **THEN** database-backed concurrency control allows only operations that preserve all capacity and limit invariants
 
 ### Requirement: Reservations and customer quantities stay consistent
-Reservation states SHALL be `VIGENTE`, `CONFIRMADA` and `LIBERADA`. The maximum is fixed at exactly 4 entries per client and event from initialization; it is not configurable. MS2 SHALL count active temporary reservations and confirmed sales by client/event. Creating a reservation increments reserved quantity; confirmation transfers it from reserved to confirmed; payment rejection or expiration decrements reserved; approved refunds decrement confirmed for the returned subset. Each transition SHALL update reservation, inventory and client/event counts atomically and exactly once. Changing an event state to suspended SHALL preserve active reservations. Cancellation/finalization SHALL release active temporary reservations but SHALL NOT delete or release confirmed sales; MS2 only applies the local state and releases temporary reservations, while coordination of refunds and ticket invalidation belongs to the responsible services.
+Reservation states SHALL be `VIGENTE`, `CONFIRMADA` and `LIBERADA`. The maximum is the positive limit received during initialization for that event; MS1 supplies 4 when no organizer limit is configured. It cannot change after publication. MS2 SHALL count active temporary reservations and confirmed sales by client/event. Creating a reservation increments reserved quantity; confirmation transfers it from reserved to confirmed; payment rejection or expiration decrements reserved; approved refunds decrement confirmed for the returned subset. Each transition SHALL update reservation, inventory and client/event counts atomically and exactly once. Changing an event state to suspended SHALL preserve active reservations. Cancellation/finalization SHALL release active temporary reservations but SHALL NOT delete or release confirmed sales; MS2 only applies the local state and releases temporary reservations, while coordination of refunds and ticket invalidation belongs to the responsible services.
 
 #### Scenario: Maintain counts during reservation transitions
 - **WHEN** a reservation is created, confirmed, rejected/released, expires or is partially returned after approved refund
@@ -183,15 +183,7 @@ MS3 SHALL query `GET /disponibilidad/reservas/{reservaId}` directly, outside the
 - **WHEN** MS3 queries an existing reservation
 - **THEN** MS2 returns its owner, event, state, expiration and reserved details
 
-The existing customer self-query requirement is retained: a client may inspect only a reservation owned by the `X-User-Id` in the request. Its public route and response contract are not part of the current MS1/MS3 integration agreement and remain pending confirmation; the MS3 query above does not replace that use case.
-
-#### Scenario: Client inspects their own reservation
-- **WHEN** a client requests a reservation whose owner matches `X-User-Id`
-- **THEN** MS2 returns the reservation data
-
-#### Scenario: Client cannot inspect another client's reservation
-- **WHEN** a client requests a reservation owned by a different `X-User-Id`
-- **THEN** MS2 rejects access without disclosing the reservation data
+Public customer purchase/reservation self-query belongs to MS3 and is outside MS2 scope. No public self-query endpoint is required or pending in MS2. The internal MS3 reservation query remains unchanged.
 
 ### Requirement: Sales are confirmed only while the reservation is valid
 MS3 SHALL request confirmation using `POST /disponibilidad/reservas/{reservaId}/confirmacion` after payment approval. MS2 SHALL confirm only a `VIGENTE` reservation whose expiration instant is later than the current instant, atomically moving reserved places/quantities to sold/confirmed. Confirmation SHALL be all-or-nothing. A successful confirmation, including a repeat of an already confirmed reservation, SHALL return `204 No Content`. A reservation not registered in MS2 returns `404 Not Found`. An expired reservation SHALL return `409 Conflict` with code `RESERVA_VENCIDA`; a released reservation SHALL return `409 Conflict` with code `RESERVA_LIBERADA`. MS2 SHALL NOT sell places for either rejected case; MS3 coordinates compensating treatment with MS4 if payment was already approved. Unrecoverable internal errors return `500 Internal Server Error`.
@@ -261,7 +253,7 @@ Reusing an already processed `devolucionId` with another reservation or differen
 ### Requirement: MS2 reports sold-out state transitions to MS1
 A numbered sector is sold out only when all its places are `VENDIDO`; a non-numbered sector is sold out only when all capacity is sold. Active reservations do not count as sales. Therefore, `cantidadDisponible` can be zero due to active reservations while the event is not sold out. The event is sold out only when every sector is sold out. MS2 SHALL call MS1 at `PUT /eventos/{eventoId}/disponibilidad` with `{"agotado":true}` when the condition changes to sold out and `{"agotado":false}` when it changes back to available. It SHALL NOT notify when the condition has not changed. Expiration or payment rejection alone does not change sold-out state based on confirmed sales. Sold-out condition is independent of event lifecycle and `ventaSuspendida`; MS2 SHALL NOT add persisted states to represent this distinction. Initialization SHALL NOT create an initial Outbox notification; notifications represent transitions caused by subsequent confirmed-sales or approved-refund operations.
 
-MS2 SHALL persist a notification in its Outbox in the same database transaction as the confirmation or approved refund that changes the derived sold-out condition. A failure of that transaction SHALL roll back both the inventory/counter transition and the Outbox row. MS2 SHALL NOT make the HTTP request to MS1 inside that transaction. The Outbox SHALL retain the event, target `agotado` value, creation time, delivery status, attempt count, next-attempt time and delivery/error trace. Delivery claims SHALL prevent concurrent workers from sending the same row at once and SHALL be recoverable after a worker restart. Notifications for one event SHALL be delivered in transition order. A successful MS1 `204` marks the row sent; transport failures or any other HTTP status remain durable and are retried with progressive capped delay, without a finite attempt discard limit. This is at-least-once delivery: a process failure after MS1 accepts a request but before MS2 records the `204` can result in a later duplicate request, which MS1 handles idempotently.
+MS2 SHALL persist a notification in its Outbox in the same database transaction as the confirmation or approved refund that changes the derived sold-out condition. A failure of that transaction SHALL roll back both the inventory/counter transition and the Outbox row. MS2 SHALL NOT make the HTTP request to MS1 inside that transaction. The Outbox SHALL retain the event, target `agotado` value, creation time, delivery status, attempt count, next-attempt time and delivery/error trace. Delivery claims SHALL use the existing locking, lease and token mechanism and SHALL be recoverable after a worker restart. MS2 SHALL retain the existing per-event ordering mechanism and attempt delivery in transition order, without adding versioning. Absolute delivery order is NOT guaranteed under all concurrency, delay and message-recovery scenarios. Tokens protect local updates but do not fence a late HTTP request from a worker whose lease expired. MS2 SHALL NOT add a version or any other field to the agreed MS1 notification payload. A successful MS1 `204` marks the row sent; transport failures or any other HTTP status remain durable and are retried with progressive capped delay, without a finite attempt discard limit. This is at-least-once delivery: a process failure after MS1 accepts a request but before MS2 records the `204` can result in a later duplicate request, which MS1 handles idempotently.
 
 #### Scenario: Notify sold out once on transition
 - **WHEN** all sectors become sold out through confirmed sales
@@ -331,3 +323,32 @@ When the sold-out condition changes, MS2 SHALL call MS1 directly using `PUT /eve
 - Inventory of each target environment before applying Flyway V4. V4 converts only integer values within Java `Integer` range and aborts before DDL for non-numeric values, out-of-range values or collisions in `(evento_id, sector_id, fila, numero)`. Any remediation of incompatible legacy values requires explicit approval; no arbitrary mapping or deletion is allowed.
 - Compatibility of retries for events with legacy, unversioned initialization fingerprints. Such fingerprints cannot currently verify equality and are rejected as conflicts until a verifiable compatibility strategy is approved.
 - Whether `capacidadTotal` for a numbered sector SHALL equal the number of entries in its complete `asientos` list; no equality validation is required until the team confirms this invariant.
+
+### Requirement: UUID format errors remain distinct from absence and idempotency
+For both `reservaId` and `devolucionId`, MS2 SHALL respond with `400 Bad Request` and `error: PARAMETRO_INVALIDO` when UUID format is invalid. A valid UUID whose queried or referenced resource does not exist SHALL produce `404 Not Found`. A new valid `devolucionId` is an idempotency key for a new refund request and SHALL NOT require a pre-existing ledger row. Repeating a processed key with the same reservation and details SHALL return `204`; reuse with another reservation or different details SHALL return `409` without repeated effects.
+
+#### Scenario: Reject malformed UUID
+- **WHEN** a reservation operation receives a malformed `reservaId`, or an approved refund receives a malformed `devolucionId`
+- **THEN** MS2 responds with HTTP 400 and error `PARAMETRO_INVALIDO`
+
+#### Scenario: Distinguish valid missing reservation
+- **WHEN** an operation looks up a reservation using a valid UUID and that reservation does not exist
+- **THEN** MS2 responds with HTTP 404 and error `Not Found`
+
+#### Scenario: Accept a new refund idempotency key
+- **WHEN** an approved refund uses a new valid `devolucionId` and all other requirements are satisfied
+- **THEN** MS2 processes it as a new refund rather than returning 404 for absence of the key
+
+### Implementation status of D5
+UUID syntax is validated explicitly in reservation and refund operations; malformed UUIDs map to `PARAMETRO_INVALIDO`. HTTP tests distinguish these errors from valid missing resources and idempotency conflicts. No precedence for multiple simultaneous errors is introduced.
+
+### Requirement: Exact external identifiers and strict JSON
+MS2 SHALL compare external event, sector and customer identifiers and request idempotency keys exactly, distinguishing case, accents and spaces without trimming or normalization. V7 SHALL preserve existing data and relational constraints while using binary NO PAD collation for these columns. Existing UUID canonicalization for refund keys remains unchanged.
+
+#### Scenario: Distinguish external identities
+- **WHEN** identifiers differ only by case, accents or trailing spaces
+- **THEN** MS2 treats them as distinct external identities and request keys
+
+#### Scenario: Reject undeclared or inapplicable fields
+- **WHEN** JSON includes an undeclared field at any level, or PAGO_RECHAZADO includes devolucionId or detalles even as null
+- **THEN** MS2 responds with HTTP 400 without changing inventory

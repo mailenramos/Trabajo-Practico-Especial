@@ -14,7 +14,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import ar.edu.unicen.ms_disponibilidad_reservas.model.EstadoNotificacionOutbox;
+import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoNotificacionOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.NotificacionDisponibilidadOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.repository.NotificacionDisponibilidadOutboxRepository;
 

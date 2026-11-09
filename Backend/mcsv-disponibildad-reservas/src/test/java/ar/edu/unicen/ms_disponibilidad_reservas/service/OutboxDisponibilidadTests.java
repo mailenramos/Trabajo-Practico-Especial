@@ -38,7 +38,7 @@ import ar.edu.unicen.ms_disponibilidad_reservas.dto.EstadoVenta;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.InicializarDisponibilidadRequest;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.LiberarReservaRequest;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.SectorInicializacionRequest;
-import ar.edu.unicen.ms_disponibilidad_reservas.model.EstadoNotificacionOutbox;
+import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoNotificacionOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.NotificacionDisponibilidadOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoAsiento;
 import ar.edu.unicen.ms_disponibilidad_reservas.repository.NotificacionDisponibilidadOutboxRepository;

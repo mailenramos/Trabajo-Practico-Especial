@@ -68,12 +68,7 @@ class DisponibilidadMySqlLegacyBackfillTests {
         }
 
         private static LegacyDatabase create() {
-            Properties properties = new Properties();
-            try (var input = new ClassPathResource("application.properties").getInputStream()) {
-                properties.load(input);
-            } catch (IOException e) {
-                throw new IllegalStateException("No se pudo leer la configuración MySQL", e);
-            }
+            Properties properties = ar.edu.unicen.ms_disponibilidad_reservas.support.IsolatedMySqlConfiguration.load();
 
             String configuredUrl = properties.getProperty("spring.datasource.url");
             String prefix = "jdbc:mysql://";

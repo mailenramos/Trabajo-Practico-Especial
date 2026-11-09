@@ -21,10 +21,16 @@ import ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaLiberadaException
 import ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaNoEncontradaException;
 import ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaVencidaException;
 import jakarta.validation.ConstraintViolationException;
+import ar.edu.unicen.ms_disponibilidad_reservas.service.ParametroInvalidoException;
 
 /** Applies MS2's documented error shape to HTTP requests. */
 @RestControllerAdvice
 public class DisponibilidadControllerAdvice {
+
+    @ExceptionHandler(ParametroInvalidoException.class)
+    public ResponseEntity<ErrorResponse> parametroInvalido(ParametroInvalidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "PARAMETRO_INVALIDO", exception.getMessage(), null);
+    }
 
     @ExceptionHandler(InicializacionConflictException.class)
     public ResponseEntity<ErrorResponse> conflictoInicializacion(InicializacionConflictException exception) {

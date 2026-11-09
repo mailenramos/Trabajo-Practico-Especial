@@ -10,8 +10,6 @@ public record LiberarReservaRequest(
         @NotNull(message = "es obligatorio")
         @Pattern(regexp = "PAGO_RECHAZADO|DEVOLUCION_APROBADA", message = "motivo no reconocido")
         String motivo,
-        @Pattern(regexp = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
-                message = "debe ser un UUID")
         String devolucionId,
         List<@NotNull(message = "no puede ser null") @Valid DetalleDevolucionRequest> detalles) {
 }

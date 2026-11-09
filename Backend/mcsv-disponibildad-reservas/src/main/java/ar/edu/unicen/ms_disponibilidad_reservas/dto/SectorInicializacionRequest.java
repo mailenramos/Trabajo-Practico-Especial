@@ -13,5 +13,5 @@ public record SectorInicializacionRequest(
         @NotBlank @Size(max = 255) String sectorId,
         @NotNull TipoSector tipo,
         @NotNull @PositiveOrZero Integer capacidadTotal,
-        @NotNull List<@Valid AsientoInicializacionRequest> asientos) {
+        @NotNull List<@NotNull @Valid AsientoInicializacionRequest> asientos) {
 }

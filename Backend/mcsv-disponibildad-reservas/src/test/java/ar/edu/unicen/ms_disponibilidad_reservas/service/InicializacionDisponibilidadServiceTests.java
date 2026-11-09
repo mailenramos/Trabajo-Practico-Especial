@@ -134,7 +134,7 @@ class InicializacionDisponibilidadServiceTests {
     }
 
     @Test
-    void persistsTheFixedEventLimitOfFour() {
+    void persistsTheDefaultLimitReceivedFromMs1() {
         EventoDisponibilidad evento = inicializacionService.inicializar("evento-limite", solicitudMixta(4));
 
         assertEquals(4, eventosRepository.findByEventoId("evento-limite").orElseThrow()
@@ -236,7 +236,7 @@ class InicializacionDisponibilidadServiceTests {
     void validatesIdentifiersInventoryShapeAndPositiveSeatNumbersBeforeWriting() {
         assertThrows(IllegalArgumentException.class,
                 () -> inicializacionService.inicializar(" ", solicitudMixta(null)));
-        for (Integer invalidLimit : List.of(-1, 0, 1, 3, 5)) {
+        for (Integer invalidLimit : List.of(-1, 0)) {
             assertThrows(ConstraintViolationException.class,
                     () -> inicializacionService.inicializar("evento-limite-invalido-" + invalidLimit,
                             new InicializarDisponibilidadRequest(invalidLimit, solicitudMixta(null).sectores())));
@@ -246,7 +246,7 @@ class InicializacionDisponibilidadServiceTests {
                         new InicializarDisponibilidadRequest(null, solicitudMixta(null).sectores())));
         EventoDisponibilidad limiteFijo = new EventoDisponibilidad();
         limiteFijo.setLimiteEntradasPorCliente(4);
-        assertThrows(IllegalArgumentException.class, () -> limiteFijo.setLimiteEntradasPorCliente(5));
+        assertThrows(IllegalStateException.class, () -> limiteFijo.setLimiteEntradasPorCliente(5));
         assertEquals(4, limiteFijo.getLimiteEntradasPorCliente());
         assertThrows(ConstraintViolationException.class,
                 () -> inicializacionService.inicializar("evento-numero-invalido", solicitudConNumero(0)));

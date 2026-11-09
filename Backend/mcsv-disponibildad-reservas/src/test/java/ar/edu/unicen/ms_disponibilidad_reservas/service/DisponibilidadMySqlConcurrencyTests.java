@@ -128,6 +128,100 @@ class DisponibilidadMySqlConcurrencyTests {
     }
 
     @Test
+    void v7PreservesHistoricalFingerprintsAndRowsButStopsMatchingCaseAliases() throws Exception {
+        TemporaryDatabase isolated = TemporaryDatabase.createFromApplicationConfiguration();
+        try {
+            Flyway.configure().dataSource(isolated.jdbcUrl, isolated.username, isolated.password)
+                    .locations("classpath:db/migration").target("6").load().migrate();
+            String initHash = "v2:" + "a".repeat(64);
+            String requestHash = "v1:" + "b".repeat(64);
+            String id = UUID.randomUUID().toString();
+            try (Connection c = DriverManager.getConnection(isolated.jdbcUrl, isolated.username, isolated.password)) {
+                try (var st = c.prepareStatement("INSERT INTO eventos_disponibilidad "
+                        + "(evento_id,estado_evento,fecha_creacion,venta_suspendida,limite_entradas_por_cliente,huella_inicializacion) "
+                        + "VALUES ('EVT-HISTORY','PUBLICADO',CURRENT_TIMESTAMP,0,6,?)")) {
+                    st.setString(1, initHash); st.executeUpdate();
+                }
+                try (var st = c.prepareStatement("INSERT INTO reservas "
+                        + "(id,evento_id,usuario_id,clave_idempotencia,estado,expira_en,huella_solicitud) "
+                        + "VALUES (?,'EVT-HISTORY','CLIENT-HISTORY','SOL-HISTORY','VIGENTE',CURRENT_TIMESTAMP,?)")) {
+                    st.setString(1, id); st.setString(2, requestHash); st.executeUpdate();
+                }
+                try (var st = c.createStatement(); var rows = st.executeQuery(
+                        "SELECT COUNT(*) FROM reservas WHERE usuario_id='client-history' AND clave_idempotencia='sol-history'")) {
+                    rows.next(); assertEquals(1, rows.getInt(1));
+                }
+            }
+            Flyway.configure().dataSource(isolated.jdbcUrl, isolated.username, isolated.password)
+                    .locations("classpath:db/migration").target("7").load().migrate();
+            try (Connection c = DriverManager.getConnection(isolated.jdbcUrl, isolated.username, isolated.password);
+                    var st = c.createStatement()) {
+                try (var rows = st.executeQuery("SELECT id,huella_solicitud FROM reservas")) {
+                    assertTrue(rows.next()); assertEquals(id, rows.getString(1));
+                    assertEquals(requestHash, rows.getString(2)); assertTrue(!rows.next());
+                }
+                try (var rows = st.executeQuery("SELECT huella_inicializacion,limite_entradas_por_cliente FROM eventos_disponibilidad")) {
+                    assertTrue(rows.next()); assertEquals(initHash, rows.getString(1)); assertEquals(6, rows.getInt(2));
+                }
+                try (var rows = st.executeQuery(
+                        "SELECT COUNT(*) FROM reservas WHERE usuario_id='client-history' AND clave_idempotencia='sol-history'")) {
+                    rows.next(); assertEquals(0, rows.getInt(1));
+                }
+            }
+        } finally { isolated.drop(); }
+    }
+
+    @Test
+    void differentEventLimitsArePersistedEnforcedAndCountConfirmedSales() {
+        for (int limit : List.of(1, 4, 6)) {
+            String event = "EVENT-LIMIT-" + limit;
+            inicializacionService.inicializar(event, new InicializarDisponibilidadRequest(limit, List.of(
+                    new SectorInicializacionRequest("SEC", TipoSector.NO_NUMERADO, 20, List.of()))));
+            estadoVentaService.aplicar(event, EstadoVenta.ACTIVA);
+            assertEquals(limit, eventosRepository.findByEventoId(event).orElseThrow().getLimiteEntradasPorCliente());
+            var first = reservaService.crear(event, "SAME-OWNER", requestCantidad("FIRST-" + limit, "SEC", limit));
+            assertThrows(ReservaConflictException.class,
+                    () -> reservaService.crear(event, "SAME-OWNER", requestCantidad("EXCESS-" + limit, "SEC", 1)));
+            reservaService.confirmar(first.reserva().reservaId());
+            assertThrows(ReservaConflictException.class,
+                    () -> reservaService.crear(event, "SAME-OWNER", requestCantidad("SOLD-EXCESS-" + limit, "SEC", 1)));
+            assertThrows(InicializacionConflictException.class, () -> inicializacionService.inicializar(event,
+                    new InicializarDisponibilidadRequest(limit + 1, List.of(
+                            new SectorInicializacionRequest("SEC", TipoSector.NO_NUMERADO, 20, List.of())))));
+            assertEquals(limit, eventosRepository.findByEventoId(event).orElseThrow().getLimiteEntradasPorCliente());
+        }
+    }
+
+    @Test
+    void exactExternalIdsAndIdempotencyKeysPreserveCaseAccentsAndSpaces() {
+        List<String> variants = List.of("EXACT", "exact", "ÉXACT", "EXACT ");
+        for (String event : variants) {
+            inicializacionService.inicializar(event, new InicializarDisponibilidadRequest(4, List.of(
+                    new SectorInicializacionRequest("SEC", TipoSector.NO_NUMERADO, 20, List.of()),
+                    new SectorInicializacionRequest("sec", TipoSector.NO_NUMERADO, 20, List.of()),
+                    new SectorInicializacionRequest("SÉC", TipoSector.NO_NUMERADO, 20, List.of()),
+                    new SectorInicializacionRequest("SEC ", TipoSector.NO_NUMERADO, 20, List.of()))));
+            estadoVentaService.aplicar(event, EstadoVenta.ACTIVA);
+            assertEquals(event, eventosRepository.findByEventoId(event).orElseThrow().getEventoId());
+            assertEquals(4, sectorRepository.findAllByEventoId(event).size());
+        }
+        for (String client : variants) {
+            var created = reservaService.crear("EXACT", client, requestCantidad("SOL", "SEC", 1));
+            assertEquals(org.springframework.http.HttpStatus.CREATED, created.status());
+            assertEquals(client, reservaService.consultar(created.reserva().reservaId()).clienteId());
+            assertEquals(org.springframework.http.HttpStatus.OK,
+                    reservaService.crear("EXACT", client, requestCantidad("SOL", "SEC", 1)).status());
+        }
+        for (String key : variants) {
+            assertEquals(org.springframework.http.HttpStatus.CREATED,
+                    reservaService.crear("exact", "KEY-OWNER", requestCantidad(key, "sec", 1)).status());
+        }
+        assertEquals("utf8mb4_0900_bin", jdbcTemplate.queryForObject(
+                "SELECT COLLATION_NAME FROM information_schema.columns WHERE TABLE_SCHEMA=DATABASE() "
+                        + "AND TABLE_NAME='reservas' AND COLUMN_NAME='clave_idempotencia'", String.class));
+    }
+
+    @Test
     void configuredServerIsMySql8413() {
         String version = jdbcTemplate.queryForObject("SELECT VERSION()", String.class);
         assertTrue(version.startsWith("8.4.13"), "Se esperaba MySQL 8.4.13 y se obtuvo " + version);
@@ -135,7 +229,7 @@ class DisponibilidadMySqlConcurrencyTests {
 
     @Test
     void flywayMigratesBlankSchemaAndHibernateValidatesIt() {
-        assertEquals(List.of("1", "2", "3", "4", "5", "6"), jdbcTemplate.queryForList(
+        assertEquals(List.of("1", "2", "3", "4", "5", "6", "7"), jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank",
                 String.class));
         assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES "
@@ -223,7 +317,7 @@ class DisponibilidadMySqlConcurrencyTests {
                 while (result.next()) {
                     versions.add(result.getString(1));
                 }
-                assertEquals(List.of("1", "2", "3", "4", "5", "6"), versions);
+                assertEquals(List.of("1", "2", "3", "4", "5", "6", "7"), versions);
             }
         } finally {
             legacy.drop();
@@ -780,12 +874,12 @@ class DisponibilidadMySqlConcurrencyTests {
     }
 
     @Test
-    void mysqlInitializationPersistsOnlyTheFixedLimitAndRejectsOtherValuesBeforeWriting() {
+    void mysqlInitializationPersistsEventLimitAndRejectsNonPositiveValuesBeforeWriting() {
         String eventId = "evento-limite-fijo-mysql-" + UUID.randomUUID();
         var sectors = List.of(new SectorInicializacionRequest("sector-limite-fijo", TipoSector.NO_NUMERADO,
                 10, List.of()));
 
-        for (Integer invalidLimit : List.of(-1, 0, 1, 3, 5)) {
+        for (Integer invalidLimit : List.of(-1, 0)) {
             String invalidEventId = eventId + "-" + invalidLimit;
             assertThrows(ConstraintViolationException.class, () -> inicializacionService.inicializar(
                     invalidEventId, new InicializarDisponibilidadRequest(invalidLimit, sectors)));
@@ -1480,12 +1574,7 @@ class DisponibilidadMySqlConcurrencyTests {
         }
 
         private static TemporaryDatabase createFromApplicationConfiguration() {
-            Properties properties = new Properties();
-            try (var input = new ClassPathResource("application.properties").getInputStream()) {
-                properties.load(input);
-            } catch (IOException e) {
-                throw new IllegalStateException("No se pudo leer la configuración MySQL del proyecto", e);
-            }
+            Properties properties = ar.edu.unicen.ms_disponibilidad_reservas.support.IsolatedMySqlConfiguration.load();
 
             String configuredUrl = properties.getProperty("spring.datasource.url");
             String jdbcPrefix = "jdbc:mysql://";

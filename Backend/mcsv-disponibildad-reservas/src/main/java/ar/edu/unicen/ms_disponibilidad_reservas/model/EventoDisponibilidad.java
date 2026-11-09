@@ -12,8 +12,6 @@ import jakarta.persistence.*;
 @Access(AccessType.FIELD)
 public class EventoDisponibilidad {
 
-    public static final int LIMITE_ENTRADAS_POR_CLIENTE_FIJO = 4;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -77,8 +75,8 @@ public class EventoDisponibilidad {
 
     public void setLimiteEntradasPorCliente(Integer limiteEntradasPorCliente) {
         Objects.requireNonNull(limiteEntradasPorCliente, "limiteEntradasPorCliente no puede ser null");
-        if (limiteEntradasPorCliente != LIMITE_ENTRADAS_POR_CLIENTE_FIJO) {
-            throw new IllegalArgumentException("El límite por cliente y evento debe ser exactamente 4");
+        if (limiteEntradasPorCliente <= 0) {
+            throw new IllegalArgumentException("El límite por cliente y evento debe ser positivo");
         }
         if (this.limiteEntradasPorCliente != null
                 && !this.limiteEntradasPorCliente.equals(limiteEntradasPorCliente)) {

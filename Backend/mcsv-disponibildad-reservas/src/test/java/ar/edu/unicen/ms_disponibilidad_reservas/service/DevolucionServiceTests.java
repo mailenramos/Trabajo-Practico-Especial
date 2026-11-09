@@ -57,7 +57,7 @@ class DevolucionServiceTests {
         LiberarReservaRequest request = new LiberarReservaRequest("DEVOLUCION_APROBADA",
                 "550e8400-e29b-41d4-a716-446655440000", List.of(asiento, asiento));
 
-        assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("reserva", request));
+        assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("00000000-0000-0000-0000-000000000001", request));
         verifyNoInteractions(transactionManager);
     }
 
@@ -68,7 +68,7 @@ class DevolucionServiceTests {
         LiberarReservaRequest request = new LiberarReservaRequest("DEVOLUCION_APROBADA", "not-a-uuid",
                 List.of(new DetalleDevolucionRequest("SEC-01", 1, 5, null)));
 
-        assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("reserva", request));
+        assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("00000000-0000-0000-0000-000000000001", request));
         verifyNoInteractions(transactionManager);
     }
 
@@ -88,7 +88,7 @@ class DevolucionServiceTests {
                         new DetalleDevolucionRequest("SEC-GEN", null, null, 2))));
 
         for (LiberarReservaRequest request : invalidRequests) {
-            assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("reserva", request));
+            assertThrows(IllegalArgumentException.class, () -> service.devolverAprobada("00000000-0000-0000-0000-000000000001", request));
         }
         verifyNoInteractions(transactionManager);
     }
@@ -99,17 +99,17 @@ class DevolucionServiceTests {
         DetalleDevolucionRequest seat = new DetalleDevolucionRequest("SEC-01", 1, 5, null);
         LiberarReservaRequest request = refund(REFUND_ID, seat);
 
-        fixture.service.devolverAprobada("reserva-1", request);
-        fixture.service.devolverAprobada("reserva-1", request);
+        fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", request);
+        fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", request);
 
         assertNotNull(fixture.refund.get());
-        assertEquals("reserva-1", fixture.refund.get().reservaId());
+        assertEquals("00000000-0000-0000-0000-000000000001", fixture.refund.get().reservaId());
         assertEquals(2, fixture.aggregate.getCantidadConfirmada());
         assertEquals(0, fixture.aggregate.getCantidadReservada());
-        verify(fixture.devolutions, times(1)).insert(eq(REFUND_ID), eq("reserva-1"), anyString());
+        verify(fixture.devolutions, times(1)).insert(eq(REFUND_ID), eq("00000000-0000-0000-0000-000000000001"), anyString());
         verify(fixture.availability, times(1)).devolver(any());
         verify(fixture.quantities, times(1)).saveAndFlush(fixture.aggregate);
-        verify(fixture.devolutions, times(1)).insertReturnedSeat(REFUND_ID, "reserva-1", 21L);
+        verify(fixture.devolutions, times(1)).insertReturnedSeat(REFUND_ID, "00000000-0000-0000-0000-000000000001", 21L);
     }
 
     @Test
@@ -117,13 +117,13 @@ class DevolucionServiceTests {
         Fixture fixture = new Fixture(TipoSector.NUMERADO, 1, 3, 0);
         LiberarReservaRequest original = refund(REFUND_ID,
                 new DetalleDevolucionRequest("SEC-01", 1, 5, null));
-        fixture.service.devolverAprobada("reserva-1", original);
+        fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", original);
         int confirmedAfterFirst = fixture.aggregate.getCantidadConfirmada();
 
         assertThrows(ReservaConflictException.class,
-                () -> fixture.service.devolverAprobada("reserva-2", original));
+                () -> fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000002", original));
         assertThrows(ReservaConflictException.class,
-                () -> fixture.service.devolverAprobada("reserva-1", refund(REFUND_ID,
+                () -> fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", refund(REFUND_ID,
                         new DetalleDevolucionRequest("SEC-01", 1, 6, null))));
 
         assertEquals(confirmedAfterFirst, fixture.aggregate.getCantidadConfirmada());
@@ -137,11 +137,11 @@ class DevolucionServiceTests {
         Fixture fixture = new Fixture(TipoSector.NUMERADO, 1, 3, 0);
         LiberarReservaRequest first = refund(REFUND_ID,
                 new DetalleDevolucionRequest("SEC-01", 1, 5, null));
-        fixture.service.devolverAprobada("reserva-1", first);
+        fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", first);
         int confirmedAfterFirst = fixture.aggregate.getCantidadConfirmada();
 
         assertThrows(ReservaConflictException.class,
-                () -> fixture.service.devolverAprobada("reserva-1", refund(
+                () -> fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", refund(
                         "550e8400-e29b-41d4-a716-446655440001",
                         new DetalleDevolucionRequest("SEC-01", 1, 5, null))));
 
@@ -154,12 +154,12 @@ class DevolucionServiceTests {
     @Test
     void differentRefundIdCannotExceedAlreadyReturnedNonNumberedQuantity() {
         Fixture fixture = new Fixture(TipoSector.NO_NUMERADO, 3, 5, 0);
-        fixture.service.devolverAprobada("reserva-1",
+        fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001",
                 refund(REFUND_ID, new DetalleDevolucionRequest("SEC-01", null, null, 2)));
         int confirmedAfterFirst = fixture.aggregate.getCantidadConfirmada();
 
         assertThrows(ReservaConflictException.class,
-                () -> fixture.service.devolverAprobada("reserva-1", refund(
+                () -> fixture.service.devolverAprobada("00000000-0000-0000-0000-000000000001", refund(
                         "550e8400-e29b-41d4-a716-446655440002",
                         new DetalleDevolucionRequest("SEC-01", null, null, 2))));
 
@@ -197,7 +197,7 @@ class DevolucionServiceTests {
             org.mockito.Mockito.doNothing().when(transactionManager).commit(any());
             org.mockito.Mockito.doNothing().when(transactionManager).rollback(any());
 
-            ReflectionTestUtils.setField(reservation, "id", "reserva-1");
+            ReflectionTestUtils.setField(reservation, "id", "00000000-0000-0000-0000-000000000001");
             reservation.setEventoId("evento-1");
             reservation.setUsuarioId("cliente-1");
             reservation.setEstado(EstadoReserva.CONFIRMADA);
@@ -238,8 +238,8 @@ class DevolucionServiceTests {
                     .thenAnswer(invocation -> returnedSeats.contains(invocation.getArgument(0)));
             returnedQuantity.set(alreadyReturned);
             when(devolutions.returnedQuantity(21L)).thenAnswer(ignored -> returnedQuantity.get());
-            when(reservations.findEventoIdById("reserva-1")).thenReturn(Optional.of("evento-1"));
-            when(reservations.findByIdForUpdate("reserva-1")).thenReturn(Optional.of(reservation));
+            when(reservations.findEventoIdById("00000000-0000-0000-0000-000000000001")).thenReturn(Optional.of("evento-1"));
+            when(reservations.findByIdForUpdate("00000000-0000-0000-0000-000000000001")).thenReturn(Optional.of(reservation));
             when(events.findByEventoIdForUpdate("evento-1"))
                     .thenReturn(Optional.of(new EventoDisponibilidad()));
             when(sectors.findByEventoIdAndSectorId("evento-1", "SEC-01"))

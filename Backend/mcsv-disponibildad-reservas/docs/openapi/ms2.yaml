@@ -3,12 +3,15 @@ info:
   title: TicketYa MS2 - Gestión de disponibilidad y reservas
   version: 0.2.0
   description: >-
-    Contratos HTTP implementados por MS2 para disponibilidad y reservas, junto
+    Contratos HTTP de MS2 para disponibilidad y reservas, junto
     con la integración saliente documentada de Outbox hacia MS1. Las operaciones
     internas usan REST/JSON directamente, fuera del API Gateway y sin
     autenticación entre microservicios. Las operaciones de cliente pasan por el
     Gateway. Puertos locales: MS1 8081, MS2 8080 y MS3 8083. El contrato de
-    consulta pública de la reserva propia del cliente sigue pendiente.
+    consulta pública de compras/reservas propias está fuera del alcance de MS2 y corresponde a MS3.
+    Los UUID mal formados producen 400 PARAMETRO_INVALIDO. Los identificadores
+    externos y las claves de solicitud se comparan exactamente, sin normalización.
+    Las propiedades JSON desconocidas o ajenas a la variante se rechazan con 400.
   x-error-format-status: agreed
   x-error-code-catalog-status: agreed
 servers:
@@ -74,9 +77,8 @@ paths:
         MS1 llama directamente a MS2. La inicialización se persiste como una
         unidad y el éxito solo se informa tras el commit. Un reintento idéntico
         no duplica ni restablece el inventario; contenido diferente devuelve 409.
-        El límite es fijo: cuatro entradas por cliente para cada evento, no
-        configurable por organizador ni por evento. MS1 siempre envía
-        limiteEntradasPorCliente: 4 y MS2 valida ese valor. El límite no se
+        El límite corresponde a cada evento. MS1 envía
+        limiteEntradasPorCliente positivo (4 si el organizador no configuró uno) y MS2 almacena ese valor. El límite no se
         modifica posteriormente.
         El evento queda PENDIENTE_PUBLICACION hasta que MS1 envíe ACTIVA.
       requestBody:
@@ -191,7 +193,7 @@ paths:
         El cliente crea la reserva a través del Gateway; MS3 no crea reservas.
         X-User-Id identifica al titular. Se reservan todos los detalles o ninguno.
         Cada reserva dura exactamente 10 minutos; este plazo es fijo y no
-        configurable. El máximo es fijo en cuatro entradas por cliente y evento.
+        configurable. El máximo es el límite recibido durante la inicialización para ese evento; MS1 envía 4 por defecto.
         solicitudId se conserva sin cambios en los
         reintentos. La identidad es (clienteId, solicitudId), sin eventoId en
         la clave; para comparar contenido se incluyen el eventoId de la URL y
@@ -298,8 +300,10 @@ paths:
                     numero: 5
                   - sectorId: SEC-GENERAL
                     cantidad: 2
+        '400':
+          $ref: '#/components/responses/InvalidUuid'
         '404':
-          description: No existe una reserva local con ese reservaId.
+          description: El reservaId tiene formato UUID válido, pero no existe una reserva local con ese identificador.
           content:
             application/json:
               schema:
@@ -329,8 +333,10 @@ paths:
       responses:
         '204':
           description: Confirmada ahora o confirmación repetida de una reserva ya CONFIRMADA.
+        '400':
+          $ref: '#/components/responses/InvalidUuid'
         '404':
-          description: No existe una reserva local con ese reservaId.
+          description: El reservaId tiene formato UUID válido, pero no existe una reserva local con ese identificador.
           content:
             application/json:
               schema:
@@ -412,7 +418,7 @@ paths:
         '204':
           description: Liberación aplicada, o repetición de un devolucionId global ya procesado con la misma reserva y los mismos detalles, sin repetir efectos.
         '400':
-          description: JSON inválido, UUID inválido, motivo/detalles faltantes o inválidos, o detalles duplicados.
+          description: JSON inválido, motivo/detalles faltantes o inválidos, o detalles duplicados usan el error común; formato UUID inválido de reservaId o devolucionId usa 400 con error PARAMETRO_INVALIDO.
           content:
             application/json:
               schema:
@@ -423,7 +429,7 @@ paths:
                 error: Bad Request
                 mensaje: La solicitud de liberación contiene datos inválidos.
         '404':
-          description: No existe una reserva local con ese reservaId.
+          description: El reservaId tiene formato UUID válido, pero no existe una reserva local con ese identificador.
           content:
             application/json:
               schema:
@@ -454,25 +460,38 @@ components:
       name: eventoId
       in: path
       required: true
-      description: Identificador externo String del evento.
+      description: >-
+        Identificador externo exacto, sin trim ni normalización. Inicialización y
+        creación rechazan blanco y más de 255 unidades UTF-16 (String.length de Java).
+        Consulta y cambio de venta buscan la identidad recibida; no ejecutan esa
+        validación de entrada y pueden responder 404 si no existe.
       schema:
         type: string
         minLength: 1
+        maxLength: 255
+        x-java-max-utf16-length: 255
       example: EVT-123
     ReservaId:
       name: reservaId
       in: path
       required: true
-      description: UUID de reserva generado por MS2.
+      description: UUID de reserva generado por MS2. Formato inválido produce 400 PARAMETRO_INVALIDO; UUID válido inexistente produce 404 Not Found.
       schema:
         type: string
         format: uuid
+        minLength: 36
+        maxLength: 36
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
       example: 9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123
     XUserId:
       name: X-User-Id
       in: header
       required: true
-      description: Identificador String del titular propagado por el Gateway.
+      description: >-
+        Identificador exacto del cliente autenticado, propagado por el Gateway.
+        MS2 exige entre 1 y 255 puntos de código Unicode; no aplica trim ni rechaza
+        por sí solo una cadena compuesta únicamente por espacios. La identidad no
+        se obtiene del body. La verificación del token corresponde al Gateway.
       schema:
         type: string
         minLength: 1
@@ -486,8 +505,9 @@ components:
       properties:
         limiteEntradasPorCliente:
           type: integer
-          const: 4
-          description: Valor fijo de cuatro entradas por cliente y evento; MS1 debe enviar exactamente 4. No es configurable.
+          minimum: 1
+          format: int32
+          description: Límite por evento enviado por MS1; usa 4 cuando el organizador no configura uno. No se modifica después de publicar.
           example: 4
         sectores:
           type: array
@@ -504,11 +524,17 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          maxLength: 255
+          x-java-max-utf16-length: 255
           example: SEC-PLATEA
         tipo:
           const: NUMERADO
         capacidadTotal:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 0
           description: >-
             Capacidad declarada del sector. La igualdad con la longitud de
@@ -528,11 +554,17 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          maxLength: 255
+          x-java-max-utf16-length: 255
           example: SEC-GENERAL
         tipo:
           const: NO_NUMERADO
         capacidadTotal:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 0
         asientos:
           type: array
@@ -544,8 +576,14 @@ components:
       properties:
         fila:
           type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: Integer de Java; no se exige que fila sea positiva.
         numero:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 1
     EstadoVentaRequest:
       type: object
@@ -562,6 +600,9 @@ components:
       properties:
         eventoId:
           type: string
+          minLength: 1
+          maxLength: 255
+          x-java-max-utf16-length: 255
         sectores:
           type: array
           items:
@@ -575,10 +616,16 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          maxLength: 255
+          x-java-max-utf16-length: 255
         tipo:
           const: NUMERADO
         capacidadTotal:
           type: integer
+          format: int32
+          maximum: 2147483647
         cantidadDisponible:
           type: integer
           minimum: 0
@@ -597,10 +644,16 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          maxLength: 255
+          x-java-max-utf16-length: 255
         tipo:
           const: NO_NUMERADO
         capacidadTotal:
           type: integer
+          format: int32
+          maximum: 2147483647
         cantidadDisponible:
           type: integer
           minimum: 0
@@ -615,8 +668,14 @@ components:
       properties:
         fila:
           type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: Integer de Java; no se exige que fila sea positiva.
         numero:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 1
     CrearReservaRequest:
       type: object
@@ -627,7 +686,10 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Identificador conservado sin cambios al reintentar esta solicitud.
+          description: >-
+            Entre 1 y 255 puntos de código Unicode; puede contener espacios y no
+            se recorta ni normaliza. Se conserva exactamente en cada reintento.
+            Su identidad se combina con clienteId, no con eventoId.
           example: SOL-9b8d
         detalles:
           type: array
@@ -643,10 +705,18 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
         fila:
           type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+          description: Integer de Java; no se exige que fila sea positiva.
         numero:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 1
     CantidadSolicitada:
       type: object
@@ -655,8 +725,12 @@ components:
       properties:
         sectorId:
           type: string
+          minLength: 1
+          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
         cantidad:
           type: integer
+          format: int32
+          maximum: 2147483647
           minimum: 1
     ReservaCreadaResponse:
       type: object
@@ -666,6 +740,9 @@ components:
         reservaId:
           type: string
           format: uuid
+          minLength: 36
+          maxLength: 36
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         estado:
           $ref: '#/components/schemas/EstadoReserva'
         expiraEn:
@@ -678,10 +755,19 @@ components:
         reservaId:
           type: string
           format: uuid
+          minLength: 36
+          maxLength: 36
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         clienteId:
           type: string
+          minLength: 1
+          maxLength: 255
+          description: Identidad exacta recibida en X-User-Id, sin normalización.
         eventoId:
           type: string
+          minLength: 1
+          maxLength: 255
+          x-java-max-utf16-length: 255
         estado:
           $ref: '#/components/schemas/EstadoReserva'
         expiraEn:
@@ -723,8 +809,11 @@ components:
         motivo:
           const: DEVOLUCION_APROBADA
         devolucionId:
+          description: UUID global de idempotencia. Formato inválido produce 400 PARAMETRO_INVALIDO. Una clave nueva válida no requiere existir previamente en el ledger; la reserva referenciada válida inexistente produce 404 Not Found.
           type: string
           format: uuid
+          minLength: 36
+          maxLength: 36
           pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         detalles:
           type: array
@@ -734,9 +823,16 @@ components:
             No se permiten detalles duplicados; el orden no forma parte de la
             identidad de la solicitud.
           items:
-            oneOf:
-              - $ref: '#/components/schemas/AsientoSolicitado'
-              - $ref: '#/components/schemas/CantidadSolicitada'
+            allOf:
+              - oneOf:
+                  - $ref: '#/components/schemas/AsientoSolicitado'
+                  - $ref: '#/components/schemas/CantidadSolicitada'
+              - type: object
+                properties:
+                  sectorId:
+                    maxLength: 255
+                    x-java-max-utf16-length: 255
+                    description: En devoluciones, @Size valida como máximo 255 unidades UTF-16.
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -767,6 +863,17 @@ components:
               mensaje:
                 type: string
   responses:
+    InvalidUuid:
+      description: Formato UUID inválido; no equivale a un recurso inexistente ni a un conflicto de idempotencia.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-09T12:00:00Z'
+            status: 400
+            error: PARAMETRO_INVALIDO
+            mensaje: El identificador debe tener formato UUID válido.
     BadRequest:
       description: JSON mal formado, campo requerido ausente o dato inválido.
       content:
@@ -849,8 +956,10 @@ x-outbound-integrations:
       MS2 records each actual sold-out transition in a durable transactional Outbox and sends outside the
       inventory transaction. It marks a row sent only after HTTP 204. Transport errors and every other HTTP
       status retain the row for progressive capped retries without discarding it after a fixed attempt count.
-      Expired worker leases are recovered after restart; per-event order is preserved and concurrent workers
-      cannot claim the same row simultaneously. Delivery is at least once if MS2 crashes after MS1 accepts the
+      Expired worker leases are recovered after restart. The existing per-event ordering mechanism is retained
+      and attempts to preserve order, without an absolute guarantee under all concurrency, delay and
+      message-recovery scenarios. Tokens protect local updates, not late HTTP sends by expired workers.
+      No version field or other payload field is added. Delivery is at least once if MS2 crashes after MS1 accepts the
       request but before MS2 records the response; MS1 treats repeated values idempotently. Retries preserve
       the same state-setting request; no notification identifier or extra payload field is defined. The
       Outbox is not populated during initialization.
@@ -863,4 +972,3 @@ x-pending-decisions:
   - Confirm whether capacidadTotal for a numbered sector must exactly equal the number of entries in the complete asientos list; do not enforce an equality until confirmed.
   - Read-only inventory of each target schema before applying V4; incompatible legacy fila values require an explicitly approved remediation, because V4 aborts before DDL for non-numeric, out-of-range or colliding values.
   - Compatibility for retries against events with legacy unversioned initialization fingerprints; MS2 cannot confirm those retries as identical and currently returns a conflict.
-  - Public route, response representation and HTTP errors for a customer querying only their own reservation.

@@ -16,10 +16,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -145,6 +145,7 @@ public class ReservaService {
 
     @Transactional(readOnly = true)
     public ReservaConsultaResponse consultar(String reservaId) {
+        ValidacionUuid.exigir(reservaId, "reservaId");
         Reserva reserva = reservasRepository.findById(reservaId)
                 .orElseThrow(ReservaNoEncontradaException::new);
         List<DetalleReservaConsultaResponse> detalles = reserva.getDetalles().stream()
@@ -164,6 +165,7 @@ public class ReservaService {
     }
 
     public void confirmar(String reservaId) {
+        ValidacionUuid.exigir(reservaId, "reservaId");
         boolean transaccionExterna = TransactionSynchronizationManager.isActualTransactionActive();
         try {
             transaccionConfirmacion.execute(status -> {
@@ -191,11 +193,8 @@ public class ReservaService {
                 .orElseThrow(ReservaNoEncontradaException::new);
         eventosRepository.findByEventoIdForUpdate(eventoId)
                 .orElseThrow(() -> new IllegalStateException("La reserva no tiene evento de disponibilidad local."));
-        Reserva reserva = reservasRepository.findByIdForUpdate(reservaId)
+        Reserva reserva = buscarReservaActualBloqueada(reservaId)
                 .orElseThrow(ReservaNoEncontradaException::new);
-        // The transaction may have started before waiting for the event lock. Refresh
-        // the managed reservation under its lock so a concurrent transition is visible.
-        entityManager.refresh(reserva, LockModeType.PESSIMISTIC_WRITE);
 
         if (reserva.getEstado() == EstadoReserva.CONFIRMADA) {
             return;
@@ -237,7 +236,9 @@ public class ReservaService {
     /** Releases a complete temporary reservation after payment rejection, exactly once. */
     @Transactional(rollbackFor = Exception.class)
     public void liberarPorPagoRechazado(String reservaId) {
-        Reserva reserva = reservasRepository.findByIdForUpdate(reservaId)
+        ValidacionUuid.exigir(reservaId, "reservaId");
+        bloquearEventoDeReserva(reservaId);
+        Reserva reserva = buscarReservaActualBloqueada(reservaId)
                 .orElseThrow(ReservaNoEncontradaException::new);
 
         if (reserva.getEstado() == EstadoReserva.LIBERADA) {
@@ -258,10 +259,12 @@ public class ReservaService {
      */
     @Transactional(rollbackFor = Exception.class)
     public int liberarReservasVigentesDelEvento(String eventoId) {
+        eventosRepository.findByEventoIdForUpdate(eventoId)
+                .orElseThrow(() -> new IllegalStateException("No existe el evento de disponibilidad local."));
         int liberadas = 0;
         List<String> candidatas = reservasRepository.findIdsByEventoIdAndEstado(eventoId, EstadoReserva.VIGENTE);
         for (String reservaId : candidatas) {
-            Reserva reserva = reservasRepository.findByIdForUpdate(reservaId).orElse(null);
+            Reserva reserva = buscarReservaActualBloqueada(reservaId).orElse(null);
             if (reserva == null || !eventoId.equals(reserva.getEventoId())
                     || reserva.getEstado() != EstadoReserva.VIGENTE) {
                 continue;
@@ -297,14 +300,36 @@ public class ReservaService {
     }
 
     private boolean expirarSiCorresponde(String reservaId) {
-        Reserva reserva = reservasRepository.findByIdForUpdate(reservaId).orElse(null);
-        if (reserva == null || reserva.getEstado() != EstadoReserva.VIGENTE) {
-            return false;
-        }
+        if (!bloquearEventoDeReserva(reservaId)) return false;
+        Reserva reserva = buscarReservaActualBloqueada(reservaId).orElse(null);
+        if (reserva == null) return false;
+        if (reserva.getEstado() != EstadoReserva.VIGENTE) return false;
         if (instanteUtc(reserva.getExpiraEn()).isAfter(clock.instant())) {
             return false;
         }
         liberarReservaVigente(reserva);
+        return true;
+    }
+
+    /** A locking query must hydrate fresh state, not reuse a managed snapshot.
+     * Detaching does not release the database lock; the second query is a current read.
+     */
+    private Optional<Reserva> buscarReservaActualBloqueada(String reservaId) {
+        Optional<Reserva> encontrada = reservasRepository.findByIdForUpdate(reservaId);
+        if (encontrada.isEmpty()) return encontrada;
+        entityManager.detach(encontrada.get());
+        return reservasRepository.findByIdForUpdate(reservaId);
+    }
+
+    /** Event first, then reservation, client counter and ordered inventory.
+     * The scalar lookup is only routing; mutable state is rechecked under the locks.
+     * No operation may retain a reservation/counter while waiting for this event.
+     */
+    private boolean bloquearEventoDeReserva(String reservaId) {
+        String eventoId = reservasRepository.findEventoIdById(reservaId).orElse(null);
+        if (eventoId == null) return false;
+        eventosRepository.findByEventoIdForUpdate(eventoId)
+                .orElseThrow(() -> new IllegalStateException("La reserva no tiene evento de disponibilidad local."));
         return true;
     }
 

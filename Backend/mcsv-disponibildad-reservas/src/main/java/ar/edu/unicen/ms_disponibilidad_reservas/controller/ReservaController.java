@@ -15,6 +15,7 @@ import ar.edu.unicen.ms_disponibilidad_reservas.dto.LiberarReservaRequest;
 import ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaService;
 import ar.edu.unicen.ms_disponibilidad_reservas.service.DevolucionService;
 import jakarta.validation.Valid;
+import ar.edu.unicen.ms_disponibilidad_reservas.service.ValidacionUuid;
 
 @RestController
 @RequestMapping("/disponibilidad/reservas")
@@ -43,6 +44,11 @@ public class ReservaController {
     public ResponseEntity<Void> liberar(
             @PathVariable String reservaId,
             @Valid @RequestBody LiberarReservaRequest request) {
+        ValidacionUuid.exigir(reservaId, "reservaId");
+        if ("PAGO_RECHAZADO".equals(request.motivo())
+                && (request.devolucionId() != null || request.detalles() != null)) {
+            throw new IllegalArgumentException("PAGO_RECHAZADO acepta únicamente motivo.");
+        }
         if ("DEVOLUCION_APROBADA".equals(request.motivo())) {
             devolucionService.devolverAprobada(reservaId, request);
         } else {

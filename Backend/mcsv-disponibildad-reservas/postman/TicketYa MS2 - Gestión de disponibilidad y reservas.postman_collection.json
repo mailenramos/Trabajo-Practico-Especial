@@ -1,0 +1,2122 @@
+{
+  "info": {
+    "_postman_id": "658e3c66-bd4c-478a-b198-3f739c7b3fc1",
+    "name": "TicketYa MS2 - Gestión de disponibilidad y reservas",
+    "description": "Contratos HTTP implementados por MS2 para disponibilidad y reservas, junto con la integración saliente documentada de Outbox hacia MS1. Las operaciones internas usan REST/JSON directamente, fuera del API Gateway y sin autenticación entre microservicios. Las operaciones de cliente pasan por el Gateway. Puertos locales: MS1 8081, MS2 8080 y MS3 8083. El contrato de consulta pública de la reserva propia del cliente sigue pendiente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "58900759",
+    "_collection_link": "https://go.postman.co/collection/58900759-658e3c66-bd4c-478a-b198-3f739c7b3fc1?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "disponibilidad",
+      "item": [
+        {
+          "name": "eventos",
+          "item": [
+            {
+              "name": "{eventoId}",
+              "item": [
+                {
+                  "name": "venta",
+                  "item": [
+                    {
+                      "name": "Aplicar un estado de venta recibido de MS1",
+                      "request": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId",
+                            "venta"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        },
+                        "description": "MS1 es autoridad del ciclo de vida del evento. El contrato admite los cuatro valores. ACTIVA/SUSPENDIDA publican, suspenden y reanudan ventas; CANCELADA/FINALIZADA establecen un estado terminal desde un estado local no terminal, liberan todas las reservas temporales vigentes y conservan las reservas y cantidades confirmadas. SUSPENDIDA bloquea nuevas reservas sin liberar las vigentes. MS2 se limita a actualizar su estado local y liberar reservas temporales; la coordinación general de cancelaciones, reintegros e invalidación de entradas corresponde a los microservicios responsables. Repetir el mismo estado terminal responde 204 sin volver a procesar reservas; cambiar entre CANCELADO y FINALIZADO, o reactivar un evento terminal, responde 409. Una transición compatible nueva o repetir el estado actual responde 204; un estado inválido responde 400; si MS2 no tiene disponibilidad local inicializada responde 404; una transición incompatible responde 409; un error interno responde 500. MS2 representa estos comportamientos mediante los valores existentes de EstadoEvento y ventaSuspendida, sin agregar estados persistidos. ACTIVA mueve PENDIENTE_PUBLICACION a PUBLICADO; desde PUBLICADO o AGOTADO conserva EstadoEvento y establece ventaSuspendida=false. SUSPENDIDA solo es compatible desde PUBLICADO o AGOTADO, conserva EstadoEvento y establece ventaSuspendida=true. CANCELADA establece EstadoEvento=CANCELADO y FINALIZADA establece EstadoEvento=FINALIZADO; ambas liberan las reservas VIGENTE dentro de la misma transacción. No alteran ventaSuspendida ni las ventas confirmadas."
+                      },
+                      "response": [
+                        {
+                          "name": "Transición compatible aplicada o estado actual repetido; no se repiten efectos.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "No Content",
+                          "code": 204,
+                          "_postman_previewlanguage": "text",
+                          "header": [],
+                          "cookie": [],
+                          "body": null
+                        },
+                        {
+                          "name": "JSON mal formado, campo requerido ausente o dato inválido.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Bad Request",
+                          "code": 400,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"mensaje\": \"La solicitud contiene datos inválidos.\",\n  \"campos\": [\n    {\n      \"campo\": \"detalles[0].numero\",\n      \"mensaje\": \"Debe ser un entero positivo.\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "No hay disponibilidad local registrada en MS2 para el evento.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Not Found",
+                          "code": 404,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No hay disponibilidad registrada en MS2 para el evento solicitado.\"\n}"
+                        },
+                        {
+                          "name": "Transición incompatible con el estado actual.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Conflict",
+                          "code": 409,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"mensaje\": \"La transición solicitada no es compatible con el estado actual.\"\n}"
+                        },
+                        {
+                          "name": "El tipo de contenido no es compatible.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Unsupported Media Type",
+                          "code": 415,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                          "originalRequest": {
+                            "method": "PUT",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/venta",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "venta"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Internal Server Error",
+                          "code": 500,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "reservas",
+                  "item": [
+                    {
+                      "name": "Crear una reserva temporal",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Identificador String del titular propagado por el Gateway.",
+                            "key": "X-User-Id",
+                            "value": "CLIENTE-42"
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId",
+                            "reservas"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        },
+                        "description": "El cliente crea la reserva a través del Gateway; MS3 no crea reservas. X-User-Id identifica al titular. Se reservan todos los detalles o ninguno. Cada reserva dura exactamente 10 minutos; este plazo es fijo y no configurable. El máximo es fijo en cuatro entradas por cliente y evento. solicitudId se conserva sin cambios en los reintentos. La identidad es (clienteId, solicitudId), sin eventoId en la clave; para comparar contenido se incluyen el eventoId de la URL y el body completo. Un reintento con ambos idénticos mientras la reserva original siga VIGENTE y no haya pasado su instante de expiración devuelve esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido otro eventoId, o una reserva original vencida/liberada, produce 409 y no crea otra reserva. Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id para identificar al titular; no requiere X-User-Role. La autorización corresponde al Gateway."
+                      },
+                      "response": [
+                        {
+                          "name": "Reintento idéntico del mismo cliente mientras la reserva original continúa VIGENTE y su instante de expiración no pasó; se devuelve el recurso existente sin repetir efectos.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"reservaId\": \"9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123\",\n  \"estado\": \"VIGENTE\",\n  \"expiraEn\": \"2026-11-07T15:10:00Z\"\n}"
+                        },
+                        {
+                          "name": "Reserva nueva creada.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Created",
+                          "code": 201,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"reservaId\": \"9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123\",\n  \"estado\": \"VIGENTE\",\n  \"expiraEn\": \"2026-11-07T15:10:00Z\"\n}"
+                        },
+                        {
+                          "name": "JSON mal formado, campo requerido ausente o dato inválido.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Bad Request",
+                          "code": 400,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"mensaje\": \"La solicitud contiene datos inválidos.\",\n  \"campos\": [\n    {\n      \"campo\": \"detalles[0].numero\",\n      \"mensaje\": \"Debe ser un entero positivo.\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "No hay disponibilidad local registrada en MS2 para el evento.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Not Found",
+                          "code": 404,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No hay disponibilidad registrada en MS2 para el evento solicitado.\"\n}"
+                        },
+                        {
+                          "name": "Selección no disponible, evento no reservable, límite excedido, contenido diferente para el mismo cliente y solicitudId, o reserva original vencida/liberada. En los últimos dos casos no se crea otra reserva.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Conflict",
+                          "code": 409,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"mensaje\": \"El identificador de solicitud ya está asociado a otro contenido para este cliente.\"\n}"
+                        },
+                        {
+                          "name": "El tipo de contenido no es compatible.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Unsupported Media Type",
+                          "code": 415,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "description": "Identificador String del titular propagado por el Gateway.",
+                                "key": "X-User-Id",
+                                "value": "CLIENTE-42"
+                              },
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "eventos",
+                                ":eventoId",
+                                "reservas"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "eventoId",
+                                  "value": "EVT-123",
+                                  "description": "Identificador externo String del evento."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Internal Server Error",
+                          "code": 500,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Consultar disponibilidad actual de un evento",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "disponibilidad",
+                        "eventos",
+                        ":eventoId"
+                      ],
+                      "variable": [
+                        {
+                          "key": "eventoId",
+                          "value": "EVT-123",
+                          "description": "Identificador externo String del evento."
+                        }
+                      ]
+                    },
+                    "description": "MS1 consulta directamente a MS2 para combinar esta disponibilidad con los datos del evento. MS2 informa sus datos locales y no consulta MS1. cantidadDisponible puede ser cero por reservas temporales vigentes; eso no significa que el evento esté agotado, ya que el agotamiento depende únicamente de las ventas confirmadas."
+                  },
+                  "response": [
+                    {
+                      "name": "Disponibilidad actual por sector.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"eventoId\": \"EVT-123\",\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-01\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"cantidadDisponible\": 120\n    },\n    {\n      \"sectorId\": \"SEC-02\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 100,\n      \"cantidadDisponible\": 2,\n      \"asientosDisponibles\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}"
+                    },
+                    {
+                      "name": "No hay disponibilidad local registrada en MS2 para el evento.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Not Found",
+                      "code": 404,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No hay disponibilidad registrada en MS2 para el evento solicitado.\"\n}"
+                    },
+                    {
+                      "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Internal Server Error",
+                      "code": 500,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Inicializar la disponibilidad de un evento",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "disponibilidad",
+                        "eventos",
+                        ":eventoId"
+                      ],
+                      "variable": [
+                        {
+                          "key": "eventoId",
+                          "value": "EVT-123",
+                          "description": "Identificador externo String del evento."
+                        }
+                      ]
+                    },
+                    "description": "MS1 llama directamente a MS2. La inicialización se persiste como una unidad y el éxito solo se informa tras el commit. Un reintento idéntico no duplica ni restablece el inventario; contenido diferente devuelve 409. El límite es fijo: cuatro entradas por cliente para cada evento, no configurable por organizador ni por evento. MS1 siempre envía limiteEntradasPorCliente: 4 y MS2 valida ese valor. El límite no se modifica posteriormente. El evento queda PENDIENTE_PUBLICACION hasta que MS1 envíe ACTIVA."
+                  },
+                  "response": [
+                    {
+                      "name": "Inicialización nueva o reintento idéntico confirmado después del commit.",
+                      "originalRequest": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "No Content",
+                      "code": 204,
+                      "_postman_previewlanguage": "text",
+                      "header": [],
+                      "cookie": [],
+                      "body": null
+                    },
+                    {
+                      "name": "JSON mal formado, campo requerido ausente o dato inválido.",
+                      "originalRequest": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Bad Request",
+                      "code": 400,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"mensaje\": \"La solicitud contiene datos inválidos.\",\n  \"campos\": [\n    {\n      \"campo\": \"detalles[0].numero\",\n      \"mensaje\": \"Debe ser un entero positivo.\"\n    }\n  ]\n}"
+                    },
+                    {
+                      "name": "La inicialización existente tiene contenido diferente.",
+                      "originalRequest": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Conflict",
+                      "code": 409,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"mensaje\": \"El evento ya fue inicializado con datos diferentes.\"\n}"
+                    },
+                    {
+                      "name": "El tipo de contenido no es compatible.",
+                      "originalRequest": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Unsupported Media Type",
+                      "code": 415,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                    },
+                    {
+                      "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                      "originalRequest": {
+                        "method": "PUT",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"limiteEntradasPorCliente\": 4,\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"asientos\": []\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 2,\n      \"asientos\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "eventos",
+                            ":eventoId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "eventoId",
+                              "value": "EVT-123",
+                              "description": "Identificador externo String del evento."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Internal Server Error",
+                      "code": 500,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "reservas",
+          "item": [
+            {
+              "name": "{reservaId}",
+              "item": [
+                {
+                  "name": "confirmacion",
+                  "item": [
+                    {
+                      "name": "Confirmar una reserva",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/confirmacion",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "reservas",
+                            ":reservaId",
+                            "confirmacion"
+                          ],
+                          "variable": [
+                            {
+                              "key": "reservaId",
+                              "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                              "description": "UUID de reserva generado por MS2."
+                            }
+                          ]
+                        },
+                        "description": "MS3 invoca después de la aprobación del pago. MS2 comprueba que la reserva permanezca VIGENTE y que el instante actual sea anterior a expiraEn; no depende de que la tarea automática de vencimiento ya haya corrido. La transición y el cambio de inventario son atómicos. Una reserva ya CONFIRMADA también responde 204 sin repetir efectos. Si el pago ya fue aprobado y MS2 rechaza la confirmación, MS3 coordina la compensación con MS4."
+                      },
+                      "response": [
+                        {
+                          "name": "Confirmada ahora o confirmación repetida de una reserva ya CONFIRMADA.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [],
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/confirmacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "confirmacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "No Content",
+                          "code": 204,
+                          "_postman_previewlanguage": "text",
+                          "header": [],
+                          "cookie": [],
+                          "body": null
+                        },
+                        {
+                          "name": "No existe una reserva local con ese reservaId.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/confirmacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "confirmacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Not Found",
+                          "code": 404,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No existe una reserva registrada en MS2 con ese identificador.\"\n}"
+                        },
+                        {
+                          "name": "Reserva vencida o liberada; el campo error distingue ambos casos.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/confirmacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "confirmacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Conflict",
+                          "code": 409,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T15:11:00Z\",\n  \"status\": 409,\n  \"error\": \"RESERVA_VENCIDA\",\n  \"mensaje\": \"La reserva venció antes de ser confirmada.\"\n}"
+                        },
+                        {
+                          "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/confirmacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "confirmacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Internal Server Error",
+                          "code": 500,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "liberacion",
+                  "item": [
+                    {
+                      "name": "Liberar una reserva por rechazo o una devolución aprobada",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "reservas",
+                            ":reservaId",
+                            "liberacion"
+                          ],
+                          "variable": [
+                            {
+                              "key": "reservaId",
+                              "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                              "description": "UUID de reserva generado por MS2."
+                            }
+                          ]
+                        },
+                        "description": "MS3 llama directamente a MS2. PAGO_RECHAZADO libera la reserva temporal completa y no puede liberar una venta CONFIRMADA. Para DEVOLUCION_APROBADA, MS3 invalida primero la entrada en MS5; MS2 libera solo los detalles indicados y luego MS3 solicita el reintegro a MS4. Una devolución parcial conserva vendidos los lugares no incluidos. Un lugar/cantidad ya devuelto no puede liberarse otra vez mediante un devolucionId distinto. Para un devolucionId nuevo, cada detalle debe pertenecer a la reserva de la ruta, que debe estar CONFIRMADA, y representar inventario aún vendido. Un reintento del mismo ID y contenido se reconoce sin repetir efectos. devolucionId es un UUID global generado por MS3 y MS2 lo usa exclusivamente como clave de idempotencia, sin combinarlo con clienteId. Repetirlo con la misma reserva y detalles devuelve 204 sin nuevos efectos, aunque cambie el orden de los detalles. Usarlo con otra reserva o detalles distintos produce 409 sin cambios. Detalles duplicados dentro de una solicitud producen 400; no se agregan automáticamente. Un asiento o cantidad ya devuelto produce 409 aunque se use otro devolucionId. Una devolución total conserva la reserva en CONFIRMADA. Las liberaciones y el historial se confirman en una transacción local. MS2 no procesa entradas ni dinero."
+                      },
+                      "response": [
+                        {
+                          "name": "Liberación aplicada, o repetición de un devolucionId global ya procesado con la misma reserva y los mismos detalles, sin repetir efectos.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "No Content",
+                          "code": 204,
+                          "_postman_previewlanguage": "text",
+                          "header": [],
+                          "cookie": [],
+                          "body": null
+                        },
+                        {
+                          "name": "JSON inválido, UUID inválido, motivo/detalles faltantes o inválidos, o detalles duplicados.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Bad Request",
+                          "code": 400,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"mensaje\": \"La solicitud de liberación contiene datos inválidos.\"\n}"
+                        },
+                        {
+                          "name": "No existe una reserva local con ese reservaId.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Not Found",
+                          "code": 404,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No existe una reserva registrada en MS2 con ese identificador.\"\n}"
+                        },
+                        {
+                          "name": "Motivo incompatible con el estado de reserva; para un devolucionId nuevo, detalles que no pertenecen a la reserva confirmada o no siguen vendidos; reutilización de un devolucionId global ya procesado con otra reserva o detalles diferentes; o intento de li",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Conflict",
+                          "code": 409,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"mensaje\": \"El identificador global de devolución ya está asociado a otra reserva o a otros detalles; no se aplicaron cambios.\"\n}"
+                        },
+                        {
+                          "name": "El tipo de contenido no es compatible.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Unsupported Media Type",
+                          "code": 415,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"motivo\": \"PAGO_RECHAZADO\"\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId/liberacion",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "disponibilidad",
+                                "reservas",
+                                ":reservaId",
+                                "liberacion"
+                              ],
+                              "variable": [
+                                {
+                                  "key": "reservaId",
+                                  "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                                  "description": "UUID de reserva generado por MS2."
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Internal Server Error",
+                          "code": 500,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Consultar una reserva antes de continuar la compra",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "disponibilidad",
+                        "reservas",
+                        ":reservaId"
+                      ],
+                      "variable": [
+                        {
+                          "key": "reservaId",
+                          "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                          "description": "UUID de reserva generado por MS2."
+                        }
+                      ]
+                    },
+                    "description": "MS3 consulta MS2 directamente, fuera del Gateway. `clienteId` es el titular asociado a X-User-Id. expiraEn se representa en UTC y termina en Z."
+                  },
+                  "response": [
+                    {
+                      "name": "Reserva encontrada.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "reservas",
+                            ":reservaId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "reservaId",
+                              "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                              "description": "UUID de reserva generado por MS2."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"reservaId\": \"9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123\",\n  \"clienteId\": \"CLIENTE-42\",\n  \"eventoId\": \"EVT-123\",\n  \"estado\": \"VIGENTE\",\n  \"expiraEn\": \"2026-11-07T15:10:00Z\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}"
+                    },
+                    {
+                      "name": "No existe una reserva local con ese reservaId.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "reservas",
+                            ":reservaId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "reservaId",
+                              "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                              "description": "UUID de reserva generado por MS2."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Not Found",
+                      "code": 404,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"2026-11-07T12:00:00Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"mensaje\": \"No existe una reserva registrada en MS2 con ese identificador.\"\n}"
+                    },
+                    {
+                      "name": "Error interno no recuperable; no expone detalles de persistencia.",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/disponibilidad/reservas/:reservaId",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "disponibilidad",
+                            "reservas",
+                            ":reservaId"
+                          ],
+                          "variable": [
+                            {
+                              "key": "reservaId",
+                              "value": "9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123",
+                              "description": "UUID de reserva generado por MS2."
+                            }
+                          ]
+                        }
+                      },
+                      "status": "Internal Server Error",
+                      "code": 500,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrlMS2",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "eventoId",
+      "value": ""
+    },
+    {
+      "key": "reservaId",
+      "value": ""
+    },
+    {
+      "key": "usuarioId",
+      "value": ""
+    }
+  ]
+}

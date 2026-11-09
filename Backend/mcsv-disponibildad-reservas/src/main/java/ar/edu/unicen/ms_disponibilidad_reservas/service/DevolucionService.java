@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import java.util.UUID;
 
@@ -135,23 +134,19 @@ public class DevolucionService {
     }
 
     private void procesarEnTransaccion(SolicitudNormalizada solicitud) {
-        RegistroDevolucion existente = devolucionesRepository.findByIdForUpdate(solicitud.devolucionId())
-                .orElse(null);
-        if (existente != null) {
-            comprobarReintento(existente, solicitud);
-            return;
-        }
-
+        // Never retain a global ledger lock while waiting for an event lock.
         String eventoId = reservasRepository.findEventoIdById(solicitud.reservaId())
                 .orElseThrow(ReservaNoEncontradaException::new);
         eventosRepository.findByEventoIdForUpdate(eventoId)
                 .orElseThrow(() -> new IllegalStateException("La reserva no tiene evento de disponibilidad local."));
         Reserva reserva = reservasRepository.findByIdForUpdate(solicitud.reservaId())
                 .orElseThrow(ReservaNoEncontradaException::new);
-        entityManager.refresh(reserva, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.detach(reserva);
+        reserva = reservasRepository.findByIdForUpdate(solicitud.reservaId())
+                .orElseThrow(ReservaNoEncontradaException::new);
 
         // A same-reservation retry can have waited on this row lock. Re-read with a current locking read.
-        existente = devolucionesRepository.findByIdForUpdate(solicitud.devolucionId()).orElse(null);
+        RegistroDevolucion existente = devolucionesRepository.findByIdForUpdate(solicitud.devolucionId()).orElse(null);
         if (existente != null) {
             comprobarReintento(existente, solicitud);
             return;
@@ -295,15 +290,14 @@ public class DevolucionService {
     }
 
     private SolicitudNormalizada normalizar(String reservaId, LiberarReservaRequest request) {
-        if (reservaId == null || reservaId.isBlank()) {
-            throw new IllegalArgumentException("reservaId es obligatorio.");
-        }
+        ValidacionUuid.exigir(reservaId, "reservaId");
         if (request == null || !MOTIVO.equals(request.motivo())) {
             throw new IllegalArgumentException("El motivo debe ser DEVOLUCION_APROBADA.");
         }
         if (request.devolucionId() == null) {
             throw new IllegalArgumentException("devolucionId es obligatorio.");
         }
+        ValidacionUuid.exigir(request.devolucionId(), "devolucionId");
         UUID uuid;
         try {
             uuid = UUID.fromString(request.devolucionId());
@@ -342,7 +336,7 @@ public class DevolucionService {
         }
 
         List<DetalleDevolucionRequest> ordenados = request.detalles().stream().sorted(ORDEN_DETALLES).toList();
-        return new SolicitudNormalizada(reservaId, canonico, ordenados, huella(ordenados));
+        return new SolicitudNormalizada(UUID.fromString(reservaId).toString(), canonico, ordenados, huella(ordenados));
     }
 
     private String huella(List<DetalleDevolucionRequest> detalles) {

@@ -102,7 +102,7 @@ sequenceDiagram
     participant Worker as Worker Outbox MS2
     participant MS1 as MS1 Eventos
     MS2->>DB: Registrar transición agotado/disponible en la transacción de inventario
-    Worker->>DB: Reclamar notificación pendiente respetando orden por evento
+    Worker->>DB: Reclamar notificación pendiente intentando respetar orden por evento
     Worker->>MS1: PUT /eventos/{eventoId}/disponibilidad\n{agotado: true|false}
     MS1-->>Worker: 204
     Worker->>DB: Marcar como entregada
@@ -110,3 +110,11 @@ sequenceDiagram
 ```
 
 El agotamiento se determina por ventas confirmadas, no por reservas temporales, suspensión, cancelación o finalización del evento.
+
+### Alcance del orden de entrega (D1)
+
+Se conserva el Outbox actual y su mecanismo de ordenamiento por evento, sin agregar versionado. Se intenta respetar el orden de las notificaciones, pero no se garantiza un orden absoluto ante todos los escenarios de concurrencia, demoras y recuperación de mensajes. El token protege las actualizaciones locales; no impide por sí solo un envío HTTP tardío de un worker cuyo lease venció. Se mantienen la persistencia durable y los reintentos ante fallos de comunicación. El contrato de MS1 permanece `PUT /eventos/{eventoId}/disponibilidad` con únicamente `{"agotado": true|false}`; no se agrega `version` ni otro campo.
+
+## Validación de entrada
+
+Los UUID mal formados se rechazan con `400 PARAMETRO_INVALIDO`; UUID válidos de recursos inexistentes producen 404. El JSON con campos desconocidos o ajenos a la variante produce 400 antes de modificar inventario. La identidad externa es exacta, sin normalizar mayúsculas, acentos ni espacios; requiere V7. PAGO_RECHAZADO admite solo motivo; DEVOLUCION_APROBADA utiliza la clave global y los detalles acordados.

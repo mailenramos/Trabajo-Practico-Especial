@@ -7,10 +7,10 @@
 
 ## 2. Integración de disponibilidad y estado de venta
 
-- [x] 2.1 Exponer `PUT /disponibilidad/eventos/{eventoId}` para la inicialización REST directa desde MS1; exigir `limiteEntradasPorCliente: 4` (valor fijo, no configurable), validar ese valor exacto en MS2, persistir inventario atómicamente y responder 204 solo tras commit. Asegurar unicidad de `(eventoId, sectorId)` y de `(eventoId, sectorId, fila, numero)`; probar duplicados, rechazo de campo ausente y valores distintos de 4, y rollback. Verificado con pruebas unitarias, HTTP y MySQL temporal. No imponer igualdad entre `capacidadTotal` y cantidad de asientos enumerados hasta que se confirme esa regla
+- [x] 2.1 Exponer `PUT /disponibilidad/eventos/{eventoId}` para la inicialización REST directa desde MS1; exigir `limiteEntradasPorCliente` positivo por evento (MS1 envía 4 por defecto), almacenar y aplicar ese valor en MS2, persistir inventario atómicamente y responder 204 solo tras commit. Asegurar unicidad de `(eventoId, sectorId)` y de `(eventoId, sectorId, fila, numero)`; probar duplicados, rechazo de campo ausente y valores no positivos, y rollback. Verificado con pruebas unitarias, HTTP y MySQL temporal. No imponer igualdad entre `capacidadTotal` y cantidad de asientos enumerados hasta que se confirme esa regla
 - [x] 2.2 Exponer el resultado idempotente de inicialización: mismo contenido no duplica y responde 204; contenido diferente responde 409 sin sobrescribir. Contrato HTTP y comportamiento verificados con pruebas.
 - [x] 2.3 Exponer `GET /disponibilidad/eventos/{eventoId}` para MS1; devolver capacidad numerada/no numerada y rechazar con 404 cuando no exista disponibilidad local
-- [x] 2.4 Asegurar y probar el límite fijo de 4 entradas por cliente y evento desde la inicialización durante todo el ciclo de vida; rechazar valores diferentes de 4, impedir su modificación desde la entidad una vez asignado y no exponer una operación para cambiarlo posteriormente. Verificado con pruebas unitarias, HTTP, de reservas y de concurrencia en MySQL temporal; se cuentan reservas vigentes más ventas confirmadas.
+- [x] 2.4 Asegurar y probar el límite recibido por evento desde la inicialización durante todo el ciclo de vida; rechazar valores no positivos, impedir su modificación desde la entidad una vez asignado y no exponer una operación para cambiarlo posteriormente. Verificado con pruebas unitarias, HTTP, de reservas y de concurrencia en MySQL temporal; se cuentan reservas vigentes más ventas confirmadas.
 - [x] 2.5 Implementar publicación, suspensión y reanudación de ventas mediante `PUT /disponibilidad/eventos/{eventoId}/venta`. El contrato conserva los cuatro valores `ACTIVA`, `SUSPENDIDA`, `CANCELADA` y `FINALIZADA`, pero esta tarea implementa únicamente `ACTIVA` y `SUSPENDIDA`; cancelación y finalización corresponden a 4.4. Una transición compatible nueva y repetir el estado actual responden 204; un estado inválido responde 400; si no existe disponibilidad local responde 404; una transición incompatible responde 409; un error interno responde 500. Implementar el comportamiento acordado y verificar/documentar cómo se representa con `EstadoEvento` y `ventaSuspendida`, sin agregar estados persistidos. Depende de 2.1 y 2.2.
 
 ## 3. Creación de reservas, idempotencia y límites
@@ -19,7 +19,7 @@
 - [x] 3.2 Rechazar completamente solicitudes con lugares no disponibles o capacidad insuficiente; verificar que no queden actualizaciones parciales
 - [x] 3.3 Rechazar reservas para eventos no inicializados, no activos, suspendidos, cancelados, finalizados o agotados
 - [x] 3.4 Implementar idempotencia por `(clienteId, solicitudId)`: la clave no incluye `eventoId`, pero la comparación del contenido sí incluye el `eventoId` de la URL y el body completo. Contenido idéntico mientras la reserva original esté `VIGENTE` y no haya pasado su instante de expiración devuelve la reserva existente con `200` sin reservar de nuevo; contenido o `eventoId` diferente, o reserva original vencida/liberada responde `409` y no crea otra reserva; solicitud nueva con ID nuevo responde `201`. Probar aislamiento entre clientes, cambio de evento con la misma clave y concurrencia de reintentos
-- [x] 3.5 Aplicar atómicamente el máximo fijo de 4 entradas por cliente/evento sobre reservas vigentes más ventas confirmadas; verificar concurrencia, liberaciones, vencimientos y devoluciones parciales. Cubierto por pruebas de servicios y concurrencia MySQL temporal.
+- [x] 3.5 Aplicar atómicamente el máximo recibido para cada evento por cliente/evento sobre reservas vigentes más ventas confirmadas; verificar concurrencia, liberaciones, vencimientos y devoluciones parciales. Cubierto por pruebas de servicios y concurrencia MySQL temporal.
 
 ## 4. Vencimiento, confirmación, liberación y cambios terminales
 
@@ -32,7 +32,7 @@
 ## 5. Notificaciones y separación de APIs
 
 - [x] 5.1 Registrar transaccionalmente los cambios derivados de agotamiento/restauración en el Outbox, solo cuando cambia la condición basada exclusivamente en ventas confirmadas; las reservas temporales no cuentan aunque `cantidadDisponible` sea cero. La confirmación y la devolución aprobada guardan la transición en la misma transacción que inventario y cantidades. Si una devolución revierte agotamiento durante suspensión, se registra `agotado: false` sin reactivar ventas ni cambiar el ciclo de vida. La inicialización no registra estado inicial; no se persisten estados nuevos.
-- [x] 5.2 Enviar las notificaciones pendientes a MS1 mediante REST directa `PUT /eventos/{eventoId}/disponibilidad` con `agotado: true|false`. Marcar como entregada únicamente ante `204`; ante errores de transporte u otro status, conservar y reintentar con backoff configurable, recuperando leases vencidos y preservando el orden por evento. MS1 responde 204 al procesar (también repetido o tardío), 404 si el evento no existe y 409 solo si sigue en borrador.
+- [x] 5.2 Enviar las notificaciones pendientes a MS1 mediante REST directa `PUT /eventos/{eventoId}/disponibilidad` con `agotado: true|false`. Marcar como entregada únicamente ante `204`; ante errores de transporte u otro status, conservar y reintentar con backoff configurable, recuperando leases vencidos e intentando respetar el orden por evento, sin garantía absoluta ante concurrencia, demoras y recuperación; se conserva el mecanismo actual sin versionado. MS1 responde 204 al procesar (también repetido o tardío), 404 si el evento no existe y 409 solo si sigue en borrador.
 - [ ] 5.3 Mantener operaciones de cliente detrás del Gateway y llamadas internas REST directas fuera del Gateway, sin autenticación de servicio; propagar identidad de usuario solo en operaciones de cliente
 
 ## 6. Integración y verificación
@@ -45,3 +45,24 @@
 - [x] 6.6 Actualizar OpenAPI y diagramas; validar rutas, tipos, errores y ejemplos contra contratos y código implementado. Evidencia en `docs/openapi/ms2.yaml` y los diagramas Mermaid de `docs/diagramas/ms2-flujos.md`.
 - [x] 6.7 Agregar pruebas HTTP para inicialización, consulta de disponibilidad, creación, consulta de reserva, confirmación, liberación y estado de venta; verificar códigos, validación JSON, `X-User-Id`, formato común de errores e idempotencia. La suite `DisponibilidadHttpTests` cubre esos escenarios y sus contratos.
 - [x] 6.8 Verificar que `expiraEn` represente el instante UTC real, se conserve al persistir/recuperar y se serialice ISO-8601 terminado en `Z`; pruebas HTTP y round-trip MySQL aprobadas. No se añade el sufijo a un `LocalDateTime` sin conversión.
+
+## Seguimiento documental D1 y D5
+
+D1 conserva el mecanismo Outbox actual y el payload booleano de MS1, sin garantía absoluta de orden ni campo `version`. D5 acuerda UUID inválido → `400 PARAMETRO_INVALIDO`, recurso inexistente con UUID válido → `404 Not Found`, separado de la idempotencia `204`/`409`. La validación Java de D5 y su código de error están implementados; el cierre verificado se registra en la planificación técnica. No se marca ninguna tarea adicional como completada ni se cambia la precedencia de errores.
+
+## 7. Cierre de brechas aprobadas
+
+- [x] 7.1 Validar UUID de reserva y devolución con `400 PARAMETRO_INVALIDO`, diferenciando UUID válido inexistente y conflictos; verificado por HTTP.
+- [x] 7.2 Rechazar JSON desconocido, campos ajenos a PAGO_RECHAZADO incluso null y elementos nulos de inventario; verificado por HTTP sin escrituras parciales.
+- [x] 7.3 Agregar V7 incremental para identidad exacta de IDs externos y claves de solicitud; verificar mayúsculas, acentos, espacios finales, cadena Flyway y Hibernate en MySQL temporal. Despliegue en bases persistentes pendiente.
+- [x] 7.4 Ejecutar la suite completa segura: 198 pruebas, sin fallos, errores ni omisiones, y comprobar arranque HTTP 8080 con H2 aislada. La base local no se utiliza ni modifica.
+
+La tarea 1.1 conserva su seguimiento operativo por entorno; 5.3 y 6.2 permanecen pendientes por requerir integración externa. El cierre local no acredita despliegues ni contratos públicos todavía no acordados.
+
+## Alcance y pendientes coordinados
+
+La consulta pública de compras/reservas propias corresponde a MS3, fuera del alcance de MS2. 5.3 permanece abierta (Gateway + MS2); 6.2 abierta (coordinación MS3/MS4, con errores de confirmación aportados por MS2); 1.1 abierta por seguimiento operativo de cada entorno. V7 y huellas se revisan en docs/despliegue-v7.md sin despliegue persistente ni regeneración de datos. El límite es positivo por evento, enviado por MS1 (4 por defecto), no un máximo global.
+
+## Seguimiento de cierre de pendientes
+
+La revisión de 2026-11-09 se detalla en `docs/cierre-pendientes-ms2.md`: 5.3 no se implementa porque Gateway solo contiene un marcador; 6.2 sigue abierta porque MS3/MS4 carecen de implementación y política durable de compensación; 1.1 mantiene inventario operativo por entorno pendiente de evidencia. R3 conserva el desfase entre expiración lógica y liberación física; cualquier cambio funcional requiere decisión del equipo. No se marca ninguna tarea como completa por esta actualización documental. Las pruebas MySQL antiguas exigen ahora configuración explícita de una instancia descartable, sin fallback a la base local.
