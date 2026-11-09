@@ -1,0 +1,866 @@
+openapi: 3.1.0
+info:
+  title: TicketYa MS2 - Gestión de disponibilidad y reservas
+  version: 0.2.0
+  description: >-
+    Contratos HTTP implementados por MS2 para disponibilidad y reservas, junto
+    con la integración saliente documentada de Outbox hacia MS1. Las operaciones
+    internas usan REST/JSON directamente, fuera del API Gateway y sin
+    autenticación entre microservicios. Las operaciones de cliente pasan por el
+    Gateway. Puertos locales: MS1 8081, MS2 8080 y MS3 8083. El contrato de
+    consulta pública de la reserva propia del cliente sigue pendiente.
+  x-error-format-status: agreed
+  x-error-code-catalog-status: agreed
+servers:
+  - url: http://localhost:8080
+    description: MS2 local
+x-local-service-ports:
+  ms1: 8081
+  ms2: 8080
+  ms3: 8083
+tags:
+  - name: Internal - MS1
+    description: Llamadas directas de MS1 a MS2, fuera del Gateway.
+  - name: Internal - MS3
+    description: Llamadas directas de MS3 a MS2, fuera del Gateway.
+  - name: Public - Gateway
+    description: Operaciones de cliente publicadas a través del API Gateway.
+paths:
+  /disponibilidad/eventos/{eventoId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+    get:
+      tags: [Internal - MS1]
+      operationId: consultarDisponibilidadEventoParaMs1
+      summary: Consultar disponibilidad actual de un evento
+      description: >-
+        MS1 consulta directamente a MS2 para combinar esta disponibilidad con
+        los datos del evento. MS2 informa sus datos locales y no consulta MS1.
+        cantidadDisponible puede ser cero por reservas temporales vigentes; eso
+        no significa que el evento esté agotado, ya que el agotamiento depende
+        únicamente de las ventas confirmadas.
+      responses:
+        '200':
+          description: Disponibilidad actual por sector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisponibilidadEventoResponse'
+              example:
+                eventoId: EVT-123
+                sectores:
+                  - sectorId: SEC-01
+                    tipo: NO_NUMERADO
+                    capacidadTotal: 500
+                    cantidadDisponible: 120
+                  - sectorId: SEC-02
+                    tipo: NUMERADO
+                    capacidadTotal: 100
+                    cantidadDisponible: 2
+                    asientosDisponibles:
+                      - fila: 1
+                        numero: 5
+                      - fila: 1
+                        numero: 8
+        '404':
+          $ref: '#/components/responses/AvailabilityNotRegistered'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Internal - MS1]
+      operationId: inicializarDisponibilidadEvento
+      summary: Inicializar la disponibilidad de un evento
+      description: >-
+        MS1 llama directamente a MS2. La inicialización se persiste como una
+        unidad y el éxito solo se informa tras el commit. Un reintento idéntico
+        no duplica ni restablece el inventario; contenido diferente devuelve 409.
+        El límite es fijo: cuatro entradas por cliente para cada evento, no
+        configurable por organizador ni por evento. MS1 siempre envía
+        limiteEntradasPorCliente: 4 y MS2 valida ese valor. El límite no se
+        modifica posteriormente.
+        El evento queda PENDIENTE_PUBLICACION hasta que MS1 envíe ACTIVA.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InicializarDisponibilidadRequest'
+            example:
+              limiteEntradasPorCliente: 4
+              sectores:
+                - sectorId: SEC-GENERAL
+                  tipo: NO_NUMERADO
+                  capacidadTotal: 500
+                  asientos: []
+                - sectorId: SEC-PLATEA
+                  tipo: NUMERADO
+                  capacidadTotal: 2
+                  asientos:
+                    - fila: 1
+                      numero: 5
+                    - fila: 1
+                      numero: 8
+      responses:
+        '204':
+          description: Inicialización nueva o reintento idéntico confirmado después del commit.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /disponibilidad/eventos/{eventoId}/venta:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+    put:
+      tags: [Internal - MS1]
+      operationId: aplicarEstadoVentaDesdeMs1
+      summary: Aplicar un estado de venta recibido de MS1
+      description: >-
+        MS1 es autoridad del ciclo de vida del evento. El contrato admite los
+        cuatro valores. ACTIVA/SUSPENDIDA publican, suspenden y reanudan ventas;
+        CANCELADA/FINALIZADA establecen un estado terminal desde un estado local
+        no terminal, liberan todas las reservas temporales vigentes y conservan
+        las reservas y cantidades confirmadas. SUSPENDIDA bloquea nuevas
+        reservas sin liberar las vigentes. MS2 se limita a actualizar su estado
+        local y liberar reservas temporales; la coordinación general de
+        cancelaciones, reintegros e invalidación de entradas corresponde a los
+        microservicios responsables. Repetir el mismo estado terminal
+        responde 204 sin volver a procesar reservas; cambiar entre CANCELADO y
+        FINALIZADO, o reactivar un evento terminal, responde 409. Una
+        transición compatible nueva o repetir el estado actual responde 204;
+        un estado inválido responde 400; si MS2 no tiene disponibilidad local
+        inicializada responde 404; una transición incompatible responde 409;
+        un error interno responde 500. MS2 representa estos comportamientos
+        mediante los valores existentes de EstadoEvento y ventaSuspendida, sin
+        agregar estados persistidos. ACTIVA mueve
+        PENDIENTE_PUBLICACION a PUBLICADO; desde PUBLICADO o AGOTADO conserva
+        EstadoEvento y establece ventaSuspendida=false. SUSPENDIDA solo es
+        compatible desde PUBLICADO o AGOTADO, conserva EstadoEvento y establece
+        ventaSuspendida=true. CANCELADA establece EstadoEvento=CANCELADO y
+        FINALIZADA establece EstadoEvento=FINALIZADO; ambas liberan las reservas
+        VIGENTE dentro de la misma transacción. No alteran ventaSuspendida ni
+        las ventas confirmadas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstadoVentaRequest'
+            examples:
+              activa:
+                value: { estado: ACTIVA }
+              suspendida:
+                value: { estado: SUSPENDIDA }
+              cancelada:
+                value: { estado: CANCELADA }
+              finalizada:
+                value: { estado: FINALIZADA }
+      responses:
+        '204':
+          description: Transición compatible aplicada o estado actual repetido; no se repiten efectos.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/AvailabilityNotRegistered'
+        '409':
+          description: Transición incompatible con el estado actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 409
+                error: Conflict
+                mensaje: La transición solicitada no es compatible con el estado actual.
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /disponibilidad/eventos/{eventoId}/reservas:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+    post:
+      tags: [Public - Gateway]
+      operationId: crearReservaTemporal
+      summary: Crear una reserva temporal
+      description: >-
+        El cliente crea la reserva a través del Gateway; MS3 no crea reservas.
+        X-User-Id identifica al titular. Se reservan todos los detalles o ninguno.
+        Cada reserva dura exactamente 10 minutos; este plazo es fijo y no
+        configurable. El máximo es fijo en cuatro entradas por cliente y evento.
+        solicitudId se conserva sin cambios en los
+        reintentos. La identidad es (clienteId, solicitudId), sin eventoId en
+        la clave; para comparar contenido se incluyen el eventoId de la URL y
+        el body completo. Un reintento con ambos idénticos mientras la reserva
+        original siga VIGENTE y no haya pasado su instante de expiración devuelve
+        esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido
+        otro eventoId, o una
+        reserva original vencida/liberada, produce 409 y no crea otra reserva.
+        Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id
+        para identificar al titular; no requiere X-User-Role. La autorización
+        corresponde al Gateway.
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearReservaRequest'
+            example:
+              solicitudId: SOL-9b8d
+              detalles:
+                - sectorId: SEC-02
+                  fila: 1
+                  numero: 5
+                - sectorId: SEC-01
+                  cantidad: 2
+      responses:
+        '201':
+          description: Reserva nueva creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaCreadaResponse'
+              example:
+                reservaId: 9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123
+                estado: VIGENTE
+                expiraEn: '2026-11-07T15:10:00Z'
+        '200':
+          description: Reintento idéntico del mismo cliente mientras la reserva original continúa VIGENTE y su instante de expiración no pasó; se devuelve el recurso existente sin repetir efectos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaCreadaResponse'
+              example:
+                reservaId: 9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123
+                estado: VIGENTE
+                expiraEn: '2026-11-07T15:10:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/AvailabilityNotRegistered'
+        '409':
+          description: Selección no disponible, evento no reservable, límite excedido, contenido diferente para el mismo cliente y solicitudId, o reserva original vencida/liberada. En los últimos dos casos no se crea otra reserva.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                solicitudIdConOtroContenido:
+                  summary: El cliente reutilizó el identificador con contenido diferente
+                  value:
+                    timestamp: '2026-11-07T12:00:00Z'
+                    status: 409
+                    error: Conflict
+                    mensaje: El identificador de solicitud ya está asociado a otro contenido para este cliente.
+                reservaOriginalNoVigente:
+                  summary: La reserva asociada venció o fue liberada
+                  value:
+                    timestamp: '2026-11-07T12:00:00Z'
+                    status: 409
+                    error: Conflict
+                    mensaje: La reserva original asociada a esta solicitud ya no está vigente.
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /disponibilidad/reservas/{reservaId}:
+    parameters:
+      - $ref: '#/components/parameters/ReservaId'
+    get:
+      tags: [Internal - MS3]
+      operationId: consultarReservaParaMs3
+      summary: Consultar una reserva antes de continuar la compra
+      description: >-
+        MS3 consulta MS2 directamente, fuera del Gateway. `clienteId` es el
+        titular asociado a X-User-Id. expiraEn se representa en UTC y termina en Z.
+      responses:
+        '200':
+          description: Reserva encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaConsultaResponse'
+              example:
+                reservaId: 9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123
+                clienteId: CLIENTE-42
+                eventoId: EVT-123
+                estado: VIGENTE
+                expiraEn: '2026-11-07T15:10:00Z'
+                detalles:
+                  - sectorId: SEC-PLATEA
+                    fila: 1
+                    numero: 5
+                  - sectorId: SEC-GENERAL
+                    cantidad: 2
+        '404':
+          description: No existe una reserva local con ese reservaId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 404
+                error: Not Found
+                mensaje: No existe una reserva registrada en MS2 con ese identificador.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /disponibilidad/reservas/{reservaId}/confirmacion:
+    parameters:
+      - $ref: '#/components/parameters/ReservaId'
+    post:
+      tags: [Internal - MS3]
+      operationId: confirmarReservaTrasPagoAprobado
+      summary: Confirmar una reserva
+      description: >-
+        MS3 invoca después de la aprobación del pago. MS2 comprueba que la
+        reserva permanezca VIGENTE y que el instante actual sea anterior a
+        expiraEn; no depende de que la tarea automática de vencimiento ya haya
+        corrido. La transición y el cambio de inventario son atómicos. Una
+        reserva ya CONFIRMADA también responde 204 sin repetir efectos. Si el
+        pago ya fue aprobado y MS2 rechaza la confirmación, MS3 coordina la
+        compensación con MS4.
+      responses:
+        '204':
+          description: Confirmada ahora o confirmación repetida de una reserva ya CONFIRMADA.
+        '404':
+          description: No existe una reserva local con ese reservaId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 404
+                error: Not Found
+                mensaje: No existe una reserva registrada en MS2 con ese identificador.
+        '409':
+          description: Reserva vencida o liberada; el campo error distingue ambos casos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                vencida:
+                  value:
+                    timestamp: '2026-11-07T15:11:00Z'
+                    status: 409
+                    error: RESERVA_VENCIDA
+                    mensaje: La reserva venció antes de ser confirmada.
+                liberada:
+                  value:
+                    timestamp: '2026-11-07T15:11:00Z'
+                    status: 409
+                    error: RESERVA_LIBERADA
+                    mensaje: La reserva ya fue liberada.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /disponibilidad/reservas/{reservaId}/liberacion:
+    parameters:
+      - $ref: '#/components/parameters/ReservaId'
+    post:
+      tags: [Internal - MS3]
+      operationId: liberarReservaODevolucion
+      summary: Liberar una reserva por rechazo o una devolución aprobada
+      description: >-
+        MS3 llama directamente a MS2. PAGO_RECHAZADO libera la reserva temporal
+        completa y no puede liberar una venta CONFIRMADA. Para DEVOLUCION_APROBADA,
+        MS3 invalida primero la entrada en MS5; MS2 libera solo los detalles
+        indicados y luego MS3 solicita el reintegro a MS4. Una devolución parcial
+        conserva vendidos los lugares no incluidos. Un lugar/cantidad ya
+        devuelto no puede liberarse otra vez mediante un devolucionId distinto.
+        Para un devolucionId nuevo, cada detalle debe pertenecer a la reserva de
+        la ruta, que debe estar CONFIRMADA, y representar inventario aún vendido.
+        Un reintento del mismo ID y contenido se reconoce sin repetir efectos.
+        devolucionId es un UUID global generado por MS3 y MS2 lo usa exclusivamente
+        como clave de idempotencia, sin combinarlo con clienteId. Repetirlo con la
+        misma reserva y detalles devuelve 204 sin nuevos efectos, aunque cambie el
+        orden de los detalles. Usarlo con otra reserva o detalles distintos produce
+        409 sin cambios. Detalles duplicados dentro de una solicitud producen 400;
+        no se agregan automáticamente. Un asiento o cantidad ya devuelto produce
+        409 aunque se use otro devolucionId. Una devolución total conserva la reserva
+        en CONFIRMADA. Las liberaciones y el historial se confirman en una transacción
+        local.
+        MS2 no procesa entradas ni dinero.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiberarReservaRequest'
+            examples:
+              pagoRechazado:
+                value:
+                  motivo: PAGO_RECHAZADO
+              devolucionParcial:
+                value:
+                  motivo: DEVOLUCION_APROBADA
+                  devolucionId: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+                  detalles:
+                    - sectorId: SEC-PLATEA
+                      fila: 1
+                      numero: 5
+                    - sectorId: SEC-GENERAL
+                      cantidad: 2
+      responses:
+        '204':
+          description: Liberación aplicada, o repetición de un devolucionId global ya procesado con la misma reserva y los mismos detalles, sin repetir efectos.
+        '400':
+          description: JSON inválido, UUID inválido, motivo/detalles faltantes o inválidos, o detalles duplicados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 400
+                error: Bad Request
+                mensaje: La solicitud de liberación contiene datos inválidos.
+        '404':
+          description: No existe una reserva local con ese reservaId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 404
+                error: Not Found
+                mensaje: No existe una reserva registrada en MS2 con ese identificador.
+        '409':
+          description: Motivo incompatible con el estado de reserva; para un devolucionId nuevo, detalles que no pertenecen a la reserva confirmada o no siguen vendidos; reutilización de un devolucionId global ya procesado con otra reserva o detalles diferentes; o intento de liberar un lugar/cantidad previamente devuelto con otro ID. No se vuelve a procesar la devolución ni se modifican inventario o cantidades.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-11-07T12:00:00Z'
+                status: 409
+                error: Conflict
+                mensaje: El identificador global de devolución ya está asociado a otra reserva o a otros detalles; no se aplicaron cambios.
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    EventoId:
+      name: eventoId
+      in: path
+      required: true
+      description: Identificador externo String del evento.
+      schema:
+        type: string
+        minLength: 1
+      example: EVT-123
+    ReservaId:
+      name: reservaId
+      in: path
+      required: true
+      description: UUID de reserva generado por MS2.
+      schema:
+        type: string
+        format: uuid
+      example: 9f4d6c2a-1b8e-4c7a-9a30-5d2b5ec6f123
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Identificador String del titular propagado por el Gateway.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+      example: CLIENTE-42
+  schemas:
+    InicializarDisponibilidadRequest:
+      type: object
+      additionalProperties: false
+      required: [limiteEntradasPorCliente, sectores]
+      properties:
+        limiteEntradasPorCliente:
+          type: integer
+          const: 4
+          description: Valor fijo de cuatro entradas por cliente y evento; MS1 debe enviar exactamente 4. No es configurable.
+          example: 4
+        sectores:
+          type: array
+          minItems: 1
+          description: Los sectorId no deben repetirse dentro del evento.
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/SectorNumeradoInicializacion'
+              - $ref: '#/components/schemas/SectorNoNumeradoInicializacion'
+    SectorNumeradoInicializacion:
+      type: object
+      additionalProperties: false
+      required: [sectorId, tipo, capacidadTotal, asientos]
+      properties:
+        sectorId:
+          type: string
+          example: SEC-PLATEA
+        tipo:
+          const: NUMERADO
+        capacidadTotal:
+          type: integer
+          minimum: 0
+          description: >-
+            Capacidad declarada del sector. La igualdad con la longitud de
+            asientos está pendiente de confirmación y no se impone aquí.
+        asientos:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsientoInicializacion'
+          description: >-
+            Inventario completo de lugares numerados del sector; no repetir
+            pares (fila, numero). La igualdad con capacidadTotal aún requiere
+            confirmación y no se impone en este contrato.
+    SectorNoNumeradoInicializacion:
+      type: object
+      additionalProperties: false
+      required: [sectorId, tipo, capacidadTotal, asientos]
+      properties:
+        sectorId:
+          type: string
+          example: SEC-GENERAL
+        tipo:
+          const: NO_NUMERADO
+        capacidadTotal:
+          type: integer
+          minimum: 0
+        asientos:
+          type: array
+          maxItems: 0
+    AsientoInicializacion:
+      type: object
+      additionalProperties: false
+      required: [fila, numero]
+      properties:
+        fila:
+          type: integer
+        numero:
+          type: integer
+          minimum: 1
+    EstadoVentaRequest:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado:
+          type: string
+          enum: [ACTIVA, SUSPENDIDA, CANCELADA, FINALIZADA]
+    DisponibilidadEventoResponse:
+      type: object
+      additionalProperties: false
+      required: [eventoId, sectores]
+      properties:
+        eventoId:
+          type: string
+        sectores:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/SectorNumeradoDisponibilidad'
+              - $ref: '#/components/schemas/SectorNoNumeradoDisponibilidad'
+    SectorNumeradoDisponibilidad:
+      type: object
+      additionalProperties: false
+      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, asientosDisponibles]
+      properties:
+        sectorId:
+          type: string
+        tipo:
+          const: NUMERADO
+        capacidadTotal:
+          type: integer
+        cantidadDisponible:
+          type: integer
+          minimum: 0
+          description: >-
+            Número de asientos LIBRE y presentes en asientosDisponibles. Puede
+            ser cero por reservas temporales; ese valor por sí solo no significa
+            que el evento esté agotado.
+        asientosDisponibles:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsientoDisponible'
+    SectorNoNumeradoDisponibilidad:
+      type: object
+      additionalProperties: false
+      required: [sectorId, tipo, capacidadTotal, cantidadDisponible]
+      properties:
+        sectorId:
+          type: string
+        tipo:
+          const: NO_NUMERADO
+        capacidadTotal:
+          type: integer
+        cantidadDisponible:
+          type: integer
+          minimum: 0
+          description: >-
+            Capacidad reservable ahora, calculada descontando reservas
+            temporales y ventas. Puede ser cero por reservas temporales y eso
+            no significa que el evento esté agotado.
+    AsientoDisponible:
+      type: object
+      additionalProperties: false
+      required: [fila, numero]
+      properties:
+        fila:
+          type: integer
+        numero:
+          type: integer
+          minimum: 1
+    CrearReservaRequest:
+      type: object
+      additionalProperties: false
+      required: [solicitudId, detalles]
+      properties:
+        solicitudId:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Identificador conservado sin cambios al reintentar esta solicitud.
+          example: SOL-9b8d
+        detalles:
+          type: array
+          minItems: 1
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/AsientoSolicitado'
+              - $ref: '#/components/schemas/CantidadSolicitada'
+    AsientoSolicitado:
+      type: object
+      additionalProperties: false
+      required: [sectorId, fila, numero]
+      properties:
+        sectorId:
+          type: string
+        fila:
+          type: integer
+        numero:
+          type: integer
+          minimum: 1
+    CantidadSolicitada:
+      type: object
+      additionalProperties: false
+      required: [sectorId, cantidad]
+      properties:
+        sectorId:
+          type: string
+        cantidad:
+          type: integer
+          minimum: 1
+    ReservaCreadaResponse:
+      type: object
+      additionalProperties: false
+      required: [reservaId, estado, expiraEn]
+      properties:
+        reservaId:
+          type: string
+          format: uuid
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+        expiraEn:
+          $ref: '#/components/schemas/InstanteUtc'
+    ReservaConsultaResponse:
+      type: object
+      additionalProperties: false
+      required: [reservaId, clienteId, eventoId, estado, expiraEn, detalles]
+      properties:
+        reservaId:
+          type: string
+          format: uuid
+        clienteId:
+          type: string
+        eventoId:
+          type: string
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+        expiraEn:
+          $ref: '#/components/schemas/InstanteUtc'
+        detalles:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/AsientoSolicitado'
+              - $ref: '#/components/schemas/CantidadSolicitada'
+    EstadoReserva:
+      type: string
+      enum: [VIGENTE, CONFIRMADA, LIBERADA]
+    InstanteUtc:
+      type: string
+      format: date-time
+      description: >-
+        Instante UTC real serializado en ISO-8601 con sufijo Z. Debe convertirse
+        correctamente desde el valor temporal persistido; no basta con añadir
+        Z a un LocalDateTime.
+      pattern: 'Z$'
+      example: '2026-11-07T15:10:00Z'
+    LiberarReservaRequest:
+      oneOf:
+        - $ref: '#/components/schemas/LiberarPorPagoRechazado'
+        - $ref: '#/components/schemas/LiberarPorDevolucionAprobada'
+    LiberarPorPagoRechazado:
+      type: object
+      additionalProperties: false
+      required: [motivo]
+      properties:
+        motivo:
+          const: PAGO_RECHAZADO
+    LiberarPorDevolucionAprobada:
+      type: object
+      additionalProperties: false
+      required: [motivo, devolucionId, detalles]
+      properties:
+        motivo:
+          const: DEVOLUCION_APROBADA
+        devolucionId:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        detalles:
+          type: array
+          minItems: 1
+          description: >-
+            Cada detalle debe ser un asiento numerado o una cantidad no numerada.
+            No se permiten detalles duplicados; el orden no forma parte de la
+            identidad de la solicitud.
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/AsientoSolicitado'
+              - $ref: '#/components/schemas/CantidadSolicitada'
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [timestamp, status, error, mensaje]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+          description: Código del catálogo de errores acordado.
+        mensaje:
+          type: string
+        campos:
+          type: array
+          description: >-
+            Lista opcional de errores de validación. Cada entrada usa siempre
+            exactamente los campos campo y mensaje.
+          items:
+            type: object
+            additionalProperties: false
+            required: [campo, mensaje]
+            properties:
+              campo:
+                type: string
+              mensaje:
+                type: string
+  responses:
+    BadRequest:
+      description: JSON mal formado, campo requerido ausente o dato inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-07T12:00:00Z'
+            status: 400
+            error: Bad Request
+            mensaje: La solicitud contiene datos inválidos.
+            campos:
+              - campo: detalles[0].numero
+                mensaje: Debe ser un entero positivo.
+    AvailabilityNotRegistered:
+      description: No hay disponibilidad local registrada en MS2 para el evento.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-07T12:00:00Z'
+            status: 404
+            error: Not Found
+            mensaje: No hay disponibilidad registrada en MS2 para el evento solicitado.
+    Conflict:
+      description: La inicialización existente tiene contenido diferente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-11-07T12:00:00Z'
+            status: 409
+            error: Conflict
+            mensaje: El evento ya fue inicializado con datos diferentes.
+    UnsupportedMediaType:
+      description: El tipo de contenido no es compatible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Error interno no recuperable; no expone detalles de persistencia.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+x-outbound-integrations:
+  ms2-to-ms1-availability-state:
+    direction: MS2-to-MS1
+    transport: Direct REST/JSON, outside API Gateway, no service authentication
+    ms1-local-port: 8081
+    method: PUT
+    path: /eventos/{eventoId}/disponibilidad
+    trigger: Only when event sold-out state changes
+    semantics: >-
+      agotado:false reports that confirmed sales no longer exhaust inventory. It does not activate sales, clear ventaSuspendida or change event lifecycle; this also applies when a refund restores inventory during suspension.
+    requestBody:
+      required: true
+      contentType: application/json
+      schema:
+        type: object
+        additionalProperties: false
+        required: [agotado]
+        properties:
+          agotado:
+            type: boolean
+      examples:
+        agotado: { agotado: true }
+        disponible: { agotado: false }
+    responses:
+      '204':
+        description: MS1 processed the notification, including a repeated value or a late notification for a canceled/finalized event.
+      '404':
+        description: The event does not exist in MS1.
+      '409':
+        description: The event is still a draft; this is the only conflict case for this notification.
+    delivery-retry-mechanics: >-
+      MS2 records each actual sold-out transition in a durable transactional Outbox and sends outside the
+      inventory transaction. It marks a row sent only after HTTP 204. Transport errors and every other HTTP
+      status retain the row for progressive capped retries without discarding it after a fixed attempt count.
+      Expired worker leases are recovered after restart; per-event order is preserved and concurrent workers
+      cannot claim the same row simultaneously. Delivery is at least once if MS2 crashes after MS1 accepts the
+      request but before MS2 records the response; MS1 treats repeated values idempotently. Retries preserve
+      the same state-setting request; no notification identifier or extra payload field is defined. The
+      Outbox is not populated during initialization.
+    configuration:
+      ms1-base-url-property: ms1.api.base-url
+      environment-variable: MS1_API_BASE_URL
+      local-default: http://localhost:8081
+      retry-and-poll-intervals: Configurable through ms2.outbox properties
+x-pending-decisions:
+  - Confirm whether capacidadTotal for a numbered sector must exactly equal the number of entries in the complete asientos list; do not enforce an equality until confirmed.
+  - Read-only inventory of each target schema before applying V4; incompatible legacy fila values require an explicitly approved remediation, because V4 aborts before DDL for non-numeric, out-of-range or colliding values.
+  - Compatibility for retries against events with legacy unversioned initialization fingerprints; MS2 cannot confirm those retries as identical and currently returns a conflict.
+  - Public route, response representation and HTTP errors for a customer querying only their own reservation.
