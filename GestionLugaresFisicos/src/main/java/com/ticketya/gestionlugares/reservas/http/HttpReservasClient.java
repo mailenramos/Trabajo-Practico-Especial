@@ -11,6 +11,7 @@ import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
+import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
 
 @Component
 public class HttpReservasClient implements ReservasClient {
@@ -45,6 +46,28 @@ public class HttpReservasClient implements ReservasClient {
                             + " al cambiar el estado de venta");
                 })
                 .toBodilessEntity(), "cambiar el estado de venta"));
+    }
+
+    @Override
+    public DisponibilidadEventoResponse consultarDisponibilidad(String eventoId) {
+        try {
+            DisponibilidadEventoResponse disponibilidad = restClient.get()
+                    .uri("/disponibilidad/eventos/{eventoId}", eventoId)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
+                        throw new ReservasClientException("Reservas respondió " + response.getStatusCode()
+                                + " al consultar disponibilidad");
+                    })
+                    .body(DisponibilidadEventoResponse.class);
+            if (disponibilidad == null) {
+                throw new ReservasClientException("Reservas respondió sin disponibilidad para el evento " + eventoId);
+            }
+            return disponibilidad;
+        } catch (ReservasClientException exception) {
+            throw exception;
+        } catch (RestClientException exception) {
+            throw new ReservasClientException("No se pudo consultar disponibilidad en Reservas", exception);
+        }
     }
 
     private static Object requireNoContent(ResponseEntity<Void> response, String operacion) {

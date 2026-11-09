@@ -173,7 +173,7 @@ public class EventoService {
         if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
             throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
         }
-        if (!"organizador".equalsIgnoreCase(userRole.trim())) {
+        if (!"ORGANIZADOR".equalsIgnoreCase(userRole.trim())) {
             throw new ForbiddenException("Solo un organizador puede gestionar sus eventos");
         }
     }

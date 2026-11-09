@@ -70,8 +70,8 @@ public class LugarController {
                     description = "Identificador no vacío del usuario que realiza la solicitud.", example = "admin-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Debe ser administrador (sin distinguir mayúsculas; se recortan espacios).",
-                    example = "administrador", schema = @Schema(allowableValues = {"administrador"}))
+                    description = "Enviar ADMIN (sin distinguir mayúsculas; se recortan espacios).",
+                    example = "ADMIN", schema = @Schema(allowableValues = {"ADMIN"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Datos del lugar. La latitud debe estar entre -90 y 90, y la longitud entre -180 y 180.",
@@ -102,8 +102,8 @@ public class LugarController {
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite organizador o administrador, sin distinguir mayúsculas y recortando espacios.",
-                    example = "organizador", schema = @Schema(allowableValues = {"organizador", "administrador"}))
+                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+                    example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         validarLector(userId, userRole);
         return lugarService.listarLugares();
@@ -136,8 +136,8 @@ public class LugarController {
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite organizador o administrador, sin distinguir mayúsculas y recortando espacios.",
-                    example = "organizador", schema = @Schema(allowableValues = {"organizador", "administrador"}))
+                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+                    example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         validarLector(userId, userRole);
         return lugarService.buscarLugar(id);
@@ -170,8 +170,8 @@ public class LugarController {
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite organizador o administrador, sin distinguir mayúsculas y recortando espacios.",
-                    example = "organizador", schema = @Schema(allowableValues = {"organizador", "administrador"}))
+                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+                    example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         validarLector(userId, userRole);
         return lugarService.listarSectores(id);
@@ -215,8 +215,8 @@ public class LugarController {
                     description = "Identificador no vacío del usuario que realiza la solicitud.", example = "admin-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Debe ser administrador (sin distinguir mayúsculas; se recortan espacios).",
-                    example = "administrador", schema = @Schema(allowableValues = {"administrador"}))
+                    description = "Enviar ADMIN (sin distinguir mayúsculas; se recortan espacios).",
+                    example = "ADMIN", schema = @Schema(allowableValues = {"ADMIN"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Sector numerado: completar filas y asientosPorFila, sin capacidad. Sector no numerado: completar capacidad, sin filas ni asientosPorFila.",
@@ -236,7 +236,7 @@ public class LugarController {
 
     private void validarAdministrador(String userId, String userRole) {
         validarIdentidad(userId, userRole);
-        if (!"administrador".equalsIgnoreCase(userRole.trim())) {
+        if (!esAdministrador(userRole)) {
             throw new ForbiddenException("Solo un administrador puede gestionar lugares y sectores");
         }
     }
@@ -244,7 +244,7 @@ public class LugarController {
     private void validarLector(String userId, String userRole) {
         validarIdentidad(userId, userRole);
         String rol = userRole.trim();
-        if (!"administrador".equalsIgnoreCase(rol) && !"organizador".equalsIgnoreCase(rol)) {
+        if (!esAdministrador(rol) && !"ORGANIZADOR".equalsIgnoreCase(rol)) {
             throw new ForbiddenException("Solo un organizador o administrador puede consultar lugares y sectores");
         }
     }
@@ -253,5 +253,10 @@ public class LugarController {
         if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
             throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
         }
+    }
+
+    private boolean esAdministrador(String userRole) {
+        String rol = userRole.trim();
+        return "ADMIN".equalsIgnoreCase(rol) || "administrador".equalsIgnoreCase(rol);
     }
 }

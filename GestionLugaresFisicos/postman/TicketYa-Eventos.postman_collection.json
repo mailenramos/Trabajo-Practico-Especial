@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TicketYa - Eventos",
-    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras (encendido, apagado y reenvío). Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
+    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos (la 12 prepara los datos y requiere Reservas encendido). Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -68,6 +68,54 @@
     {
       "key": "eventoPendienteId",
       "value": ""
+    },
+    {
+      "key": "orgBusq",
+      "value": ""
+    },
+    {
+      "key": "lugarTandilId",
+      "value": ""
+    },
+    {
+      "key": "secNumTandilId",
+      "value": ""
+    },
+    {
+      "key": "secNoNumTandilId",
+      "value": ""
+    },
+    {
+      "key": "lugarCordobaId",
+      "value": ""
+    },
+    {
+      "key": "secCordobaId",
+      "value": ""
+    },
+    {
+      "key": "evBusq1",
+      "value": ""
+    },
+    {
+      "key": "evBusq2",
+      "value": ""
+    },
+    {
+      "key": "evBusq3",
+      "value": ""
+    },
+    {
+      "key": "evBusq4",
+      "value": ""
+    },
+    {
+      "key": "evBusq5",
+      "value": ""
+    },
+    {
+      "key": "evBusq6",
+      "value": ""
     }
   ],
   "item": [
@@ -99,7 +147,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -152,7 +200,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -207,7 +255,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -261,7 +309,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -314,7 +362,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -374,7 +422,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -423,7 +471,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -478,7 +526,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -532,7 +580,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -586,7 +634,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -640,7 +688,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -694,7 +742,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -748,7 +796,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               },
               {
                 "key": "Content-Type",
@@ -802,7 +850,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -956,7 +1004,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -985,7 +1033,7 @@
           }
         },
         {
-          "name": "E13 Rol en mayúsculas (se acepta)",
+          "name": "E13 Rol en minúsculas (se acepta, no distingue mayúsculas)",
           "event": [
             {
               "listen": "test",
@@ -1006,7 +1054,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "ORGANIZADOR"
+                "value": "organizador"
               },
               {
                 "key": "Content-Type",
@@ -1034,7 +1082,7 @@
           }
         },
         {
-          "name": "E14 Método no soportado (GET /eventos)",
+          "name": "E14 Método no soportado (DELETE /eventos)",
           "event": [
             {
               "listen": "test",
@@ -1047,7 +1095,7 @@
             }
           ],
           "request": {
-            "method": "GET",
+            "method": "DELETE",
             "header": [
               {
                 "key": "X-User-Id",
@@ -1055,7 +1103,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -1096,7 +1144,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1150,7 +1198,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1204,7 +1252,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1258,7 +1306,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1312,7 +1360,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1361,7 +1409,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1420,7 +1468,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1469,7 +1517,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1522,7 +1570,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1575,7 +1623,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1633,7 +1681,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1691,7 +1739,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1749,7 +1797,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1807,7 +1855,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1866,7 +1914,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1924,7 +1972,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -1982,7 +2030,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2040,7 +2088,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               },
               {
                 "key": "Content-Type",
@@ -2098,7 +2146,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -2210,7 +2258,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2259,7 +2307,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2310,7 +2358,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2366,7 +2414,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2422,7 +2470,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2478,7 +2526,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2534,7 +2582,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2590,7 +2638,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2646,7 +2694,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2702,7 +2750,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2758,7 +2806,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -2814,7 +2862,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               },
               {
                 "key": "Content-Type",
@@ -2870,7 +2918,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -2978,7 +3026,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -3030,7 +3078,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -3079,7 +3127,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -3137,7 +3185,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3181,7 +3229,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3224,7 +3272,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3267,7 +3315,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3310,7 +3358,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               }
             ],
             "url": {
@@ -3353,7 +3401,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3430,7 +3478,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3474,7 +3522,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3518,7 +3566,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3562,7 +3610,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               }
             ],
             "url": {
@@ -3641,7 +3689,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3685,7 +3733,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3729,7 +3777,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3808,7 +3856,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3852,7 +3900,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -3895,7 +3943,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -3938,7 +3986,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               }
             ],
             "url": {
@@ -4288,7 +4336,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -4337,7 +4385,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -4390,7 +4438,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -4443,7 +4491,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -4481,7 +4529,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -4525,7 +4573,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -4583,7 +4631,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -4634,7 +4682,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -4673,7 +4721,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -4712,7 +4760,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -4751,7 +4799,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -4919,7 +4967,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -4962,7 +5010,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -5048,7 +5096,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -5092,7 +5140,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -5136,7 +5184,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -5183,7 +5231,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5232,7 +5280,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5285,7 +5333,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5343,7 +5391,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -5381,7 +5429,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5439,7 +5487,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -5486,7 +5534,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5535,7 +5583,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5637,7 +5685,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5738,7 +5786,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "cliente"
+                "value": "CLIENTE"
               }
             ],
             "url": {
@@ -5854,7 +5902,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5903,7 +5951,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -5956,7 +6004,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6009,7 +6057,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -6047,7 +6095,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -6140,7 +6188,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -6249,7 +6297,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6298,7 +6346,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6351,7 +6399,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6404,7 +6452,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -6442,7 +6490,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -6526,7 +6574,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6575,7 +6623,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6628,7 +6676,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               },
               {
                 "key": "Content-Type",
@@ -6681,7 +6729,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "organizador"
+                "value": "ORGANIZADOR"
               }
             ],
             "url": {
@@ -6719,7 +6767,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               },
               {
                 "key": "Content-Type",
@@ -6806,7 +6854,7 @@
               },
               {
                 "key": "X-User-Role",
-                "value": "administrador"
+                "value": "ADMIN"
               }
             ],
             "url": {
@@ -6867,6 +6915,4589 @@
         }
       ],
       "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-stub.js y esperado el intervalo de reenvío."
+    },
+    {
+      "name": "12 Preparación de búsqueda (requiere Reservas ENCENDIDO)",
+      "item": [
+        {
+          "name": "BU00 Inicio de corrida (genera un organizador nuevo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"orgBusq\", \"org-busq-\" + Date.now());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
+            },
+            "description": "Su script previo genera orgBusq, un organizador propio de esta corrida, para que las búsquedas filtradas por organizadorId solo vean los eventos que crea esta carpeta."
+          }
+        },
+        {
+          "name": "BU01 Lugar en Tandil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"lugarTandilId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Teatro de Tandil\",\n  \"direccion\": \"Av. Rivadavia 500\",\n  \"ciudad\": \"Tandil\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU02 Sector numerado de Tandil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.sectorId;",
+                  "if (!id && j.sectores && j.sectores.length) { id = j.sectores[j.sectores.length - 1].id; }",
+                  "pm.collectionVariables.set(\"secNumTandilId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares/{{lugarTandilId}}/sectores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares",
+                "{{lugarTandilId}}",
+                "sectores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 2,\n  \"asientosPorFila\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU03 Sector no numerado de Tandil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.sectorId;",
+                  "if (!id && j.sectores && j.sectores.length) { id = j.sectores[j.sectores.length - 1].id; }",
+                  "pm.collectionVariables.set(\"secNoNumTandilId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares/{{lugarTandilId}}/sectores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares",
+                "{{lugarTandilId}}",
+                "sectores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU04 Lugar en Cordoba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"lugarCordobaId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Estadio de Cordoba\",\n  \"direccion\": \"Av. Colon 100\",\n  \"ciudad\": \"Cordoba\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU05 Sector de Cordoba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.sectorId;",
+                  "if (!id && j.sectores && j.sectores.length) { id = j.sectores[j.sectores.length - 1].id; }",
+                  "pm.collectionVariables.set(\"secCordobaId\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lugares/{{lugarCordobaId}}/sectores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares",
+                "{{lugarCordobaId}}",
+                "sectores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Popular\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU10 Crear Rock Nacional",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq1\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Rock Nacional\",\n  \"descripcion\": \"Noche de rock con bandas locales\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Alfa\",\n    \"Banda Beta\"\n  ],\n  \"fechaHora\": \"2027-03-10T21:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU11 Precio platea Rock Nacional",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}/sectores/{{secNumTandilId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}",
+                "sectores",
+                "{{secNumTandilId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 20000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU12 Precio campo Rock Nacional",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}/sectores/{{secNoNumTandilId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}",
+                "sectores",
+                "{{secNoNumTandilId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU13 Publicar Rock Nacional",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "BU20 Crear Obra Clasica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq2\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Obra Clasica\",\n  \"descripcion\": \"Funcion especial con el zorzal\",\n  \"tipo\": \"TEATRO\",\n  \"participantes\": [\n    \"Compania Gamma\"\n  ],\n  \"fechaHora\": \"2027-04-15T20:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU21 Precio Obra Clasica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq2}}/sectores/{{secCordobaId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq2}}",
+                "sectores",
+                "{{secCordobaId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU22 Publicar Obra Clasica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq2}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq2}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "BU30 Crear Final del Torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq3\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Final del Torneo\",\n  \"descripcion\": \"Gran final del campeonato\",\n  \"tipo\": \"DEPORTE\",\n  \"participantes\": [\n    \"Club Delta\",\n    \"Club Epsilon\"\n  ],\n  \"fechaHora\": \"2027-05-20T18:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU31 Precio platea Final del Torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}/sectores/{{secNumTandilId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}",
+                "sectores",
+                "{{secNumTandilId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 30000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU32 Precio campo Final del Torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}/sectores/{{secNoNumTandilId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}",
+                "sectores",
+                "{{secNoNumTandilId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 12000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU33 Publicar Final del Torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "BU34 Reservas avisa: Final del Torneo agotado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}/disponibilidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}",
+                "disponibilidad"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU40 Crear Festival de Verano",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq4\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Festival de Verano\",\n  \"descripcion\": \"Festival de musica al aire libre\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Alfa\"\n  ],\n  \"fechaHora\": \"2027-06-01T22:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU41 Precio Festival de Verano",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq4}}/sectores/{{secCordobaId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq4}}",
+                "sectores",
+                "{{secCordobaId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU42 Publicar Festival de Verano",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq4}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq4}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "BU50 Crear Evento en Borrador (queda en borrador)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq5\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Evento en Borrador\",\n  \"descripcion\": \"Todavia en preparacion\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Zeta\"\n  ],\n  \"fechaHora\": \"2027-07-01T21:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU60 Crear Evento Cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = pm.response.json();",
+                  "var id = j.id || j.eventoId;",
+                  "pm.collectionVariables.set(\"evBusq6\", id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Evento Cancelado\",\n  \"descripcion\": \"Se cancelo por lluvia\",\n  \"tipo\": \"TEATRO\",\n  \"participantes\": [\n    \"Compania Eta\"\n  ],\n  \"fechaHora\": \"2027-08-01T21:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU61 Precio Evento Cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq6}}/sectores/{{secCordobaId}}/precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq6}}",
+                "sectores",
+                "{{secCordobaId}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 7000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "BU62 Publicar Evento Cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq6}}/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq6}}",
+                "publicar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "BU63 Cancelar Evento Cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq6}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq6}}",
+                "cancelar"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Crea 2 lugares y 6 eventos de un organizador propio: 3 publicados, 1 agotado, 1 borrador y 1 cancelado. Requiere reservas-stub.js (o Reservas real) en localhost:8080. Cancelar el último evento genera un aviso a Compras (queda pendiente si Compras está apagado)."
+    },
+    {
+      "name": "13 Búsqueda: filtros",
+      "item": [
+        {
+          "name": "BQ01 Solo por organizador: ve publicados y agotado, no borrador ni cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });",
+                  "pm.test(\"Hay exactamente un agotado y ningún borrador ni cancelado\", function () {",
+                  "  var estados = j.contenido.map(function (e) { return e.estado; });",
+                  "  pm.expect(estados.filter(function (x) { return x === \"agotado\"; })).to.have.lengthOf(1);",
+                  "  pm.expect(estados).to.not.include(\"borrador\");",
+                  "  pm.expect(estados).to.not.include(\"cancelado\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ02 Por tipo MUSICA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=MUSICA",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "tipo",
+                  "value": "MUSICA"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ03 Por tipo TEATRO (el cancelado no aparece)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Obra Clasica\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=TEATRO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "tipo",
+                  "value": "TEATRO"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ04 Por participante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&participante=Banda%20Alfa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "participante",
+                  "value": "Banda Alfa"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ05 Participante inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([]); pm.expect(nombres).to.have.lengthOf(0); });",
+                  "pm.test(\"totalElementos = 0\", function () { pm.expect(j.totalElementos).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&participante=Nadie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "participante",
+                  "value": "Nadie"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ06 Por ciudad Tandil (el borrador no aparece)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Final del Torneo\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&ciudad=Tandil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "Tandil"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ07 Por ciudad Cordoba (el cancelado no aparece)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Obra Clasica\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&ciudad=Cordoba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "Cordoba"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ08 Combinado: tipo y ciudad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=MUSICA&ciudad=Cordoba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "tipo",
+                  "value": "MUSICA"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "Cordoba"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ09 Combinado: tipo y participante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=MUSICA&participante=Banda%20Beta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "tipo",
+                  "value": "MUSICA"
+                },
+                {
+                  "key": "participante",
+                  "value": "Banda Beta"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ10 Combinado sin coincidencias",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([]); pm.expect(nombres).to.have.lengthOf(0); });",
+                  "pm.test(\"totalElementos = 0\", function () { pm.expect(j.totalElementos).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=DEPORTE&ciudad=Cordoba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "tipo",
+                  "value": "DEPORTE"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "Cordoba"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ11 Rango de fechas (abril y mayo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Obra Clasica\", \"Final del Torneo\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-04-01T00:00:00Z&fechaHasta=2027-05-31T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-04-01T00:00:00Z"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "2027-05-31T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ12 Límites de fecha inclusivos (desde = hasta = fecha del evento)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-03-10T21:00:00Z&fechaHasta=2027-03-10T21:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-03-10T21:00:00Z"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "2027-03-10T21:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ13 Solo fechaDesde",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-05-01T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-05-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ14 Solo fechaHasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaHasta=2027-03-31T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "2027-03-31T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ15 Organizador inexistente: lista vacía con 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([]); pm.expect(nombres).to.have.lengthOf(0); });",
+                  "pm.test(\"totalElementos = 0\", function () { pm.expect(j.totalElementos).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId=org-que-no-existe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "org-que-no-existe"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "BQ16 Participante parcial (la spec dice coincidencia exacta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([]); pm.expect(nombres).to.have.lengthOf(0); });",
+                  "pm.test(\"totalElementos = 0\", function () { pm.expect(j.totalElementos).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&participante=Alfa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "participante",
+                  "value": "Alfa"
+                }
+              ]
+            },
+            "description": "El participante se compara de forma exacta: 'Alfa' no coincide con 'Banda Alfa'. Si devuelve resultados, el filtro es de tipo 'contiene' y hay que alinear la spec."
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 12. Todas filtran por el organizador de la corrida.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Búsqueda: orden y relevancia",
+      "item": [
+        {
+          "name": "OR01 Orden por fecha (por defecto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR02 orden=fecha explícito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=fecha",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "fecha"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR03 orden=fecha con direccion=desc (la dirección solo aplica al precio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=fecha&direccion=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "fecha"
+                },
+                {
+                  "key": "direccion",
+                  "value": "desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR04 Orden por precio ascendente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Obra Clasica\", \"Rock Nacional\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });",
+                  "pm.test(\"precioMinimo ascendente\", function () {",
+                  "  var p = j.contenido.map(function (e) { return e.precioMinimo; });",
+                  "  pm.expect(p).to.eql([5000, 8000, 12000, 15000]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=precio&direccion=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "precio"
+                },
+                {
+                  "key": "direccion",
+                  "value": "asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR05 Orden por precio descendente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Festival de Verano\", \"Final del Torneo\", \"Rock Nacional\", \"Obra Clasica\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=precio&direccion=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "precio"
+                },
+                {
+                  "key": "direccion",
+                  "value": "desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR06 Orden por precio sin dirección (ascendente por defecto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Obra Clasica\", \"Rock Nacional\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=precio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "precio"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR07 Relevancia sin q (equivale a fecha ascendente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR08 Relevancia con q=Alfa (participantes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(2); });",
+                  "pm.test(\"totalElementos = 2\", function () { pm.expect(j.totalElementos).to.eql(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia&q=Alfa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                },
+                {
+                  "key": "q",
+                  "value": "Alfa"
+                }
+              ]
+            },
+            "description": "Solo se comprueba el conjunto de resultados; el orden depende del puntaje de texto."
+          }
+        },
+        {
+          "name": "OR09 Relevancia con q=zorzal (descripción)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Obra Clasica\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia&q=zorzal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                },
+                {
+                  "key": "q",
+                  "value": "zorzal"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR10 Relevancia con q=Rock (nombre)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia&q=Rock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                },
+                {
+                  "key": "q",
+                  "value": "Rock"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR11 Relevancia con q y filtro de ciudad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(1); });",
+                  "pm.test(\"totalElementos = 1\", function () { pm.expect(j.totalElementos).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia&q=Alfa&ciudad=Cordoba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                },
+                {
+                  "key": "q",
+                  "value": "Alfa"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "Cordoba"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR12 q sin ninguna coincidencia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([]); pm.expect(nombres).to.have.lengthOf(0); });",
+                  "pm.test(\"totalElementos = 0\", function () { pm.expect(j.totalElementos).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=relevancia&q=inexistentepalabra",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "relevancia"
+                },
+                {
+                  "key": "q",
+                  "value": "inexistentepalabra"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR13 Orden no soportado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=popularidad",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "popularidad"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "OR14 Dirección no soportada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&orden=precio&direccion=arriba",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "orden",
+                  "value": "precio"
+                },
+                {
+                  "key": "direccion",
+                  "value": "arriba"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 12.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Búsqueda: paginación y validaciones",
+      "item": [
+        {
+          "name": "PG01 Primera página (size=2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Rock Nacional\", \"Obra Clasica\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });",
+                  "pm.test(\"Datos de paginación\", function () {",
+                  "  pm.expect(j.pagina).to.eql(0);",
+                  "  pm.expect(j.tamano).to.eql(2);",
+                  "  pm.expect(j.totalPaginas).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=2&page=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG02 Segunda página (size=2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados y orden esperados\", function () { pm.expect(nombres).to.eql([\"Final del Torneo\", \"Festival de Verano\"]); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });",
+                  "pm.test(\"Datos de paginación\", function () {",
+                  "  pm.expect(j.pagina).to.eql(1);",
+                  "  pm.expect(j.tamano).to.eql(2);",
+                  "  pm.expect(j.totalPaginas).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=2&page=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG03 Página fuera de rango: lista vacía con 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"contenido vacío y totalElementos 4\", function () { pm.expect(j.contenido).to.have.lengthOf(0); pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=2&page=9",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                },
+                {
+                  "key": "page",
+                  "value": "9"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG04 Tamaño por defecto (20)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"pagina 0 y tamano 20\", function () { pm.expect(j.pagina).to.eql(0); pm.expect(j.tamano).to.eql(20); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG05 Tamaño máximo (100)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"tamano 100\", function () { pm.expect(j.tamano).to.eql(100); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG06 size=101 (supera el máximo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "101"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG07 size=0",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG08 page negativa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&page=-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "page",
+                  "value": "-1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG09 size no numérico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&size=abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "size",
+                  "value": "abc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PG10 page no numérica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&page=abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "page",
+                  "value": "abc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "FE01 fechaDesde con formato inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-13-45T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-13-45T00:00:00Z"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "FE02 fechaDesde sin la Z final (no es UTC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-04-01T00:00:00",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-04-01T00:00:00"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "FE03 fechaHasta con texto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaHasta=manana",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "manana"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "FE04 fechaDesde posterior a fechaHasta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&fechaDesde=2027-06-01T00:00:00Z&fechaHasta=2027-03-01T00:00:00Z",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "2027-06-01T00:00:00Z"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "2027-03-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 12.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Búsqueda: roles y headers",
+      "item": [
+        {
+          "name": "RB01 Sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB02 Solo rol, sin X-User-Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB03 Rol desconocido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "invitado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB04 Rol cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB05 Rol organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB06 Rol ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB07 Rol en minúsculas (no distingue mayúsculas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "cliente"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RB08 Rol 'administrador' (el valor anterior)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 200 o 403\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 403]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "administrador"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            },
+            "description": "Informativo: indica si el valor anterior todavía se acepta como alias. Ambos resultados son válidos."
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 12.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Detalle del evento (GET /eventos/{id})",
+      "item": [
+        {
+          "name": "DT01 Detalle de un evento publicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"Datos del evento\", function () {",
+                  "  pm.expect(j.id).to.eql(pm.collectionVariables.get(\"evBusq1\"));",
+                  "  pm.expect(j.nombre).to.eql(\"Rock Nacional\");",
+                  "  pm.expect(j.descripcion).to.be.a(\"string\");",
+                  "  pm.expect(j.tipo).to.eql(\"MUSICA\");",
+                  "  pm.expect(j.organizadorId).to.eql(pm.collectionVariables.get(\"orgBusq\"));",
+                  "  pm.expect(j.participantes).to.eql([\"Banda Alfa\", \"Banda Beta\"]);",
+                  "  pm.expect(j.fechaHora).to.match(/Z$/);",
+                  "  pm.expect(j.estado).to.eql(\"publicado\");",
+                  "  pm.expect(j.ventaSuspendida).to.eql(false);",
+                  "});",
+                  "pm.test(\"Lugar del evento\", function () {",
+                  "  pm.expect(j.lugar.id).to.eql(pm.collectionVariables.get(\"lugarTandilId\"));",
+                  "  pm.expect(j.lugar.nombre).to.eql(\"Teatro de Tandil\");",
+                  "  pm.expect(j.lugar.direccion).to.be.a(\"string\");",
+                  "  pm.expect(j.lugar.ciudad).to.eql(\"Tandil\");",
+                  "});",
+                  "pm.test(\"Sectores con precio\", function () {",
+                  "  pm.expect(j.sectores).to.have.lengthOf(2);",
+                  "  var num = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNumTandilId\"); });",
+                  "  var no = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNoNumTandilId\"); });",
+                  "  pm.expect(num.tipo).to.eql(\"NUMERADO\"); pm.expect(num.nombre).to.eql(\"Platea\"); pm.expect(num.precio).to.eql(20000);",
+                  "  pm.expect(no.tipo).to.eql(\"NO_NUMERADO\"); pm.expect(no.nombre).to.eql(\"Campo\"); pm.expect(no.precio).to.eql(8000);",
+                  "});",
+                  "pm.test(\"disponibilidad es null (hasta implementar la parte B)\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            },
+            "description": "La última aserción de disponibilidad null debe quitarse cuando se implemente la parte B (Reservas)."
+          }
+        },
+        {
+          "name": "DT02 Detalle como organizador dueño",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT03 Detalle como administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT04 Detalle de un evento agotado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado agotado\", function () { pm.expect(j.estado).to.eql(\"agotado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT05 Detalle de un evento cancelado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado cancelado\", function () { pm.expect(j.estado).to.eql(\"cancelado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq6}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq6}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT06 Borrador visto por su organizador dueño",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq5}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq5}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT07 Borrador visto por un administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq5}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq5}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT08 Borrador visto por otro organizador (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}-otro"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq5}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq5}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT09 Borrador visto por un cliente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq5}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq5}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT10 Evento inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "000000000000000000000000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT11 Id mal formado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código esperado 400 o 404\", function () { pm.expect(pm.response.code).to.be.oneOf([400, 404]); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "abc"
+              ]
+            },
+            "description": "Se aceptan 400 o 404. Anotá cuál devuelve."
+          }
+        },
+        {
+          "name": "DT12 Detalle sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT13 Detalle con rol desconocido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.have.property(\"status\");",
+                  "  pm.expect(j).to.have.property(\"mensaje\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "10"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "invitado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT14 El GET interno para Compras sigue funcionando",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado publicado\", function () { pm.expect(j.estado).to.eql(\"publicado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere la carpeta 12.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\") || !pm.collectionVariables.get(\"evBusq1\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq / evBusq1 vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8080"
+      "value": "http://localhost:8081"
     },
     {
       "key": "lugarId",
@@ -39,7 +39,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -89,7 +89,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -138,7 +138,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -187,7 +187,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "cliente"
+            "value": "CLIENTE"
           },
           {
             "key": "Content-Type",
@@ -277,7 +277,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -329,7 +329,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -380,7 +380,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -431,7 +431,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -482,7 +482,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           },
           {
             "key": "Content-Type",
@@ -533,7 +533,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           }
         ],
         "url": {
@@ -569,7 +569,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           }
         ],
         "url": {
@@ -606,7 +606,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           }
         ],
         "url": {
@@ -643,7 +643,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "administrador"
+            "value": "ADMIN"
           }
         ],
         "url": {
@@ -660,7 +660,7 @@
       }
     },
     {
-      "name": "15 [Pendiente tarea 4.1] Listar lugares con rol cliente",
+      "name": "15 Listar lugares con rol cliente",
       "event": [
         {
           "listen": "test",
@@ -681,7 +681,7 @@
           },
           {
             "key": "X-User-Role",
-            "value": "cliente"
+            "value": "CLIENTE"
           }
         ],
         "url": {
@@ -692,12 +692,11 @@
           "path": [
             "lugares"
           ]
-        },
-        "description": "La spec exige 403 para clientes. Hoy el código devuelve 200; este request falla hasta implementar la tarea 4.1."
+        }
       }
     },
     {
-      "name": "16 [Pendiente tarea 4.1] Listar lugares sin headers",
+      "name": "16 Listar lugares sin headers de identificación",
       "event": [
         {
           "listen": "test",
@@ -720,8 +719,7 @@
           "path": [
             "lugares"
           ]
-        },
-        "description": "La spec exige 401 sin identificación. Hoy el código devuelve 200; falla hasta implementar la tarea 4.1."
+        }
       }
     }
   ]

@@ -11,10 +11,12 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "eventos")
-@CompoundIndex(name = "idx_eventos_ciudad_estado_fecha", def = "{'ciudad': 1, 'estado': 1, 'fechaHora': 1}")
+@CompoundIndex(name = "idx_eventos_estado_fecha", def = "{'estado': 1, 'fechaHora': 1}")
+@CompoundIndex(name = "idx_eventos_estado_ciudad_fecha", def = "{'estado': 1, 'ciudad': 1, 'fechaHora': 1}")
 @CompoundIndex(name = "idx_eventos_organizador_estado", def = "{'organizadorId': 1, 'estado': 1}")
 public class Evento {
 
@@ -24,9 +26,14 @@ public class Evento {
     private String organizadorId;
     private String lugarId;
     private String ciudad;
+    @TextIndexed
     private String nombre;
+    @TextIndexed
     private String descripcion;
+    @Indexed(name = "idx_eventos_tipo")
     private String tipo;
+    @TextIndexed
+    @Indexed(name = "idx_eventos_participantes")
     private List<String> participantes = new ArrayList<>();
     private Instant fechaHora;
     private EstadoEvento estado;

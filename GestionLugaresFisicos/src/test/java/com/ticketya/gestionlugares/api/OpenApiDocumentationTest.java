@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -41,6 +42,8 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/lugares/{id}/sectores'].get").exists())
                 .andExpect(jsonPath("$.paths['/lugares/{id}/sectores'].post").exists())
                 .andExpect(jsonPath("$.paths['/eventos'].post").exists())
+                .andExpect(jsonPath("$.paths['/eventos'].get").exists())
+                .andExpect(jsonPath("$.paths['/eventos/{eventoId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/sectores/{sectorId}/precio'].put").exists())
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/limite-entradas-por-cliente'].put").exists())
                 .andExpect(jsonPath("$.paths['/internal/eventos/{eventoId}'].get").exists())
@@ -73,6 +76,19 @@ class OpenApiDocumentationTest {
         assertTrue(eventsTag.path("description").asText().contains("callback interno de disponibilidad"));
 
         JsonNode paths = api.path("paths");
+        JsonNode searchOperation = paths.path("/eventos").path("get");
+        JsonNode searchParameters = searchOperation.path("parameters");
+        for (String parameter : List.of("tipo", "organizadorId", "participante", "ciudad", "fechaDesde",
+                "fechaHasta", "orden", "direccion", "q", "page", "size", "X-User-Id", "X-User-Role")) {
+            assertTrue(java.util.stream.StreamSupport.stream(searchParameters.spliterator(), false)
+                    .anyMatch(item -> item.path("name").asText().equals(parameter)),
+                    "Falta parámetro OpenAPI " + parameter);
+        }
+        assertEventErrors(searchOperation.path("responses"), "200", "400", "401", "403", "500");
+        JsonNode detailOperation = paths.path("/eventos/{eventoId}").path("get");
+        assertEventErrors(detailOperation.path("responses"), "200", "401", "403", "404", "500");
+        assertTrue(detailOperation.path("description").asText().contains("combina la respuesta por sectorId"));
+        assertTrue(detailOperation.path("description").asText().contains("si Reservas falla, la disponibilidad queda en null"));
         assertEventErrors(paths.path("/lugares").path("post").path("responses"), "400", "401", "403", "409", "500");
         assertEventErrors(paths.path("/lugares").path("get").path("responses"), "401", "403", "500");
         assertEventErrors(paths.path("/lugares/{id}").path("get").path("responses"), "401", "403", "404", "500");

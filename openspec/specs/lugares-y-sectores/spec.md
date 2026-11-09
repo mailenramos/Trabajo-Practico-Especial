@@ -9,7 +9,7 @@ Esta capacidad define el registro, la configuración y la consulta de lugares f�
 El servicio SHALL permitir registrar un lugar con nombre, dirección, latitud y longitud. El nombre y la dirección SHALL contener texto no vacío; la latitud SHALL estar entre -90 y 90 inclusive y la longitud entre -180 y 180 inclusive.
 
 #### Scenario: Administrador registra un lugar válido
-- **GIVEN** una solicitud autenticada con `X-User-Id` y `X-User-Role: administrador` y datos válidos
+- **GIVEN** una solicitud autenticada con `X-User-Id` y `X-User-Role: ADMIN` y datos válidos
 - **WHEN** envía la solicitud para registrar un lugar
 - **THEN** el servicio crea el lugar y responde `201 Created` con su identificador y datos registrados
 
@@ -24,7 +24,7 @@ El servicio SHALL permitir registrar un lugar con nombre, dirección, latitud y 
 - **THEN** el servicio rechaza la solicitud con `401 Unauthorized` y no crea el lugar
 
 #### Scenario: Rechazar registro por rol no administrador
-- **GIVEN** una solicitud de registro autenticada cuyo `X-User-Role` es `cliente` u `organizador`
+- **GIVEN** una solicitud de registro autenticada cuyo `X-User-Role` es `CLIENTE` u `ORGANIZADOR`
 - **WHEN** solicita registrar un lugar
 - **THEN** el servicio rechaza la solicitud con `403 Forbidden` y no crea el lugar
 
@@ -52,7 +52,7 @@ El servicio SHALL permitir que un administrador agregue a un lugar existente un 
 - **THEN** el servicio responde `404 Not Found` y no crea el sector
 
 #### Scenario: Solo administrador puede agregar sectores numerados
-- **GIVEN** una solicitud para agregar un sector numerado sin identidad, o con rol distinto de `administrador`
+- **GIVEN** una solicitud para agregar un sector numerado sin identidad, o con rol distinto de `ADMIN`
 - **WHEN** el servicio procesa la solicitud
 - **THEN** responde `401 Unauthorized` si falta `X-User-Id` o `X-User-Role`, o `403 Forbidden` si el rol autenticado no es administrador, y no crea el sector
 
@@ -75,12 +75,12 @@ El servicio SHALL permitir que un administrador agregue a un lugar existente un 
 - **THEN** el servicio responde `404 Not Found` y no crea el sector
 
 #### Scenario: Solo administrador puede agregar sectores no numerados
-- **GIVEN** una solicitud para agregar un sector no numerado sin identidad, o con rol distinto de `administrador`
+- **GIVEN** una solicitud para agregar un sector no numerado sin identidad, o con rol distinto de `ADMIN`
 - **WHEN** el servicio procesa la solicitud
 - **THEN** responde `401 Unauthorized` si falta `X-User-Id` o `X-User-Role`, o `403 Forbidden` si el rol autenticado no es administrador, y no crea el sector
 
 ### Requirement: Consultar lugares y sectores
-El servicio SHALL permitir que usuarios con rol `organizador` o `administrador` consulten los lugares registrados y el detalle de un lugar con sus sectores y la configuración correspondiente. La solicitud SHALL incluir `X-User-Id` y `X-User-Role`; si falta alguno responderá `401 Unauthorized`, y si el rol es `cliente` responderá `403 Forbidden`. La consulta SHALL responder `404 Not Found` cuando el identificador del lugar no exista.
+El servicio SHALL permitir que usuarios con rol `ORGANIZADOR` o `ADMIN` consulten los lugares registrados y el detalle de un lugar con sus sectores y la configuración correspondiente. La solicitud SHALL incluir `X-User-Id` y `X-User-Role`; si falta alguno responderá `401 Unauthorized`, y si el rol es `CLIENTE` responderá `403 Forbidden`. La consulta SHALL responder `404 Not Found` cuando el identificador del lugar no exista.
 
 #### Scenario: Consultar colección de lugares
 - **GIVEN** que existen cero o más lugares registrados y la solicitud tiene identidad de organizador o administrador
@@ -103,6 +103,6 @@ El servicio SHALL permitir que usuarios con rol `organizador` o `administrador` 
 - **THEN** el servicio responde `401 Unauthorized`
 
 #### Scenario: Rechazar consulta de un cliente
-- **GIVEN** una solicitud GET con `X-User-Id` y `X-User-Role: cliente`
+- **GIVEN** una solicitud GET con `X-User-Id` y `X-User-Role: CLIENTE`
 - **WHEN** consulta la colección de lugares o un lugar con sus sectores
 - **THEN** el servicio responde `403 Forbidden`

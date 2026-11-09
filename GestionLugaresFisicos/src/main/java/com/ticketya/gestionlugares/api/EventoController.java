@@ -54,7 +54,7 @@ public class EventoController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true)
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    schema = @Schema(allowableValues = {"organizador"}))
+                    schema = @Schema(allowableValues = {"ORGANIZADOR"}))
             @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Datos del evento; limiteEntradasPorCliente es opcional y vale 4 si se omite.",

@@ -32,7 +32,7 @@ Ejecutá estos pasos desde `GestionLugaresFisicos`.
 3. Consultá lugares con headers de identidad:
 
    ```sh
-   curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Role: organizador" http://localhost:8081/lugares
+   curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Role: ORGANIZADOR" http://localhost:8081/lugares
    ```
 
 4. La documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
@@ -45,22 +45,24 @@ docker compose down
 
 ## Endpoints
 
-El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas requieren `X-User-Id` junto con el rol indicado; los endpoints internos de callback y consulta entre servicios no exigen headers de usuario. Los valores canónicos de rol son `administrador` y `organizador`; el código recorta espacios externos y compara sin distinguir mayúsculas.
+El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas requieren `X-User-Id` junto con el rol indicado; los endpoints internos de callback y consulta entre servicios no exigen headers de usuario. El Gateway debe enviar `X-User-Role: CLIENTE`, `ORGANIZADOR` o `ADMIN`. El servicio compara sin distinguir mayúsculas y recorta espacios externos.
 
 | Método | Ruta | Rol requerido | Descripción |
 |---|---|---|---|
-| POST | `/lugares` | `administrador` | Registra un lugar. |
-| GET | `/lugares` | `organizador` o `administrador` | Lista lugares. |
-| GET | `/lugares/{id}` | `organizador` o `administrador` | Consulta un lugar y sus sectores. |
-| GET | `/lugares/{id}/sectores` | `organizador` o `administrador` | Lista los sectores de un lugar. |
-| POST | `/lugares/{id}/sectores` | `administrador` | Agrega un sector numerado o no numerado. |
-| POST | `/eventos` | `organizador` | Crea un evento en borrador. |
+| POST | `/lugares` | `ADMIN` | Registra un lugar. |
+| GET | `/lugares` | `ORGANIZADOR` o `ADMIN` | Lista lugares. |
+| GET | `/lugares/{id}` | `ORGANIZADOR` o `ADMIN` | Consulta un lugar y sus sectores. |
+| GET | `/lugares/{id}/sectores` | `ORGANIZADOR` o `ADMIN` | Lista los sectores de un lugar. |
+| POST | `/lugares/{id}/sectores` | `ADMIN` | Agrega un sector numerado o no numerado. |
+| POST | `/eventos` | `ORGANIZADOR` | Crea un evento en borrador. |
+| GET | `/eventos` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
+| GET | `/eventos/{eventoId}` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Devuelve el detalle público; solo el organizador dueño o ADMIN ve un borrador. |
 | PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | Organizador dueño | Define el precio de un sector del evento en borrador. |
 | PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | Organizador dueño | Actualiza el límite por cliente durante el borrador. |
 | PUT | `/eventos/{eventoId}/publicar` | Organizador dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
-| PUT | `/eventos/{eventoId}/venta/suspender` | `administrador` | Suspende la venta sin crear un estado formal nuevo. |
-| PUT | `/eventos/{eventoId}/venta/reactivar` | `administrador` | Reactiva la venta. |
-| PUT | `/eventos/{eventoId}/cancelar` | `administrador` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
+| PUT | `/eventos/{eventoId}/venta/suspender` | `ADMIN` | Suspende la venta sin crear un estado formal nuevo. |
+| PUT | `/eventos/{eventoId}/venta/reactivar` | `ADMIN` | Reactiva la venta. |
+| PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Role`; no debe exponerse por el API Gateway. |
 | GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
@@ -80,7 +82,7 @@ Este servicio hace estas llamadas a Reservas:
 
 1. **Inicializar disponibilidad al publicar:** `PUT /disponibilidad/eventos/{eventoId}`. Envía `limiteEntradasPorCliente` y los sectores; para sectores numerados deriva los pares `{fila, numero}` y su `capacidadTotal` a partir de filas × asientosPorFila. La respuesta esperada es `204`; repetir la inicialización con los mismos datos es idempotente.
 2. **Cambiar el estado de venta:** `PUT /disponibilidad/eventos/{eventoId}/venta`, con `{"estado":"ACTIVA"}`, `SUSPENDIDA`, `CANCELADA` o `FINALIZADA`. La respuesta esperada es `204`.
-3. **Consultar disponibilidad:** el contrato `GET /disponibilidad/eventos/{eventoId}` está documentado para el detalle futuro de F3, pero esa llamada todavía no está implementada en este servicio.
+3. **Consultar disponibilidad en el detalle:** al consultar un evento `publicado` o `agotado`, este servicio llama `GET /disponibilidad/eventos/{eventoId}` y combina la respuesta por `sectorId`. Si Reservas no responde o devuelve error, el detalle se devuelve igual y `disponibilidad` queda en `null`. Para otros estados no se consulta a Reservas.
 
 Reservas llama a este servicio mediante el callback `PUT /eventos/{eventoId}/disponibilidad`, con `{"agotado":true}` o `{"agotado":false}`. Responde `204` para cambios, avisos duplicados y avisos tardíos de eventos cancelados o finalizados; `404` si el evento no existe y `409` si sigue en borrador. El callback es interno, sin headers de usuario y fuera del Gateway.
 
