@@ -106,3 +106,19 @@ El servicio SHALL permitir que usuarios con rol `ORGANIZADOR` o `ADMIN` consulte
 - **GIVEN** una solicitud GET con `X-User-Id` y `X-User-Role: CLIENTE`
 - **WHEN** consulta la colección de lugares o un lugar con sus sectores
 - **THEN** el servicio responde `403 Forbidden`
+
+### Requirement: Normalizar el rol administrativo en lugares y sectores
+Para los endpoints de lugares y sectores, el servicio SHALL aceptar `ADMIN` y `administrador` como valores equivalentes de `X-User-Role`, sin distinguir mayúsculas y recortando espacios externos.
+
+#### Scenario: Aceptar el alias administrativo normalizado
+- **GIVEN** una solicitud con identidad válida y `X-User-Role` igual a ` administrador ` en cualquier combinación de mayúsculas
+- **WHEN** realiza una operación permitida para `ADMIN` sobre lugares o sectores
+- **THEN** el servicio la procesa con las mismas reglas de autorización que `ADMIN`
+
+### Requirement: Responder errores inesperados de forma segura
+Ante una excepción inesperada, el servicio SHALL responder `500 Internal Server Error` con el formato JSON estándar y un mensaje genérico, sin exponer stack traces ni mensajes internos de MongoDB.
+
+#### Scenario: Error interno inesperado
+- **GIVEN** una operación produce una excepción inesperada
+- **WHEN** el servicio construye la respuesta HTTP
+- **THEN** responde `500 Internal Server Error` con `timestamp`, `status`, `error` y `mensaje` genérico, omite `campos` si no aplica y no expone stack traces ni mensajes internos de MongoDB

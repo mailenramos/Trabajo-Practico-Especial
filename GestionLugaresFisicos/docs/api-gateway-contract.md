@@ -1,4 +1,4 @@
-﻿# Contrato para el API Gateway
+# Contrato para el API Gateway
 
 La tabla contiene todas las rutas públicas actuales de `GestionLugaresFisicos`. El Gateway debe exponer cada una (marcada **Sí**) y reenviar el path backend sin cambios al servicio. En local, el backend escucha en `http://localhost:8081` por defecto; `PORT` puede sobrescribirlo. El prefijo público del Gateway no está definido en este repositorio.
 
@@ -31,6 +31,6 @@ Al crear un evento, `limiteEntradasPorCliente` es opcional y vale `4` por defect
 
 `GET /internal/eventos/{eventoId}` es una ruta interna para Compras que **no se publica** por el Gateway y no exige headers de usuario. Devuelve `200` con datos del evento en cualquier estado o `404` si no existe.
 
-Tampoco se publican otras rutas internas bajo `/internal/` ni las llamadas salientes de Eventos a Reservas o Compras. En la Entrega 1, la comunicación entre microservicios es directa y sin autenticación entre servicios. El aviso saliente de cancelación usa `POST /eventos-cancelados`; no es una ruta de este servicio.
+El Gateway usa una lista explícita de rutas públicas: no debe publicar el callback `PUT /eventos/{eventoId}/disponibilidad`, ninguna ruta bajo `/internal/**` (incluido `GET /internal/eventos/{eventoId}`), ni las llamadas salientes de Eventos a Reservas o Compras. En la Entrega 1, la comunicación entre microservicios es directa y sin autenticación entre servicios. El aviso saliente de cancelación usa `POST /eventos-cancelados`; no es una ruta de este servicio.
 
 Los errores controlados usan `timestamp`, `status`, `error`, `mensaje` y, si corresponde, `campos` como lista de `{campo, mensaje}`. OpenAPI está disponible en `/v3/api-docs`; Swagger UI, en `/swagger-ui/index.html`.

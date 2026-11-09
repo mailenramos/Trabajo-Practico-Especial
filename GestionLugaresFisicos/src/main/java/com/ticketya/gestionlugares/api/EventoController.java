@@ -38,7 +38,7 @@ public class EventoController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear evento en borrador")
+    @Operation(summary = "Crear evento en borrador", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Evento creado en borrador",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -68,7 +68,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/sectores/{sectorId}/precio")
-    @Operation(summary = "Definir el precio de un sector del evento")
+    @Operation(summary = "Definir el precio de un sector del evento", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Precio asignado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -94,7 +94,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/limite-entradas-por-cliente")
-    @Operation(summary = "Actualizar límite de entradas por cliente durante el borrador")
+    @Operation(summary = "Actualizar límite de entradas por cliente durante el borrador", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Límite actualizado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -120,7 +120,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/publicar")
-    @Operation(summary = "Publicar evento e inicializar disponibilidad en Reservas")
+    @Operation(summary = "Publicar evento e inicializar disponibilidad en Reservas", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento publicado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -141,11 +141,11 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/venta/suspender")
-    @Operation(summary = "Suspender la venta del evento")
+    @Operation(summary = "Suspender la venta del evento", description = "Requiere X-User-Id y X-User-Role: ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta suspendida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta suspendida", value = ApiExamples.EVENTO_VENTA_SUSPENDIDA))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "El rol no es administrador", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cambiar el estado de venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -158,11 +158,11 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/venta/reactivar")
-    @Operation(summary = "Reactivar la venta del evento")
+    @Operation(summary = "Reactivar la venta del evento", description = "Requiere X-User-Id y X-User-Role: ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta reactivada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta activa", value = ApiExamples.EVENTO_PUBLICADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "El rol no es administrador", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cambiar el estado de venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -175,11 +175,11 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/cancelar")
-    @Operation(summary = "Cancelar evento y detener su venta", description = "El body y el motivo son opcionales. Si no se envían, se aplica el motivo predeterminado.")
+    @Operation(summary = "Cancelar evento y detener su venta", description = "Requiere X-User-Id y X-User-Role: ADMIN. El body y el motivo son opcionales; si se omiten, se aplica el motivo predeterminado.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento cancelado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "El rol no es administrador", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cancelar la venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),

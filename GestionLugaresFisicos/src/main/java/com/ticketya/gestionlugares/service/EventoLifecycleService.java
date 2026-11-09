@@ -101,7 +101,9 @@ public class EventoLifecycleService {
     private Evento intentarAvisoCancelacion(Evento evento) {
         try {
             comprasClient.notificarCancelacion(evento.getId(), evento.getMotivoCancelacion(), evento.getCanceladoEn());
-            return eventoService.marcarAvisoCancelacionEntregado(evento.getId());
+            Evento actualizado = eventoService.marcarAvisoCancelacionEntregado(evento.getId());
+            log.info("Aviso de cancelación entregado correctamente para el evento {}", evento.getId());
+            return actualizado;
         } catch (RuntimeException exception) {
             log.warn("No se pudo notificar a Compras la cancelación del evento {}; queda pendiente", evento.getId(), exception);
             return evento;

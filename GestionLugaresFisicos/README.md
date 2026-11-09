@@ -1,4 +1,4 @@
-﻿# Gestión de lugares, sectores y eventos
+# Gestión de lugares, sectores y eventos
 
 Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y el ciclo de vida de eventos. Persiste en MongoDB en colecciones propias; la comunicación entre servicios usa IDs y llamadas directas.
 
@@ -57,16 +57,58 @@ El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas r
 | POST | `/eventos` | `ORGANIZADOR` | Crea un evento en borrador. |
 | GET | `/eventos` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
 | GET | `/eventos/{eventoId}` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Devuelve el detalle público; solo el organizador dueño o ADMIN ve un borrador. |
-| PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | Organizador dueño | Define el precio de un sector del evento en borrador. |
-| PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | Organizador dueño | Actualiza el límite por cliente durante el borrador. |
-| PUT | `/eventos/{eventoId}/publicar` | Organizador dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
+| PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | `ORGANIZADOR` dueño | Define el precio de un sector del evento en borrador. |
+| PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | `ORGANIZADOR` dueño | Actualiza el límite por cliente durante el borrador. |
+| PUT | `/eventos/{eventoId}/publicar` | `ORGANIZADOR` dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
 | PUT | `/eventos/{eventoId}/venta/suspender` | `ADMIN` | Suspende la venta sin crear un estado formal nuevo. |
 | PUT | `/eventos/{eventoId}/venta/reactivar` | `ADMIN` | Reactiva la venta. |
 | PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Role`; no debe exponerse por el API Gateway. |
 | GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
+## Identidad y usuarios de prueba
+
+Los valores canónicos de `X-User-Role` son `CLIENTE`, `ORGANIZADOR` y `ADMIN`; la comparación no distingue mayúsculas y recorta espacios externos. En las operaciones de gestión de lugares y en las acciones administrativas del ciclo de vida, el código también acepta `administrador` como alias de `ADMIN`. Búsqueda y detalle públicos solo aceptan los valores canónicos. Ejemplos de headers: `X-User-Id: cliente-123` con `X-User-Role: CLIENTE`; `X-User-Id: organizador-42` con `X-User-Role: ORGANIZADOR`; `X-User-Id: admin-1` con `X-User-Role: ADMIN`.
+
+`X-User-Id` debe identificar al usuario. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar y consultar detalles de eventos; solo el dueño `ORGANIZADOR` puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y administra suspensiones, reactivaciones y cancelaciones. Los callbacks y consultas internas no reciben headers de usuario.
+
+El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires (Platea numerada y Pullman no numerado) y Estadio del Parque en Córdoba (Tribuna Norte numerada y Campo de pie no numerado). No carga eventos de ejemplo; la carpeta 12 de Postman crea los eventos de sus pruebas.
+
 Las rutas de gestión de eventos y lugares devuelven errores controlados con `timestamp`, `status`, `error` y `mensaje`; `campos` se incluye como lista de `{campo, mensaje}` cuando corresponde.
+
+## Búsqueda y detalle de eventos
+
+`GET /eventos` combina los filtros provistos con AND. `tipo`, `organizadorId`, `participante` y `ciudad` son cadenas exactas. `fechaDesde` y `fechaHasta` son instantes ISO-8601 UTC terminados en `Z`, inclusivos; fechas inválidas o `fechaDesde` posterior a `fechaHasta` producen `400`. Los criterios omitidos no filtran.
+
+| Query param | Tipo | Default y límites |
+|---|---|---|
+| `tipo` | texto | Sin default; igualdad exacta. |
+| `organizadorId` | texto | Sin default; igualdad exacta. |
+| `participante` | texto | Sin default; coincidencia exacta en la lista. |
+| `ciudad` | texto | Sin default; igualdad exacta. |
+| `fechaDesde` | ISO-8601 UTC (`Z`) | Sin default; inclusiva. |
+| `fechaHasta` | ISO-8601 UTC (`Z`) | Sin default; inclusiva. |
+| `orden` | texto | `fecha`; valores: `fecha`, `precio`, `relevancia`. |
+| `direccion` | texto | `asc`; valores: `asc`, `desc`; solo ordena el precio. |
+| `q` | texto | Sin default; texto libre para relevancia en nombre, descripción y participantes. |
+| `page` | entero | `0` o mayor. |
+| `size` | entero | `20`; rango de `1` a `100`. |
+
+Solo se listan eventos `publicado` y `agotado`; sin coincidencias la respuesta es `200` con contenido vacío. El orden por fecha es ascendente y por precio usa `precioMinimo` en la dirección solicitada (con fecha e ID como desempate). Con `orden=relevancia` y `q`, se ordena por puntaje de texto descendente y luego fecha ascendente; sin `q`, equivale a fecha ascendente. La respuesta usa `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`.
+
+Ejemplo de respuesta paginada:
+
+```json
+{"contenido":[{"id":"672a1f77bcf86cd799439011","nombre":"Festival Central","tipo":"MUSICA","participantes":["Artista A"],"fechaHora":"2027-05-16T00:00:00Z","ciudad":"Buenos Aires","estado":"publicado","ventaSuspendida":false,"precioMinimo":15000.00}],"pagina":0,"tamano":20,"totalElementos":1,"totalPaginas":1}
+```
+
+En `GET /eventos/{eventoId}`, un borrador solo es visible para el `ORGANIZADOR` dueño (mismo `X-User-Id`) y `ADMIN`; para otros roles responde `404`. Los demás estados se pueden consultar con cualquiera de los tres roles. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
+
+Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
+
+```json
+{"id":"672a1f77bcf86cd799439011","nombre":"Festival Central","descripcion":"Música en vivo","tipo":"MUSICA","organizadorId":"organizador-42","participantes":["Artista A"],"fechaHora":"2027-05-16T00:00:00Z","estado":"publicado","ventaSuspendida":false,"lugar":{"id":"507f1f77bcf86cd799439011","nombre":"Estadio Central","direccion":"Av. Central 100","ciudad":"Buenos Aires"},"sectores":[{"sectorId":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","tipo":"NUMERADO","filas":1,"asientosPorFila":2,"capacidad":null,"precio":15000.00,"disponibilidad":{"capacidadTotal":2,"cantidadDisponible":1,"asientosDisponibles":[{"fila":1,"numero":2}]}},{"sectorId":"7d444840-9dc0-11d1-b245-5ffdce74fad2","nombre":"Campo","tipo":"NO_NUMERADO","filas":null,"asientosPorFila":null,"capacidad":500,"precio":8000.00,"disponibilidad":{"capacidadTotal":500,"cantidadDisponible":120}}]}
+```
 
 ## Integración con otros servicios
 
@@ -93,13 +135,13 @@ Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` 
 Contrato confirmado con Compras y Devoluciones. URL base configurable con `compras.base-url` (default `http://localhost:8083`); timeouts: `compras.connect-timeout` (2 s) y `compras.read-timeout` (5 s).
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
-- **Aviso de cancelación:** este servicio llama `POST /eventos-cancelados` después de que Reservas confirmó la cancelación y el evento local quedó cancelado. `202` y `200` se consideran éxito. Si Compras no responde o devuelve error, la cancelación permanece hecha y el administrador recibe `200`; el aviso queda guardado y se reenvía automáticamente cada `eventos.cancelacion.reenvio-interval` (default `60s`).
+- **Aviso de cancelación:** este servicio llama `POST /eventos-cancelados` después de que Reservas confirma la cancelación local. El aviso se considera entregado solo si Compras responde `200` o `202`; cualquier otro resultado, incluidos `4xx`, `5xx` y timeout, lo deja pendiente. El scheduler reintenta cada `eventos.cancelacion.reenvio-interval` (60 s por defecto), sin backoff ni límite de intentos. El aviso pendiente se guarda en `avisoCancelacionPendiente`, dentro del documento del evento, y sobrevive a un reinicio. Una vez entregado, no se vuelve a enviar. Con varias instancias puede enviarse duplicado; Compras absorbe el duplicado y responde `200`.
 
 El GET interno es una ruta directa entre servicios: no exige `X-User-Id` ni `X-User-Role` y no se publica por el Gateway. Los errores remotos del aviso no revierten la cancelación.
 
 ## Puertos
 
-Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). Reservas usa `8080` en el entorno local; mantené ambos puertos separados.
+Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). Reservas usa `8080` y Compras `8083` en el entorno local.
 
 ## Variables de entorno y comandos
 
@@ -177,9 +219,11 @@ mvn spring-boot:run
 En `postman/` están las dos colecciones:
 
 - `TicketYa-Lugares.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa-Eventos.postman_collection.json`: pruebas de eventos e integración con Reservas.
+- `TicketYa-Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 18**.
 
-Para el flujo de eventos, ejecutá primero **00 Preparación**. La carpeta **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. La carpeta **08 GET interno para Compras** se puede ejecutar después de la preparación y no depende de los servicios externos.
+Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET interno para Compras; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado.
+
+Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET interno para Compras** no depende de servicios externos.
 
 Las carpetas de aviso de cancelación se ejecutan en este orden y con estos servicios:
 
@@ -204,20 +248,26 @@ Para los escenarios anteriores que prueban publicación y fallas de Reservas, ej
 
 Las carpetas **06 y 07 también son excluyentes**.
 
-Para simular Reservas en local, desde la carpeta `GestionLugaresFisicos` ejecutá en otra terminal:
+Las carpetas **12 a 17 se ejecutan juntas en una sola corrida**, con Reservas encendido y el mismo simulador de Reservas: guarda en memoria los eventos inicializados y los datos que usan esas pruebas. La carpeta **17 Detalle del evento** ocupa lugares (caso DT15); para repetirla hay que volver a ejecutar la 12, con Reservas encendido, para reinicializar disponibilidad.
+
+La carpeta **18 [Reservas APAGADO] Detalle sin disponibilidad** requiere haber corrido la 12 con Reservas encendido y luego apagar Reservas. También se puede reiniciar el simulador sin volver a publicar: en ese caso Reservas responde `404`. El detalle del evento responde `200` y cada sector queda con `disponibilidad: null`.
+
+Para simular Reservas en local, desde la carpeta GestionLugaresFisicos ejecutá en otra terminal:
 
 ```sh
 node postman/reservas-stub.js
 ```
 
-El stub de Reservas escucha en el puerto `8080` por defecto (`PORT` permite cambiarlo), imprime los pedidos recibidos y valida el formato de las rutas y los cuerpos de Reservas. Requiere Node.js.
+El stub de Reservas escucha en el puerto `8080` por defecto (`PORT` permite cambiarlo), imprime los pedidos recibidos y valida el formato de las rutas y los cuerpos. También responde `GET /disponibilidad/eventos/{id}`; `POST /_stub/ocupar/{eventoId}` permite simular ocupación y `DELETE /_stub/eventos` limpia los datos del simulador. Requiere Node.js.
+
+El stub de Compras también ofrece `GET /_stub/avisos` para consultar avisos recibidos y `DELETE /_stub/avisos` para limpiarlos.
 
 ## Ejecutar las pruebas automatizadas
 
 Desde `GestionLugaresFisicos`:
 
 ```sh
-mvn test
+mvn clean test
 ```
 
 Las pruebas de integración de MongoDB usan Testcontainers y requieren Docker iniciado.
@@ -226,7 +276,9 @@ Las pruebas de integración de MongoDB usan Testcontainers y requieren Docker in
 
 Los lugares están en la colección `lugares`, con sectores embebidos. Los asientos no se persisten: en sectores numerados se derivan de `filas` × `asientosPorFila` y se identifican como `(sectorId, fila, numero)`.
 
-Los eventos están en la colección `eventos`. Copian la ciudad y la configuración/nombre de los sectores del lugar; precios y `precioMinimo` usan `BigDecimal`/Decimal128. En la respuesta JSON, los estados se serializan en minúsculas: `borrador`, `publicado`, `agotado`, `cancelado` y `finalizado`. `ventaSuspendida` es un indicador independiente. El límite de entradas por cliente es entero y vale `4` por defecto. `fechaHora` es la fecha y hora de inicio; al pasarla, el proceso automático finaliza el evento.
+Los eventos están en la colección `eventos`. Copian `ciudad` y los datos de cada sector del lugar; precios y `precioMinimo` usan `BigDecimal`/Decimal128. El documento también guarda `motivoCancelacion`, `canceladoEn`, `avisoCancelacionPendiente` y `version`. Los avisos pendientes no tienen colección separada: la marca y los datos de cancelación viven en el documento del evento. En la respuesta JSON, los estados se serializan en minúsculas: `borrador`, `publicado`, `agotado`, `cancelado` y `finalizado`. `ventaSuspendida` es independiente. El límite por cliente es entero y vale `4` por defecto. `fechaHora` es el inicio del evento; al pasarla, el proceso automático intenta finalizarlo.
+
+MongoDB crea los índices declarados en los documentos: lugares usa `idx_lugares_ciudad_nombre` y `idx_lugares_nombre`; eventos usa `idx_eventos_estado_fecha`, `idx_eventos_estado_ciudad_fecha`, `idx_eventos_organizador_estado`, `organizadorId`, `idx_eventos_tipo`, `idx_eventos_participantes`, el índice de `avisoCancelacionPendiente` y el índice de texto `Evento_TextIndex` sobre nombre, descripción y participantes.
 
 ```mermaid
 classDiagram
@@ -272,6 +324,9 @@ classDiagram
         int limiteEntradasPorCliente
         List~SectorEventoEmbebido~ sectores
         BigDecimal precioMinimo
+        String motivoCancelacion
+        Instant canceladoEn
+        boolean avisoCancelacionPendiente
         Long version
     }
 

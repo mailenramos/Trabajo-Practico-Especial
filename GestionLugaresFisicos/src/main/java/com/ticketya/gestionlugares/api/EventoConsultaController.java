@@ -44,17 +44,28 @@ public class EventoConsultaController {
             @ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = ERROR, schema = @Schema(implementation = ApiError.class)))
     })
     public EventoBusquedaResponse buscar(
-            @Parameter(description = "Tipo exacto de evento.") @RequestParam(required = false) String tipo,
-            @Parameter(description = "Identificador del organizador.") @RequestParam(required = false) String organizadorId,
-            @Parameter(description = "Nombre exacto de un participante.") @RequestParam(required = false) String participante,
-            @Parameter(description = "Ciudad copiada del lugar.") @RequestParam(required = false) String ciudad,
-            @Parameter(description = "Límite UTC inclusivo ISO-8601; termina en Z.") @RequestParam(required = false) String fechaDesde,
-            @Parameter(description = "Límite UTC inclusivo ISO-8601; termina en Z.") @RequestParam(required = false) String fechaHasta,
-            @Parameter(description = "fecha, precio o relevancia; default fecha.") @RequestParam(required = false) String orden,
-            @Parameter(description = "asc o desc; solo afecta al orden precio.") @RequestParam(required = false) String direccion,
-            @Parameter(description = "Texto libre sobre nombre, descripción y participantes para orden=relevancia.") @RequestParam(required = false) String q,
-            @Parameter(description = "Índice de página desde cero; default 0.") @RequestParam(required = false) String page,
-            @Parameter(description = "Elementos por página, default 20 y máximo 100.") @RequestParam(required = false) String size,
+            @Parameter(name = "tipo", description = "Tipo exacto; se combina con los demás filtros con AND.", example = "MUSICA", schema = @Schema(type = "string"))
+            @RequestParam(required = false) String tipo,
+            @Parameter(name = "organizadorId", description = "ID del organizador; igualdad exacta.", example = "organizador-42", schema = @Schema(type = "string"))
+            @RequestParam(required = false) String organizadorId,
+            @Parameter(name = "participante", description = "Nombre exacto de un participante.", example = "Artista A", schema = @Schema(type = "string"))
+            @RequestParam(required = false) String participante,
+            @Parameter(name = "ciudad", description = "Ciudad copiada del lugar; igualdad exacta.", example = "Buenos Aires", schema = @Schema(type = "string"))
+            @RequestParam(required = false) String ciudad,
+            @Parameter(name = "fechaDesde", description = "Límite inferior UTC inclusivo, ISO-8601 terminado en Z.", example = "2027-05-01T00:00:00Z", schema = @Schema(type = "string", format = "date-time"))
+            @RequestParam(required = false) String fechaDesde,
+            @Parameter(name = "fechaHasta", description = "Límite superior UTC inclusivo, ISO-8601 terminado en Z.", example = "2027-05-31T23:59:59Z", schema = @Schema(type = "string", format = "date-time"))
+            @RequestParam(required = false) String fechaHasta,
+            @Parameter(name = "orden", description = "Criterio de orden. Default: fecha.", example = "fecha", schema = @Schema(type = "string", allowableValues = {"fecha", "precio", "relevancia"}, defaultValue = "fecha"))
+            @RequestParam(required = false) String orden,
+            @Parameter(name = "direccion", description = "Dirección del orden por precio; no altera otros órdenes. Default: asc.", example = "asc", schema = @Schema(type = "string", allowableValues = {"asc", "desc"}, defaultValue = "asc"))
+            @RequestParam(required = false) String direccion,
+            @Parameter(name = "q", description = "Texto libre en nombre, descripción y participantes; puntúa con orden=relevancia.", example = "Festival", schema = @Schema(type = "string"))
+            @RequestParam(required = false) String q,
+            @Parameter(name = "page", description = "Índice de página desde cero; mínimo 0, default 0.", example = "0", schema = @Schema(type = "integer", defaultValue = "0", minimum = "0"))
+            @RequestParam(required = false) String page,
+            @Parameter(name = "size", description = "Cantidad por página; rango 1–100, default 20.", example = "20", schema = @Schema(type = "integer", defaultValue = "20", minimum = "1", maximum = "100"))
+            @RequestParam(required = false) String size,
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true, example = "cliente-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,

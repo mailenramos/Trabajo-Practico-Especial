@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TicketYa - Eventos",
-    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos (la 12 prepara los datos y requiere Reservas encendido). Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
+    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos con Reservas encendido (la 12 prepara los datos y las publica). 18: detalle con Reservas apagado. Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,6 +12,10 @@
     {
       "key": "comprasUrl",
       "value": "http://localhost:8083"
+    },
+    {
+      "key": "reservasUrl",
+      "value": "http://localhost:8080"
     },
     {
       "key": "lugarId",
@@ -10910,7 +10914,7 @@
       ]
     },
     {
-      "name": "17 Detalle del evento (GET /eventos/{id})",
+      "name": "17 Detalle del evento (GET /eventos/{id}) con Reservas ENCENDIDO",
       "item": [
         {
           "name": "DT01 Detalle de un evento publicado",
@@ -10946,8 +10950,25 @@
                   "  pm.expect(num.tipo).to.eql(\"NUMERADO\"); pm.expect(num.nombre).to.eql(\"Platea\"); pm.expect(num.precio).to.eql(20000);",
                   "  pm.expect(no.tipo).to.eql(\"NO_NUMERADO\"); pm.expect(no.nombre).to.eql(\"Campo\"); pm.expect(no.precio).to.eql(8000);",
                   "});",
-                  "pm.test(\"disponibilidad es null (hasta implementar la parte B)\", function () {",
-                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "var numD = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNumTandilId\"); });",
+                  "var noD = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNoNumTandilId\"); });",
+                  "pm.test(\"Configuración local de los sectores\", function () {",
+                  "  pm.expect(numD.capacidad).to.eql(null); pm.expect(numD.filas).to.eql(2); pm.expect(numD.asientosPorFila).to.eql(3);",
+                  "  pm.expect(noD.capacidad).to.eql(100); pm.expect(noD.filas).to.eql(null); pm.expect(noD.asientosPorFila).to.eql(null);",
+                  "});",
+                  "pm.test(\"Disponibilidad del sector numerado (6 asientos libres)\", function () {",
+                  "  var d = numD.disponibilidad;",
+                  "  pm.expect(d).to.be.an(\"object\");",
+                  "  pm.expect(d.capacidadTotal).to.eql(6);",
+                  "  pm.expect(d.cantidadDisponible).to.eql(6);",
+                  "  pm.expect(d.asientosDisponibles).to.be.an(\"array\").with.lengthOf(6);",
+                  "});",
+                  "pm.test(\"Disponibilidad del sector no numerado (100 libres, sin lista de asientos)\", function () {",
+                  "  var d = noD.disponibilidad;",
+                  "  pm.expect(d).to.be.an(\"object\");",
+                  "  pm.expect(d.capacidadTotal).to.eql(100);",
+                  "  pm.expect(d.cantidadDisponible).to.eql(100);",
+                  "  pm.expect(d).to.not.have.property(\"asientosDisponibles\");",
                   "});"
                 ]
               }
@@ -10975,7 +10996,7 @@
                 "{{evBusq1}}"
               ]
             },
-            "description": "La última aserción de disponibilidad null debe quitarse cuando se implemente la parte B (Reservas)."
+            "description": "Requiere Reservas encendido (reservas-stub.js) y que la carpeta 12 haya publicado los eventos con ese mismo simulador. Se corre antes de ocupar lugares (DT15)."
           }
         },
         {
@@ -11062,7 +11083,10 @@
                 "exec": [
                   "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
                   "var j = pm.response.json();",
-                  "pm.test(\"estado agotado\", function () { pm.expect(j.estado).to.eql(\"agotado\"); });"
+                  "pm.test(\"estado agotado\", function () { pm.expect(j.estado).to.eql(\"agotado\"); });",
+                  "pm.test(\"Se consultó a Reservas: cada sector trae disponibilidad\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.be.an(\"object\"); pm.expect(s.disponibilidad.cantidadDisponible).to.be.a(\"number\"); });",
+                  "});"
                 ]
               }
             }
@@ -11101,7 +11125,10 @@
                 "exec": [
                   "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
                   "var j = pm.response.json();",
-                  "pm.test(\"estado cancelado\", function () { pm.expect(j.estado).to.eql(\"cancelado\"); });"
+                  "pm.test(\"estado cancelado\", function () { pm.expect(j.estado).to.eql(\"cancelado\"); });",
+                  "pm.test(\"No se consulta a Reservas: disponibilidad null en cada sector\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});"
                 ]
               }
             }
@@ -11140,7 +11167,10 @@
                 "exec": [
                   "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
                   "var j = pm.response.json();",
-                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });"
+                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });",
+                  "pm.test(\"No se consulta a Reservas: disponibilidad null en cada sector\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});"
                 ]
               }
             }
@@ -11179,7 +11209,10 @@
                 "exec": [
                   "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
                   "var j = pm.response.json();",
-                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });"
+                  "pm.test(\"estado borrador\", function () { pm.expect(j.estado).to.eql(\"borrador\"); });",
+                  "pm.test(\"No se consulta a Reservas: disponibilidad null en cada sector\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});"
                 ]
               }
             }
@@ -11482,9 +11515,267 @@
               ]
             }
           }
+        },
+        {
+          "name": "DT15 Ocupar el asiento 1-1 de la Platea en el simulador de Reservas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{reservasUrl}}/_stub/ocupar/{{evBusq1}}",
+              "host": [
+                "{{reservasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "ocupar",
+                "{{evBusq1}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"{{secNumTandilId}}\",\n  \"asientos\": [\n    {\n      \"fila\": 1,\n      \"numero\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Ruta extra del simulador de Reservas (no existe en el servicio real)."
+          }
+        },
+        {
+          "name": "DT15b Ocupar 30 lugares del Campo en el simulador de Reservas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{reservasUrl}}/_stub/ocupar/{{evBusq1}}",
+              "host": [
+                "{{reservasUrl}}"
+              ],
+              "path": [
+                "_stub",
+                "ocupar",
+                "{{evBusq1}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"{{secNoNumTandilId}}\",\n  \"cantidad\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DT16 El detalle refleja la disponibilidad actual",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var numD = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNumTandilId\"); });",
+                  "var noD = j.sectores.find(function (s) { return s.sectorId === pm.collectionVariables.get(\"secNoNumTandilId\"); });",
+                  "pm.test(\"Platea: queda un asiento menos y el 1-1 ya no figura\", function () {",
+                  "  var d = numD.disponibilidad;",
+                  "  pm.expect(d.cantidadDisponible).to.eql(5);",
+                  "  pm.expect(d.asientosDisponibles).to.have.lengthOf(5);",
+                  "  var ocupado = d.asientosDisponibles.filter(function (a) { return a.fila === 1 && a.numero === 1; });",
+                  "  pm.expect(ocupado).to.have.lengthOf(0);",
+                  "});",
+                  "pm.test(\"Campo: quedan 70 de 100\", function () {",
+                  "  pm.expect(noD.disponibilidad.cantidadDisponible).to.eql(70);",
+                  "  pm.expect(noD.disponibilidad.capacidadTotal).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT17 Suspender la venta de un evento publicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq4}}/venta/suspender",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq4}}",
+                "venta",
+                "suspender"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT18 Con la venta suspendida igual se consulta a Reservas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"estado publicado y ventaSuspendida true\", function () { pm.expect(j.estado).to.eql(\"publicado\"); pm.expect(j.ventaSuspendida).to.eql(true); });",
+                  "pm.test(\"Se consultó a Reservas: cada sector trae disponibilidad\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.be.an(\"object\"); pm.expect(s.disponibilidad.cantidadDisponible).to.be.a(\"number\"); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq4}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq4}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DT19 Reactivar la venta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq4}}/venta/reactivar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq4}}",
+                "venta",
+                "reactivar"
+              ]
+            }
+          }
         }
       ],
-      "description": "Requiere la carpeta 12.",
+      "description": "Requiere la carpeta 12 y el mismo reservas-stub.js encendido (guarda en memoria los eventos inicializados). DT15 ocupa lugares, así que corre una vez por cada corrida de la 12: para repetirla, volvé a correr la 12.",
       "event": [
         {
           "listen": "prerequest",
@@ -11493,6 +11784,167 @@
             "exec": [
               "if (!pm.collectionVariables.get(\"orgBusq\") || !pm.collectionVariables.get(\"evBusq1\")) {",
               "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq / evBusq1 vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 [Reservas APAGADO] Detalle sin disponibilidad",
+      "item": [
+        {
+          "name": "AP01 Detalle publicado con Reservas apagado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"El detalle responde con el resto de los datos\", function () {",
+                  "  pm.expect(j.nombre).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(j.lugar).to.have.property(\"ciudad\");",
+                  "  pm.expect(j.sectores).to.have.lengthOf.at.least(1);",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.precio).to.be.a(\"number\"); });",
+                  "});",
+                  "pm.test(\"Disponibilidad null en cada sector\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});",
+                  "pm.test(\"Responde dentro de los timeouts (menos de 8 s)\", function () { pm.expect(pm.response.responseTime).to.be.below(8000); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq1}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq1}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "AP02 Detalle agotado con Reservas apagado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "pm.test(\"El detalle responde con el resto de los datos\", function () {",
+                  "  pm.expect(j.nombre).to.be.a(\"string\").and.not.empty;",
+                  "  pm.expect(j.lugar).to.have.property(\"ciudad\");",
+                  "  pm.expect(j.sectores).to.have.lengthOf.at.least(1);",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.precio).to.be.a(\"number\"); });",
+                  "});",
+                  "pm.test(\"Disponibilidad null en cada sector\", function () {",
+                  "  j.sectores.forEach(function (s) { pm.expect(s.disponibilidad).to.eql(null); });",
+                  "});",
+                  "pm.test(\"Responde dentro de los timeouts (menos de 8 s)\", function () { pm.expect(pm.response.responseTime).to.be.below(8000); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "c1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/{{evBusq3}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{evBusq3}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "AP03 La búsqueda no depende de Reservas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = pm.response.json();",
+                  "var nombres = j.contenido.map(function (e) { return e.nombre; });",
+                  "pm.test(\"Resultados esperados\", function () { pm.expect(nombres).to.have.members([\"Rock Nacional\", \"Obra Clasica\", \"Final del Torneo\", \"Festival de Verano\"]); pm.expect(nombres).to.have.lengthOf(4); });",
+                  "pm.test(\"totalElementos = 4\", function () { pm.expect(j.totalElementos).to.eql(4); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{orgBusq}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ],
+              "query": [
+                {
+                  "key": "organizadorId",
+                  "value": "{{orgBusq}}"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Requiere haber corrido la 12 con Reservas encendido y después APAGARLO (Ctrl+C en reservas-stub.js). También sirve reiniciar el simulador sin volver a publicar: Reservas responde 404 y el resultado es el mismo (disponibilidad null).",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get(\"orgBusq\") || !pm.collectionVariables.get(\"evBusq1\") || !pm.collectionVariables.get(\"evBusq3\")) {",
+              "  throw new Error(\"Faltan datos de la carpeta 12 (orgBusq / evBusq1 / evBusq3 vacío). Corré primero la carpeta 12, o corré las carpetas 12 a 17 juntas en una sola ejecución.\");",
               "}"
             ]
           }
