@@ -1,0 +1,31 @@
+spring:
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+  profiles:
+    default: dev
+  application:
+    name: gestion-lugares
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares}
+      auto-index-creation: true
+
+server:
+  port: ${PORT:8081}
+
+reservas:
+  base-url: ${RESERVAS_BASE_URL:http://localhost:8080}
+  connect-timeout: ${RESERVAS_CONNECT_TIMEOUT:2s}
+  read-timeout: ${RESERVAS_READ_TIMEOUT:5s}
+
+compras:
+  base-url: ${COMPRAS_BASE_URL:http://localhost:8083}
+  connect-timeout: ${COMPRAS_CONNECT_TIMEOUT:2s}
+  read-timeout: ${COMPRAS_READ_TIMEOUT:5s}
+
+eventos:
+  finalizacion:
+    interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}
+  cancelacion:
+    reenvio-interval: ${EVENTOS_CANCELACION_REENVIO_INTERVAL:60s}

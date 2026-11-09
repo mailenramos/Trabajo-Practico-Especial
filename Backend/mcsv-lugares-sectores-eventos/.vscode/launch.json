@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-GestionLugaresApplication<gestion-lugares>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.ticketya.gestionlugares.GestionLugaresApplication",
+            "projectName": "gestion-lugares",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
