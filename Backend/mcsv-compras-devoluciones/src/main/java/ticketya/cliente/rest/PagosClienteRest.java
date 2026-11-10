@@ -12,24 +12,30 @@ import java.util.Optional;
 
 /**
  * Contrato acordado con Pagos (servicio interno, sin encabezados X-User-*). Campos en
- * inglés y estados en español, tal como los define Pagos. La consulta por compra
- * devuelve una lista (vacía si no hay pagos); el 404 es solo para un paymentId o un
- * reintegro inexistente. En los reintegros, reason es obligatorio.
+ * inglés y estados en español, tal como los define Pagos. Las rutas son las internas de
+ * Pagos ({@code /internal/pagos...} y {@code /internal/reintegros...}), configurables con
+ * {@link RutasPagos}. La consulta por compra devuelve una lista (vacía si no hay pagos);
+ * el 404 es solo para un paymentId o un reintegro inexistente. En los reintegros, reason
+ * es obligatorio.
  */
 @Component
 public class PagosClienteRest extends ClienteRest implements PagosCliente {
 
     private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
 
+    private final RutasPagos rutas;
+
     public PagosClienteRest(@Value("${servicios.pagos.url}") String url,
                             @Value("${servicios.timeout-conexion:2s}") Duration conexion,
-                            @Value("${servicios.timeout-lectura:5s}") Duration lectura) {
+                            @Value("${servicios.timeout-lectura:5s}") Duration lectura,
+                            RutasPagos rutas) {
         super("Pagos", url, conexion, lectura);
+        this.rutas = rutas;
     }
 
     @Override
     public Pago cobrar(String idempotencyKey, String purchaseId, BigDecimal amount, String paymentMethod) {
-        return llamar("cobrar", () -> http.post().uri("/api/v1/payments")
+        return llamar("cobrar", () -> http.post().uri(rutas.cobro())
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .body(new PedidoDeCobro(purchaseId, amount, paymentMethod))
                         .retrieve().body(Pago.class),
@@ -45,7 +51,7 @@ public class PagosClienteRest extends ClienteRest implements PagosCliente {
     @Override
     public List<Pago> listarPagosPorCompra(String purchaseId) {
         List<Pago> pagos = llamar("listarPagosPorCompra",
-                () -> http.get().uri("/api/v1/payments/purchase/{id}", purchaseId)
+                () -> http.get().uri(rutas.pagosPorCompra(), purchaseId)
                         .retrieve().body(new ParameterizedTypeReference<List<Pago>>() { }));
         return pagos == null ? List.of() : pagos;
     }
@@ -53,7 +59,7 @@ public class PagosClienteRest extends ClienteRest implements PagosCliente {
     @Override
     public Reintegro reintegrar(String paymentId, String idempotencyKey, String refundRequestId,
                                 BigDecimal amount, String reason) {
-        return llamar("reintegrar", () -> http.post().uri("/api/v1/payments/{id}/refunds", paymentId)
+        return llamar("reintegrar", () -> http.post().uri(rutas.reintegro(), paymentId)
                         .header(IDEMPOTENCY_KEY, idempotencyKey)
                         .body(new PedidoDeReintegro(refundRequestId, amount, reason))
                         .retrieve().body(Reintegro.class),
@@ -62,7 +68,7 @@ public class PagosClienteRest extends ClienteRest implements PagosCliente {
 
     @Override
     public Reintegro reintentarReintegro(String refundId) {
-        return llamar("reintentarReintegro", () -> http.post().uri("/api/v1/refunds/{id}/retry", refundId)
+        return llamar("reintentarReintegro", () -> http.post().uri(rutas.reintentoReintegro(), refundId)
                         .retrieve().body(Reintegro.class),
                 this::conflicto);
     }
@@ -70,7 +76,7 @@ public class PagosClienteRest extends ClienteRest implements PagosCliente {
     @Override
     public Optional<Reintegro> consultarReintegro(String refundId) {
         return llamar("consultarReintegro",
-                () -> Optional.ofNullable(http.get().uri("/api/v1/refunds/{id}", refundId)
+                () -> Optional.ofNullable(http.get().uri(rutas.consultaReintegro(), refundId)
                         .retrieve().body(Reintegro.class)),
                 (status, e) -> status.value() == 404 ? Optional.empty() : null);
     }

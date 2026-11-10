@@ -652,7 +652,7 @@ paths:
         - Exitoso: no se llama a Pagos.
         - Pendiente sin respuesta: se repite el pedido con el mismo `refundRequestId` y la
           misma `Idempotency-Key`; Pagos no lo duplica.
-        - Fallido: `POST /api/v1/refunds/{id}/retry` de Pagos sobre el mismo reintegro. Si
+        - Fallido: `POST /internal/reintegros/{refundId}/reintentar` de Pagos sobre el mismo reintegro. Si
           responde 409, se consulta el estado del reintegro en Pagos.
 
         Si el reintegro es de una devolución, se retoma la devolución completa desde el
@@ -718,7 +718,7 @@ paths:
            vuelven a reintegrar). Con el reintegro exitoso, esas entradas pasan a devuelta.
         3. Cada compra **pendiente** del evento se cierra como `FALLIDA`:
            - con un pago aprobado (registrado, o que Pagos informa en
-             `GET /api/v1/payments/purchase/{purchaseId}` porque se perdió la respuesta del
+             `GET /internal/pagos/compra/{purchaseId}` porque se perdió la respuesta del
              cobro): **un** reintegro por el total con `reason` "Evento cancelado" y
              `origen: CANCELACION_EVENTO`. Las entradas que llegaron a asociarse a la compra
              pasan a devuelta con el reintegro exitoso;

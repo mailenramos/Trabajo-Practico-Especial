@@ -46,7 +46,7 @@ public class Compra {
     private String medioDePago;
 
     // ID del pago en el servicio de Pagos; queda vacío hasta que se aprueba el cobro.
-    // Se necesita para pedir reintegros (/payments/{pagoId}/refunds).
+    // Se necesita para pedir reintegros (/internal/pagos/{paymentId}/reintegros).
     @Column(length = 64)
     private String pagoId;
 

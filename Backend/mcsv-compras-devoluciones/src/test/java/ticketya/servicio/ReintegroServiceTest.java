@@ -117,7 +117,7 @@ class ReintegroServiceTest extends PruebaIntegracion {
     }
 
     @Test
-    void unFallidoUsaElRetryDePagosSobreElMismoReintegro() {
+    void unFallidoUsaElReintentoDePagosSobreElMismoReintegro() {
         pagos.setResultadoReintegro(EstadoReintegroPagos.FALLIDO);
         Reintegro r = servicio.pedir(registrado("15000.00"), pagoId);
         String idEnPagos = r.getPagosReintegroId();
@@ -147,7 +147,7 @@ class ReintegroServiceTest extends PruebaIntegracion {
     }
 
     @Test
-    void siElRetryDa409SeConsultaElEstadoDelReintegro() {
+    void siElReintentoDa409SeConsultaElEstadoDelReintegro() {
         pagos.setResultadoReintegro(EstadoReintegroPagos.FALLIDO);
         Reintegro r = servicio.pedir(registrado("15000.00"), pagoId);
         pagos.setReintentoYaHecho(true);

@@ -1,5 +1,6 @@
 package ticketya.cliente.rest;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -15,12 +16,14 @@ class ServidorDePrueba implements AutoCloseable {
     volatile String metodo;
     volatile String ruta;
     volatile String cuerpoRecibido;
+    volatile Headers encabezados;
 
     ServidorDePrueba() throws IOException {
         servidor = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         servidor.createContext("/", intercambio -> {
             metodo = intercambio.getRequestMethod();
             ruta = intercambio.getRequestURI().getPath();
+            encabezados = intercambio.getRequestHeaders();
             cuerpoRecibido = new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             byte[] bytes = cuerpo.getBytes(StandardCharsets.UTF_8);
             intercambio.getResponseHeaders().add("Content-Type", "application/json");
