@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-10
+goal: Permitir probar visualmente el flujo principal de compra de entradas
+  consumiendo solo rutas públicas del Gateway.
