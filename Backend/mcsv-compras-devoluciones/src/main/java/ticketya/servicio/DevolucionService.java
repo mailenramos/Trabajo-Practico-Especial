@@ -195,7 +195,7 @@ public class DevolucionService {
                 }
                 paso = "REINTEGRO";
                 if (reintegro.getEstado() != EstadoReintegro.EXITOSO) {
-                    // Pendiente: lo pide (o lo repite con la misma clave). Fallido: /retry de Pagos
+                    // Pendiente: lo pide (o lo repite con la misma clave). Fallido: reintento de Pagos (/reintentar)
                     reintegro = reintegroService.reintentar(reintegro, compra.getPagoId());
                 }
                 paso = "ENTRADA_DEVUELTA";

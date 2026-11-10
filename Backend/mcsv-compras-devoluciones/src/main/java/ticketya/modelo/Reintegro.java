@@ -11,7 +11,8 @@ import java.util.UUID;
 /**
  * Pedido de reintegro a Pagos. La Idempotency-Key que se envía a Pagos es el mismo
  * valor que refundRequestId. Un reintegro fallido se reintenta con el endpoint
- * /retry de Pagos sobre pagosReintegroId, nunca con un refundRequestId nuevo.
+ * /internal/reintegros/{refundId}/reintentar de Pagos sobre pagosReintegroId, nunca con
+ * un refundRequestId nuevo.
  */
 @Entity
 @Table(name = "reintegros")

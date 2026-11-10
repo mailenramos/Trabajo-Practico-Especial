@@ -251,25 +251,25 @@ El cliente crea la reserva en Reservas (por el Gateway, con un `solicitudId` par
 
 ### Pagos (4) — contrato acordado, servicio aún sin implementar
 
-Servicio interno, sin encabezados de usuario. Los campos van en inglés y los estados en español.
+Servicio interno, sin encabezados de usuario, con rutas internas (`/internal/pagos/...` y `/internal/reintegros/...`). Las rutas que usa este servicio se configuran con `servicios.pagos.rutas.*`. Los campos van en inglés y los estados en español.
 
 **Cobro**
 
-- `POST /api/v1/payments` con `Idempotency-Key` obligatoria y distinta del `purchaseId`. Body: `{"purchaseId":"<uuid>","amount":50000.00,"paymentMethod":"CREDIT_CARD"}`.
+- `POST /internal/pagos` con `Idempotency-Key` obligatoria y distinta del `purchaseId`. Body: `{"purchaseId":"<uuid>","amount":50000.00,"paymentMethod":"CREDIT_CARD"}`.
 - Respuesta: `paymentId`, `purchaseId`, `amount`, `status` (`APROBADO` o `RECHAZADO`), `paymentMethod`. 201 si es nuevo, 200 si es repetición.
 - Un rechazo es una respuesta normal (201 con `RECHAZADO`). El 409 queda para conflictos: misma clave con datos distintos, o clave nueva sobre una compra ya pagada.
 - Tras un rechazo, un nuevo intento necesita una clave nueva.
-- `GET /api/v1/payments/{paymentId}`: 404 si no existe.
-- `GET /api/v1/payments/purchase/{purchaseId}`: 200 con la lista de pagos de la compra (vacía `[]` si no tiene ninguno; no responde 404). Este servicio solo tiene en cuenta el pago aprobado.
+- `GET /internal/pagos/{paymentId}`: 404 si no existe. Este servicio no lo usa.
+- `GET /internal/pagos/compra/{purchaseId}`: 200 con la lista de pagos de la compra (vacía `[]` si no tiene ninguno; no responde 404). Este servicio solo tiene en cuenta el pago aprobado.
 - Medios: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `DIGITAL_WALLET`. Sin moneda (pesos), monto positivo con hasta 2 decimales.
 - Para pruebas, `DIGITAL_WALLET` da siempre `RECHAZADO`.
 
 **Reintegro**
 
-- `POST /api/v1/payments/{paymentId}/refunds` con `Idempotency-Key` obligatoria. Body: `{"refundRequestId":"<uuid>","amount":10000.00,"reason":"..."}`. `reason` es obligatorio: 400 si falta o va vacío.
+- `POST /internal/pagos/{paymentId}/reintegros` con `Idempotency-Key` obligatoria. Body: `{"refundRequestId":"<uuid>","amount":10000.00,"reason":"..."}`. `reason` es obligatorio: 400 si falta o va vacío.
 - Respuesta: `id`, `paymentId`, `refundRequestId`, `amount`, `status` (`EXITOSO` o `FALLIDO`), `reason`, `attemptCount` y fechas. 201 si es nuevo, 200 si es repetición.
 - Solo sobre pagos aprobados (si no, 409). Acepta varios parciales mientras la suma no supere lo cobrado; los fallidos no descuentan saldo. El mismo `refundRequestId` con otra clave da 409.
-- Reintento: `POST /api/v1/refunds/{refundId}/retry`, sin cuerpo ni clave; solo si está fallido (si no, 409). Consulta: `GET /api/v1/refunds/{id}`.
+- Reintento: `POST /internal/reintegros/{refundId}/reintentar`, sin cuerpo ni clave; solo si está fallido (si no, 409). Consulta: `GET /internal/reintegros/{refundId}` (404 si no existe).
 
 ### Entradas (5) — confirmado
 
@@ -310,6 +310,7 @@ Servicio interno, sin encabezados de usuario. Los campos van en inglés y los es
 1. **Reservas:** la forma de un lugar de sector no numerado en la liberación por devolución (se asume `{"sectorId","cantidad":1}`).
 2. **Eventos:** IDs fijos de evento y sectores para los datos de prueba.
 3. **Gateway:** puerto sin definir.
+4. **Pagos:** confirmar que con las rutas internas no cambian los cuerpos, los códigos de respuesta ni el formato de error (se asume que no).
 
 ## Cómo se organiza en OpenSpec
 

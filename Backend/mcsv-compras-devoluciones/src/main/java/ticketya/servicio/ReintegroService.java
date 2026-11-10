@@ -24,7 +24,7 @@ import java.util.UUID;
 /**
  * Reintegros pedidos a Pagos. La Idempotency-Key es el mismo valor que el refundRequestId,
  * así que volver a pedir un reintegro sin respuesta nunca lo duplica. Un reintegro
- * fallido se reintenta solo con el /retry de Pagos sobre el mismo reintegro.
+ * fallido se reintenta solo con el reintento de Pagos (/reintentar) sobre el mismo reintegro.
  *
  * Los métodos trabajan sobre la fila que reciben y la guardan; quien llama decide la
  * transacción y el bloqueo.
@@ -112,7 +112,7 @@ public class ReintegroService {
 
     /**
      * Reintenta sin duplicar: exitoso no llama a Pagos; pendiente sin respuesta repite el
-     * pedido con la misma clave; fallido usa el /retry de Pagos y, si responde 409 (ya no
+     * pedido con la misma clave; fallido usa el reintento de Pagos (/reintentar) y, si responde 409 (ya no
      * está fallido), consulta el estado del reintegro.
      */
     public Reintegro reintentar(Reintegro r, String pagoId) {

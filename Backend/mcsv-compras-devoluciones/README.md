@@ -42,6 +42,13 @@ Otras propiedades útiles (con su valor por defecto):
 | `compras.cancelacion.intervalo-reanudacion` | Cada cuánto se revisan las cancelaciones en proceso vencidas para retomarlas | `60s` |
 | `compras.cancelacion.reanudacion-activa` | Activa la revisión automática de cancelaciones (`false` la desactiva; las pruebas la desactivan) | `true` |
 | `compras.rol-administrador` | Valor de `X-User-Role` que identifica al administrador | `ADMIN` |
+| `servicios.pagos.rutas.cobro` | Ruta de Pagos para cobrar | `/internal/pagos` |
+| `servicios.pagos.rutas.pagos-por-compra` | Ruta de Pagos para listar los pagos de una compra | `/internal/pagos/compra/{purchaseId}` |
+| `servicios.pagos.rutas.reintegro` | Ruta de Pagos para pedir un reintegro | `/internal/pagos/{paymentId}/reintegros` |
+| `servicios.pagos.rutas.reintento-reintegro` | Ruta de Pagos para reintentar un reintegro fallido | `/internal/reintegros/{refundId}/reintentar` |
+| `servicios.pagos.rutas.consulta-reintegro` | Ruta de Pagos para consultar un reintegro | `/internal/reintegros/{refundId}` |
+
+Las rutas de Pagos deben empezar con `/` (si no, el servicio no arranca) y conservar su única variable entre llaves; el nombre de la variable no importa, se reemplaza por posición.
 
 ## Cómo ejecutarlo
 

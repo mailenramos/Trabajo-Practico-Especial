@@ -30,7 +30,7 @@ sequenceDiagram
     alt reserva vencida o liberada
         MS3-->>C: 409 RESERVA_NO_VIGENTE (no se cobra)
     else reserva vigente
-        MS3->>MS4: POST /api/v1/payments (Idempotency-Key = claveCobro)
+        MS3->>MS4: POST /internal/pagos (Idempotency-Key = claveCobro)
         alt pago RECHAZADO
             MS4-->>MS3: 201 status RECHAZADO
             MS3->>MS3: compra PENDIENTE a FALLIDA
@@ -42,7 +42,7 @@ sequenceDiagram
             MS3->>MS2: POST confirmacion
             alt reserva vencida o liberada (409)
                 MS3->>MS3: compra PENDIENTE a FALLIDA
-                MS3->>MS4: POST /payments/{pagoId}/refunds (total, "Reserva vencida")
+                MS3->>MS4: POST /internal/pagos/{pagoId}/reintegros (total, "Reserva vencida")
                 MS3-->>C: 200 compra fallida con su reintegro
             else venta confirmada (204)
                 loop hasta 3 intentos

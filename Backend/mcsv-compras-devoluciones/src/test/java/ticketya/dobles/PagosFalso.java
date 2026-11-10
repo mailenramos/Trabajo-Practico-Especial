@@ -138,7 +138,7 @@ public class PagosFalso implements PagosCliente {
     private volatile EstadoReintegroPagos resultadoReintento = EstadoReintegroPagos.EXITOSO;
     private volatile boolean perderRespuestaReintegro;
     private volatile boolean reintegrosCaidos;
-    /** Simula que otro pedido ya reintentó con éxito: el próximo /retry da 409. */
+    /** Simula que otro pedido ya reintentó con éxito: el próximo reintento (/reintentar) da 409. */
     private volatile boolean reintentoYaHecho;
 
     public void setResultadoReintegro(EstadoReintegroPagos r) { this.resultadoReintegro = r; }

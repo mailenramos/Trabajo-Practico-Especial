@@ -348,7 +348,7 @@ public class CancelacionService {
      * Pide (o reintenta) el reintegro por cancelación con su fila bloqueada y, si queda
      * exitoso, pasa a devuelta las entradas incluidas que falten. En el procesamiento
      * automático solo se pide un reintegro pendiente; uno fallido lo reintenta un
-     * administrador (reintentar = true), con el /retry de Pagos.
+     * administrador (reintentar = true), con el reintento de Pagos (/reintentar).
      *
      * @return true si el reintegro quedó exitoso y todas sus entradas devueltas
      */
