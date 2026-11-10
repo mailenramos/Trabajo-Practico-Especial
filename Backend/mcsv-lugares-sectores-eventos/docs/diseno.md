@@ -19,19 +19,19 @@ La API pública ofrece operaciones de lugares/sectores y de creación, configura
 ```mermaid
 flowchart LR
     U[Cliente / consumidor]
-    GW[API Gateway<br/>puerto local no definido en este repositorio]
-    GL[mcsv-lugares-sectores-eventos<br/>Spring Boot :8081]
-    DB[(MongoDB<br/>ticketya_lugares :27017)]
-    R[Reservas<br/>:8080]
-    C[Compras<br/>:8083]
+    GW["API Gateway<br/>puerto local no definido en este repositorio"]
+    GL["mcsv-lugares-sectores-eventos<br/>Spring Boot :8081"]
+    DB[("MongoDB<br/>ticketya_lugares :27017")]
+    R["Reservas<br/>:8080"]
+    C["Compras<br/>:8083"]
 
-    U -->|HTTPS/HTTP público; identidad propagada en headers| GW
-    GW -->|REST/JSON rutas públicas; reenvía X-User-Id y X-User-Role| GL
-    GL -->|Spring Data MongoDB| DB
-    GL -->|PUT inicializar disponibilidad / PUT estado de venta / GET disponibilidad| R
-    R -->|PUT callback agotado o recuperación<br/>/eventos/{eventoId}/disponibilidad| GL
-    C -->|GET interno /internal/eventos/{eventoId}| GL
-    GL -->|POST aviso de cancelación<br/>/eventos-cancelados| C
+    U -->|"HTTPS/HTTP público; identidad propagada en headers"| GW
+    GW -->|"REST/JSON rutas públicas; reenvía X-User-Id y X-User-Role"| GL
+    GL -->|"Spring Data MongoDB"| DB
+    GL -->|"PUT inicializar disponibilidad / PUT estado de venta / GET disponibilidad"| R
+    R -->|"PUT callback agotado o recuperación<br/>/eventos/{eventoId}/disponibilidad"| GL
+    C -->|"GET interno /internal/eventos/{eventoId}"| GL
+    GL -->|"POST aviso de cancelación<br/>/eventos-cancelados"| C
 ```
 
 Los puertos locales de la aplicación, MongoDB, Reservas y Compras corresponden a `application.yml` y `docker-compose.yml`. El puerto del Gateway no está configurado ni implementado en este repositorio. La comunicación entre microservicios es directa, por HTTP/REST y sin autenticación entre servicios en esta Entrega.
@@ -63,7 +63,7 @@ sequenceDiagram
     else Reservas caída, error o no confirma
         R--xGL: Error / timeout / respuesta no aceptada
         GL-->>GW: 503 Service Unavailable
-        Note over GL,DB: No se cambia el estado local; permanece BORRADOR
+        Note over GL,DB: No se cambia el estado local#59; permanece BORRADOR
         GW-->>Organizador: 503 Service Unavailable
     end
 ```
@@ -137,11 +137,11 @@ sequenceDiagram
             GL-->>GW: 200 OK con disponibilidad
         else Reservas falla, no responde o no hay datos
             R--xGL: Error / timeout / sin disponibilidad
-            GL-->>GW: 200 OK; disponibilidad=null
+            GL-->>GW: 200 OK#59; disponibilidad=null
         end
     else Otro estado
         Note over GL,R: No consulta a Reservas
-        GL-->>GW: 200 OK; disponibilidad=null
+        GL-->>GW: 200 OK#59; disponibilidad=null
     end
     GW-->>Consumidor: Detalle del evento
 ```
