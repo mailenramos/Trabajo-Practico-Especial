@@ -1,0 +1,125 @@
+{
+  "info": {
+    "_postman_id": "8e56dd44-9170-4e84-b0a2-3f53d5359934",
+    "name": "TicketYa - Pagos y reintegros",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8084" },
+    { "key": "paymentId", "value": "11111111-1111-4111-8111-111111111111" },
+    { "key": "purchaseId", "value": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    { "key": "newPurchaseId", "value": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" },
+    { "key": "emptyPurchaseId", "value": "99999999-9999-4999-8999-999999999999" },
+    { "key": "refundId", "value": "44444444-4444-4444-8444-444444444444" },
+    { "key": "refundRequestId", "value": "ffffffff-ffff-4fff-8fff-ffffffffffff" }
+  ],
+  "item": [
+    {
+      "name": "Crear pago DIGITAL_WALLET (espera RECHAZADO)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "wallet-key-rejected" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"{{newPurchaseId}}\",\n  \"amount\": 50000.00,\n  \"paymentMethod\": \"DIGITAL_WALLET\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(201);",
+              "pm.expect(pm.response.json().status).to.eql('RECHAZADO');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reintentar pago rechazado con CREDIT_CARD y clave nueva",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "payment-key-new-attempt" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"{{newPurchaseId}}\",\n  \"amount\": 50000.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      }
+    },
+    {
+      "name": "Consultar pago",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}"
+      }
+    },
+    {
+      "name": "Listar pagos por compra",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/internal/pagos/compra/{{purchaseId}}"
+      }
+    },
+    {
+      "name": "Listar pagos por compra sin pagos (espera 200 y [])",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/internal/pagos/compra/{{emptyPurchaseId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "pm.expect(pm.response.json()).to.eql([]);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Crear reintegro",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "refund-key-new-request" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"{{refundRequestId}}\",\n  \"amount\": 1000.00,\n  \"reason\": \"Reintegro de prueba\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      }
+    },
+    {
+      "name": "Consultar reintegro",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/internal/reintegros/{{refundId}}"
+      }
+    },
+    {
+      "name": "Reintentar reintegro",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/internal/reintegros/{{refundId}}/reintentar"
+      }
+    }
+  ]
+}
