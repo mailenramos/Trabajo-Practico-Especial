@@ -103,6 +103,8 @@ Además de los índices automáticos `_id_` de MongoDB, el código declara los s
 
 El orden por `precioMinimo` se realiza en las consultas, pero no hay un índice de precio declarado en el modelo. Los índices compuestos ayudan a los filtros/órdenes indicados, aunque el plan elegido depende de la consulta y de MongoDB.
 
+En el perfil `dev`, `DevSampleDataInitializer` inserta eventos de ejemplo directamente en la colección `eventos`, después de cargar los lugares. Copia a cada evento la ciudad y los sectores del lugar (incluidos sus UUID), y asigna precios como `BigDecimal` salvo en el evento borrador. Estos documentos no se publican mediante el flujo de la API y, por lo tanto, no inicializan disponibilidad en Reservas: el detalle puede devolver `disponibilidad: null`, y las operaciones de suspender o cancelar eventos publicados fallan con `503` si Reservas no los conoce. El evento de ejemplo cancelado se persiste con `avisoCancelacionPendiente = false`, sin solicitar un aviso a Compras al iniciar el servicio.
+
 ## Decisiones del modelo
 
 | Decisión | Justificación |

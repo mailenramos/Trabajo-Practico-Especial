@@ -72,7 +72,25 @@ Los valores canónicos de `X-User-Role` son `CLIENTE`, `ORGANIZADOR` y `ADMIN`; 
 
 `X-User-Id` debe identificar al usuario. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar y consultar detalles de eventos; solo el dueño `ORGANIZADOR` puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y administra suspensiones, reactivaciones y cancelaciones. Los callbacks y consultas internas no reciben headers de usuario.
 
-El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires (Platea numerada y Pullman no numerado) y Estadio del Parque en Córdoba (Tribuna Norte numerada y Campo de pie no numerado). No carga eventos de ejemplo; la carpeta 12 de Postman crea los eventos de sus pruebas.
+Usuarios de ejemplo y sus headers:
+
+| Usuario | Headers |
+|---|---|
+| Cliente | `X-User-Id: cliente-123`, `X-User-Role: CLIENTE` |
+| Organizador | `X-User-Id: organizador-42`, `X-User-Role: ORGANIZADOR` |
+| Administrador | `X-User-Id: admin-1`, `X-User-Role: ADMIN` |
+
+El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires (Platea numerada y Pullman no numerado) y Estadio del Parque en Córdoba (Tribuna Norte numerada y Campo de pie no numerado), además de estos eventos:
+
+| Evento | Estado | Lugar | Precios por sector |
+|---|---|---|---|
+| Festival de Rock Nacional | Publicado | Estadio del Parque (Córdoba) | Tribuna Norte: $20.000; Campo de pie: $8.000 |
+| El zorzal | Publicado | Teatro Central (Buenos Aires) | Platea: $12.000; Pullman: $7.000 |
+| Final del Torneo | Agotado | Estadio del Parque (Córdoba) | Tribuna Norte: $30.000; Campo de pie: $12.000 |
+| Conferencia de Tecnología | Borrador | Teatro Central (Buenos Aires) | Sin precios |
+| Recital Cancelado | Cancelado | Estadio del Parque (Córdoba) | Tribuna Norte: $20.000; Campo de pie: $8.000 |
+
+Estos eventos se insertan directamente en la base de este servicio, sin pasar por Reservas. Por eso, el detalle de los eventos publicados muestra `disponibilidad: null` y suspender o cancelar esos eventos responde `503`, porque Reservas no los conoce. Para probar el flujo completo, creá y publicá eventos por la API con Reservas encendido (carpeta 12 de Postman).
 
 Las rutas de gestión de eventos y lugares devuelven errores controlados con `timestamp`, `status`, `error` y `mensaje`; `campos` se incluye como lista de `{campo, mensaje}` cuando corresponde.
 

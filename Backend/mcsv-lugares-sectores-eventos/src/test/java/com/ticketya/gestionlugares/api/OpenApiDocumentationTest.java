@@ -17,6 +17,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.repository.EventoRepository;
+import com.ticketya.gestionlugares.config.DevSampleDataInitializer;
 
 @SpringBootTest(properties = "spring.data.mongodb.auto-index-creation=false")
 @AutoConfigureMockMvc
@@ -30,6 +32,8 @@ class OpenApiDocumentationTest {
 
     @MockBean
     private LugarRepository lugarRepository;
+    private DevSampleDataInitializer devSampleDataInitializer;
+    private EventoRepository eventoRepository;
 
     @Test
     void publicaOperacionesParametrosRespuestasYEjemplosOpenApi() throws Exception {
