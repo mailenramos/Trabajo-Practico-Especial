@@ -82,9 +82,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponseDTO> tipoIncorrecto(MethodArgumentTypeMismatchException ex) {
-        System.out.println("ERROR DE CONVERSION: " + ex.getParameter());
-        System.out.println("VALOR RECIBIDO: " + ex.getValue());
-        System.out.println("TIPO ESPERADO: " + ex.getRequiredType());
         return error(HttpStatus.BAD_REQUEST, "VALIDACION",
                 "Valor inválido para el parámetro '" + ex.getName() + "'", null);
     }
