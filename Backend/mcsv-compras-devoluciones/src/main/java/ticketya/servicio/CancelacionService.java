@@ -3,6 +3,7 @@ package ticketya.servicio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -72,7 +73,8 @@ public class CancelacionService {
                               SolicitudDevolucionRepository solicitudes, ReintegroRepository reintegros,
                               EntradaDeReintegroRepository entradasDeReintegro, ReintegroService reintegroService,
                               EntradasCliente entradas, PagosCliente pagos,
-                              TransactionTemplate transaccion, TaskExecutor ejecutor,
+                              TransactionTemplate transaccion,
+                              @Qualifier("applicationTaskExecutor") TaskExecutor ejecutor,
                               @Value("${compras.cancelacion.plazo-en-proceso:5m}") Duration plazoEnProceso) {
         this.cancelaciones = cancelaciones;
         this.compras = compras;

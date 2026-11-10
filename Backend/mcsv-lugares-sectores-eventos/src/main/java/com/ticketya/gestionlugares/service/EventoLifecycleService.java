@@ -42,6 +42,8 @@ public class EventoLifecycleService {
         InicializarDisponibilidadRequest request = construirInicializacion(evento);
         invocarReservas("No se pudo inicializar la disponibilidad; el evento permanece en borrador",
                 () -> reservasClient.inicializarDisponibilidad(eventoId, request));
+        invocarReservas("No se pudo activar la venta en Reservas; el evento permanece en borrador",
+                () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA));
         return eventoService.confirmarPublicacion(eventoId, userId, userRole);
     }
 
