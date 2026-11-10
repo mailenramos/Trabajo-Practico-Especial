@@ -1,0 +1,62 @@
+sequenceDiagram
+    autonumber
+    actor C as Cliente
+    participant MS3 as Compras (MS3)
+    participant MS1 as Eventos (MS1)
+    participant MS2 as Reservas (MS2)
+    participant MS4 as Pagos (MS4)
+    participant MS5 as Entradas (MS5)
+
+    Note over C,MS2: El cliente crea la reserva directo en Reservas (por el Gateway)
+    C->>MS2: POST reserva (solicitudId)
+    MS2-->>C: reservaId
+
+    rect rgb(235, 242, 250)
+    Note over C,MS1: 1. Iniciar la compra
+    C->>MS3: POST /compras {reservaId}
+    MS3->>MS2: GET /disponibilidad/reservas/{reservaId}
+    MS2-->>MS3: reserva (clienteId, estado, expiraEn, detalles)
+    MS3->>MS1: GET /internal/eventos/{eventoId}
+    MS1-->>MS3: evento y precios de sectores
+    MS3->>MS3: calcula total y registra la compra PENDIENTE (una fila por lugar)
+    MS3-->>C: 201 compra pendiente
+    end
+
+    rect rgb(238, 247, 238)
+    Note over C,MS5: 2. Pagar
+    C->>MS3: POST /compras/{id}/pago (Idempotency-Key, medioDePago)
+    MS3->>MS3: registra la clave (cliente + clave) y valida el medio de pago
+    MS3->>MS2: GET reserva (verificación preventiva)
+    alt reserva vencida o liberada
+        MS3-->>C: 409 RESERVA_NO_VIGENTE (no se cobra)
+    else reserva vigente
+        MS3->>MS4: POST /api/v1/payments (Idempotency-Key = claveCobro)
+        alt pago RECHAZADO
+            MS4-->>MS3: 201 status RECHAZADO
+            MS3->>MS3: compra PENDIENTE a FALLIDA
+            MS3->>MS2: POST liberacion (PAGO_RECHAZADO)
+            MS3-->>C: 200 compra fallida
+        else pago APROBADO
+            MS4-->>MS3: 201 status APROBADO (paymentId)
+            MS3->>MS3: guarda pagoId
+            MS3->>MS2: POST confirmacion
+            alt reserva vencida o liberada (409)
+                MS3->>MS3: compra PENDIENTE a FALLIDA
+                MS3->>MS4: POST /payments/{pagoId}/refunds (total, "Reserva vencida")
+                MS3-->>C: 200 compra fallida con su reintegro
+            else venta confirmada (204)
+                loop hasta 3 intentos
+                    MS3->>MS5: POST /internal/entradas/emision (idCompra)
+                end
+                alt entradas emitidas
+                    MS5-->>MS3: idEntrada, idSector, fila, numero, codigoQr
+                    MS3->>MS3: guarda entradaId y compra a CONFIRMADA
+                    MS3-->>C: 200 compra confirmada con sus entradas
+                else falla las 3 veces
+                    MS3->>MS3: la compra queda PENDIENTE
+                    MS3-->>C: 202 operación no terminada (repetir el pago con la misma clave)
+                end
+            end
+        end
+    end
+    end

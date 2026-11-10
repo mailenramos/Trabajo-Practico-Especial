@@ -1,0 +1,1206 @@
+openapi: 3.0.3
+info:
+  title: TicketYa - Compras
+  version: 0.1.0
+  description: |
+    Microservicio 3 de TicketYa: compra de entradas a partir de una reserva, pago,
+    consulta de compras, devoluciones de entradas, reintegros y cancelación de eventos.
+
+    **Identificación (Entrega 1):** cada pedido lleva los encabezados `X-User-Id` y
+    `X-User-Role`. Sin `X-User-Id` se responde 401. El administrador se identifica con
+    `X-User-Role: ADMIN` (confirmado por el grupo; se compara sin distinguir mayúsculas).
+    `POST /eventos-cancelados` es una llamada interna del servicio de eventos y no lleva
+    esos encabezados.
+
+    **Formato de error:** todos los errores usan
+    `{"timestamp","status","error","mensaje","campos"?}`. El campo `error` lleva un código
+    y `campos` solo aparece en los errores de validación.
+
+    | Código | HTTP | Cuándo |
+    |---|---|---|
+    | `VALIDACION` | 400 | Falta un campo obligatorio del cuerpo (detalle en `campos`) |
+    | `CUERPO_INVALIDO` | 400 | El cuerpo no es un JSON válido |
+    | `PARAMETRO_INVALIDO` | 400 | El ID de la ruta no es un UUID |
+    | `CLAVE_IDEMPOTENCIA_INVALIDA` | 400 | Falta `Idempotency-Key` o supera los 100 caracteres |
+    | `MEDIO_DE_PAGO_INVALIDO` | 400 | El medio de pago no es uno de los cuatro admitidos |
+    | `USUARIO_NO_IDENTIFICADO` | 401 | Falta el encabezado `X-User-Id` |
+    | `RESERVA_AJENA` | 403 | La reserva es de otro cliente |
+    | `ACCESO_DENEGADO` | 403 | La compra o la devolución es de otro cliente |
+    | `ENTRADA_AJENA` | 403 | La entrada es de otro cliente |
+    | `SOLO_ADMINISTRADOR` | 403 | La operación es solo para administradores |
+    | `RESERVA_NO_ENCONTRADA` | 404 | La reserva no existe |
+    | `COMPRA_NO_ENCONTRADA` | 404 | La compra no existe |
+    | `ENTRADA_NO_ENCONTRADA` | 404 | La entrada no corresponde a ninguna compra |
+    | `DEVOLUCION_NO_ENCONTRADA` | 404 | La solicitud de devolución no existe |
+    | `REINTEGRO_NO_ENCONTRADO` | 404 | El reintegro no existe |
+    | `RUTA_NO_ENCONTRADA` | 404 | La ruta no existe |
+    | `METODO_NO_PERMITIDO` | 405 | Método HTTP no admitido en la ruta |
+    | `RESERVA_NO_VIGENTE` | 409 | La reserva venció, se liberó o ya se confirmó: hay que reservar de nuevo |
+    | `COMPRA_YA_INICIADA` | 409 | La reserva ya tiene una compra confirmada o fallida |
+    | `IDEMPOTENCIA_CONFLICTO` | 409 | La `Idempotency-Key` ya se usó con otros datos |
+    | `ENTRADA_NO_VIGENTE` | 409 | La entrada está en reintegro o devuelta |
+    | `PLAZO_VENCIDO` | 409 | El evento empieza en 72 horas o menos |
+    | `EVENTO_CANCELADO` | 409 | El evento está cancelado: sus reintegros son automáticos |
+    | `DEVOLUCION_EN_CURSO` | 409 | La entrada ya tiene una devolución aprobada |
+    | `DEVOLUCION_YA_RESUELTA` | 409 | La solicitud ya fue aprobada o rechazada |
+    | `REINTEGRO_SIN_PAGO` | 409 | La compra del reintegro no tiene un pago aprobado |
+    | `CONFLICTO_DE_ESTADO_EXTERNO` | 409 | Entradas rechazó el cambio de estado de una entrada por transición inválida. Los pasos de devoluciones y reintegros no lo devuelven: lo registran en `ultimoError` |
+    | `ERROR_INTERNO` | 500 | Error inesperado |
+    | `EVENTO_NO_ENCONTRADO` | 502 | Eventos no tiene el evento de la reserva |
+    | `SECTOR_NO_ENCONTRADO` | 502 | El evento no tiene un sector de la reserva |
+    | `CONTRATO_INVALIDO` | 502 | Otro servicio respondió datos fuera de contrato (por ejemplo, una fila que no es un número entero) |
+    | `RESERVA_SIN_LUGARES` | 502 | La reserva no trae lugares |
+    | `SERVICIO_NO_DISPONIBLE` | 503 | Otro servicio no respondió. En el pago, repetir con la misma `Idempotency-Key` |
+servers:
+  - url: http://localhost:8083
+    description: Local
+tags:
+  - name: Compras
+  - name: Devoluciones
+  - name: Reintegros
+  - name: Cancelación de eventos
+paths:
+  /compras:
+    post:
+      tags: [Compras]
+      summary: Iniciar una compra desde una reserva
+      description: |
+        Valida que la reserva exista, sea del usuario y siga vigente, consulta los precios
+        al servicio de eventos y registra la compra en estado `PENDIENTE`, con una fila por
+        lugar (en sectores no numerados, una por cada unidad) y el precio unitario de ese
+        momento. Una reserva admite una sola compra: si el mismo cliente repite el pedido y
+        la compra sigue pendiente, recibe esa compra (200) sin que se registre otra.
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IniciarCompraPedido'
+            example:
+              reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+      responses:
+        '201':
+          description: Compra registrada como pendiente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Compra'
+              examples:
+                pendiente:
+                  $ref: '#/components/examples/CompraPendiente'
+        '200':
+          description: El cliente repitió el pedido y la compra de la reserva sigue pendiente; se devuelve esa compra
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Compra'
+              examples:
+                pendiente:
+                  $ref: '#/components/examples/CompraPendiente'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          description: La reserva es de otro cliente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 403
+                error: RESERVA_AJENA
+                mensaje: La reserva 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11 pertenece a otro cliente
+        '404':
+          description: La reserva no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 404
+                error: RESERVA_NO_ENCONTRADA
+                mensaje: No existe la reserva 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        '409':
+          description: La reserva no está vigente o su compra ya se confirmó o falló
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                noVigente:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: RESERVA_NO_VIGENTE
+                    mensaje: La reserva 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11 está vencida, liberada o ya confirmada. Hay que reservar de nuevo
+                yaIniciada:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: COMPRA_YA_INICIADA
+                    mensaje: La reserva 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11 ya tiene la compra 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718 en estado CONFIRMADA
+        '502':
+          description: Datos inconsistentes o fuera de contrato en otro servicio (evento, sector, lugares de la reserva o una fila que no es un número)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                eventoNoEncontrado:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 502
+                    error: EVENTO_NO_ENCONTRADO
+                    mensaje: El servicio de eventos no encontró el evento evento-1 de la reserva
+                contratoInvalido:
+                  summary: Reservas informó un lugar con una fila no numérica
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 502
+                    error: CONTRATO_INVALIDO
+                    mensaje: El servicio de Reservas respondió datos con un formato inesperado
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+    get:
+      tags: [Compras]
+      summary: Listar las compras propias
+      description: |
+        Devuelve solo las compras del usuario, de la más reciente a la más vieja, con
+        evento, lugares, precio unitario del momento de la compra, total, medio de pago,
+        fecha y estado.
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Compras del usuario (lista vacía si no tiene)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Compra' }
+              example:
+                - id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+                  estado: CONFIRMADA
+                  reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+                  evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+                  lugares:
+                    - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f }
+                  total: 15000.00
+                  medioDePago: CREDIT_CARD
+                  fecha: '2026-11-08T18:00:00Z'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+
+  /compras/{compraId}:
+    get:
+      tags: [Compras]
+      summary: Consultar una compra propia
+      parameters:
+        - $ref: '#/components/parameters/CompraId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: La compra con su detalle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compra' }
+              examples:
+                confirmada:
+                  $ref: '#/components/examples/CompraConfirmada'
+                fallida:
+                  $ref: '#/components/examples/CompraFallida'
+        '400':
+          $ref: '#/components/responses/ParametroInvalido'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/AccesoDenegado'
+        '404':
+          $ref: '#/components/responses/CompraNoEncontrada'
+
+  /compras/{compraId}/pago:
+    post:
+      tags: [Compras]
+      summary: Pagar una compra pendiente
+      description: |
+        Orden: verifica que la reserva siga vigente, pide el cobro a Pagos, guarda el ID
+        del pago, confirma la venta en Reservas, emite las entradas y deja la compra
+        `CONFIRMADA`. Si Pagos rechaza el cobro, la compra queda `FALLIDA` y se liberan los
+        lugares (un rechazo no es un error: responde 200). Si el cobro se aprobó pero
+        Reservas rechaza la venta (la reserva venció o se liberó), la compra queda `FALLIDA`
+        y se pide un reintegro automático por el total, que aparece en `reintegros`.
+
+        Si la compra ya no está pendiente (por ejemplo, la cerró la cancelación de su evento),
+        no se cobra, no se confirma la venta ni se emiten entradas: responde 200 con la compra
+        en su estado actual (`FALLIDA`, con su reintegro por cancelación si había un cobro).
+
+        **Idempotencia:** `Idempotency-Key` es obligatorio y se acota por cliente (dos
+        clientes pueden usar el mismo valor sin pisarse). Repetir el pedido con la misma
+        clave y los mismos datos:
+        - si terminó, devuelve el resultado original sin cobrar ni emitir de nuevo;
+        - si sigue en proceso, responde 202 `EN_CURSO`;
+        - si quedó a medias (503 o emisión pendiente), retoma desde el último paso hecho:
+          no vuelve a cobrar si ya hay un pago aprobado y, si el cobro quedó incierto,
+          consulta a Pagos antes de repetirlo.
+
+        La misma clave con otro medio de pago o para otra compra da 409.
+      parameters:
+        - $ref: '#/components/parameters/CompraId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Clave elegida por el cliente para esta operación (máximo 100 caracteres).
+          schema: { type: string, maxLength: 100 }
+          example: 9c5e1d2a-pago-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PagoPedido' }
+            example:
+              medioDePago: CREDIT_CARD
+      responses:
+        '200':
+          description: Pago resuelto. La compra queda CONFIRMADA (pago aprobado) o FALLIDA (pago rechazado, o venta rechazada con reintegro automático)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compra' }
+              examples:
+                aprobado:
+                  $ref: '#/components/examples/CompraConfirmada'
+                rechazado:
+                  $ref: '#/components/examples/CompraFallida'
+                ventaRechazada:
+                  $ref: '#/components/examples/CompraFallidaConReintegro'
+        '202':
+          description: |
+            La operación no terminó. Puede ser otro pedido con la misma clave todavía en
+            proceso (`EN_CURSO`) o un pago aprobado cuya emisión de entradas falló tras 3
+            intentos: la compra sigue `PENDIENTE` y se completa repitiendo el pago con la
+            misma clave.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OperacionEnCurso'
+                  - $ref: '#/components/schemas/Compra'
+              examples:
+                enCurso:
+                  value:
+                    compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+                    estado: EN_CURSO
+                    mensaje: El pago con esta Idempotency-Key se está procesando. Consulte la compra en unos segundos
+                emisionPendiente:
+                  $ref: '#/components/examples/CompraPagadaSinEntradas'
+        '400':
+          description: Datos inválidos. No se llama a Pagos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                medioInvalido:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 400
+                    error: MEDIO_DE_PAGO_INVALIDO
+                    mensaje: El medio de pago debe ser CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER o DIGITAL_WALLET
+                sinClave:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 400
+                    error: CLAVE_IDEMPOTENCIA_INVALIDA
+                    mensaje: El encabezado Idempotency-Key es obligatorio y tiene como máximo 100 caracteres
+                validacion:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 400
+                    error: VALIDACION
+                    mensaje: El pedido tiene datos inválidos
+                    campos:
+                      medioDePago: es obligatorio
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/AccesoDenegado'
+        '404':
+          $ref: '#/components/responses/CompraNoEncontrada'
+        '409':
+          description: Conflicto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                reservaNoVigente:
+                  summary: La reserva venció o se liberó; no se cobró
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: RESERVA_NO_VIGENTE
+                    mensaje: 'La reserva 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11 venció o fue liberada. No se realizó el cobro: hay que reservar de nuevo'
+                clave:
+                  summary: Misma clave con datos distintos
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: IDEMPOTENCIA_CONFLICTO
+                    mensaje: La Idempotency-Key ya se usó con otros datos de pago
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /devoluciones:
+    post:
+      tags: [Devoluciones]
+      summary: Solicitar la devolución de una entrada
+      description: |
+        Valida que la entrada sea de una compra propia y confirmada, que siga vigente
+        (servicio de entradas) y que el evento no esté cancelado y empiece en más de 72
+        horas (servicio de eventos). Registra la solicitud `PENDIENTE` con un `devolucionId`
+        (UUID). El monto es el precio unitario pagado por la entrada. Una entrada tiene como
+        máximo una solicitud pendiente o aprobada: si el cliente repite el pedido con la
+        solicitud pendiente, recibe esa misma (200).
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitarDevolucionPedido' }
+            example:
+              entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+      responses:
+        '201':
+          description: Solicitud registrada como pendiente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                pendiente:
+                  $ref: '#/components/examples/DevolucionPendiente'
+        '200':
+          description: La entrada ya tenía una solicitud pendiente del cliente; se devuelve esa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                pendiente:
+                  $ref: '#/components/examples/DevolucionPendiente'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          description: La entrada es de otro cliente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 403
+                error: ENTRADA_AJENA
+                mensaje: La entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f pertenece a otro cliente
+        '404':
+          description: La entrada no corresponde a ninguna compra
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 404
+                error: ENTRADA_NO_ENCONTRADA
+                mensaje: No existe la entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        '409':
+          description: La entrada no se puede devolver
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                plazoVencido:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: PLAZO_VENCIDO
+                    mensaje: Solo se puede devolver una entrada hasta 72 horas antes del inicio del evento
+                noVigente:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: ENTRADA_NO_VIGENTE
+                    mensaje: La entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f no está vigente (DEVUELTA)
+                eventoCancelado:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: EVENTO_CANCELADO
+                    mensaje: 'El evento fue cancelado: el reintegro de sus entradas es automático'
+                enCurso:
+                  value:
+                    timestamp: '2026-11-08T18:00:00Z'
+                    status: 409
+                    error: DEVOLUCION_EN_CURSO
+                    mensaje: La entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f ya tiene la devolución aprobada 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        '502':
+          description: Eventos no tiene el evento de la compra
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+    get:
+      tags: [Devoluciones]
+      summary: Listar solicitudes de devolución
+      description: |
+        Un cliente ve solo las suyas; un administrador, las de todos. Cada una muestra el
+        estado de la solicitud y, por separado, el de su reintegro.
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+        - name: estado
+          in: query
+          required: false
+          schema: { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA] }
+      responses:
+        '200':
+          description: Solicitudes (lista vacía si no hay)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Devolucion' }
+        '400':
+          $ref: '#/components/responses/ParametroInvalido'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+
+  /devoluciones/{devolucionId}:
+    get:
+      tags: [Devoluciones]
+      summary: Consultar una solicitud de devolución
+      description: Solo para su titular o un administrador.
+      parameters:
+        - $ref: '#/components/parameters/DevolucionId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: La solicitud con su reintegro
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                aprobadaCompleta:
+                  $ref: '#/components/examples/DevolucionAprobada'
+                rechazada:
+                  $ref: '#/components/examples/DevolucionRechazada'
+        '400':
+          $ref: '#/components/responses/ParametroInvalido'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          description: La solicitud es de otro cliente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 403
+                error: ACCESO_DENEGADO
+                mensaje: La devolución 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071 pertenece a otro cliente
+        '404':
+          $ref: '#/components/responses/DevolucionNoEncontrada'
+
+  /devoluciones/{devolucionId}/aprobacion:
+    post:
+      tags: [Devoluciones]
+      summary: Aprobar una solicitud (administrador)
+      description: |
+        Deja la solicitud `APROBADA`, registra su reintegro y coordina, en este orden:
+        entrada a en reintegro (Entradas), liberar el lugar con el `devolucionId`
+        (Reservas), reintegro del precio unitario (Pagos, `refundRequestId` e
+        `Idempotency-Key` = `devolucionId`) y, con el reintegro exitoso, entrada a devuelta.
+        Si un paso falla, la solicitud queda aprobada con `coordinacion.completa = false`;
+        no se revierte nada y se retoma con `POST /reintegros/{reintegroId}/reintento`.
+        `coordinacion.ultimoError` distingue un servicio que no respondió de un conflicto de
+        estado de la entrada (Entradas rechazó el cambio por transición inválida, 409
+        `TRANSICION_INVALIDA`): en ese caso reintentar sirve recién cuando se resuelve el
+        estado de la entrada en Entradas.
+      parameters:
+        - $ref: '#/components/parameters/DevolucionId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoleAdmin'
+      responses:
+        '200':
+          description: Aprobada y coordinación completa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                completa:
+                  $ref: '#/components/examples/DevolucionAprobada'
+        '202':
+          description: Aprobada, con algún paso pendiente (un servicio no respondió o el reintegro no fue exitoso)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                incompleta:
+                  $ref: '#/components/examples/DevolucionIncompleta'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/SoloAdministrador'
+        '404':
+          $ref: '#/components/responses/DevolucionNoEncontrada'
+        '409':
+          $ref: '#/components/responses/DevolucionYaResuelta'
+
+  /devoluciones/{devolucionId}/rechazo:
+    post:
+      tags: [Devoluciones]
+      summary: Rechazar una solicitud (administrador)
+      description: Deja la solicitud `RECHAZADA` con el motivo. No llama a otros servicios; la entrada sigue vigente.
+      parameters:
+        - $ref: '#/components/parameters/DevolucionId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoleAdmin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RechazarDevolucionPedido' }
+            example:
+              motivo: La entrada ya fue usada
+      responses:
+        '200':
+          description: Solicitud rechazada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Devolucion' }
+              examples:
+                rechazada:
+                  $ref: '#/components/examples/DevolucionRechazada'
+        '400':
+          description: Falta el motivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 400
+                error: VALIDACION
+                mensaje: El pedido tiene datos inválidos
+                campos:
+                  motivo: es obligatorio
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/SoloAdministrador'
+        '404':
+          $ref: '#/components/responses/DevolucionNoEncontrada'
+        '409':
+          $ref: '#/components/responses/DevolucionYaResuelta'
+
+  /reintegros:
+    get:
+      tags: [Reintegros]
+      summary: Listar reintegros (administrador)
+      description: Para encontrar los reintegros pendientes o fallidos que hay que reintentar.
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoleAdmin'
+        - name: estado
+          in: query
+          required: false
+          schema: { type: string, enum: [PENDIENTE, EXITOSO, FALLIDO] }
+      responses:
+        '200':
+          description: Reintegros
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Reintegro' }
+              example:
+                - id: 1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081
+                  compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+                  refundRequestId: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+                  monto: 15000.00
+                  motivo: Devolución de entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+                  origen: DEVOLUCION
+                  estado: FALLIDO
+                  intentos: 1
+                  pagosReintegroId: 9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4
+                  ultimoError: Pagos no logró el reintegro
+                  creadoEn: '2026-11-08T18:00:00Z'
+                  actualizadoEn: '2026-11-08T18:00:01Z'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/SoloAdministrador'
+
+  /reintegros/{reintegroId}/reintento:
+    post:
+      tags: [Reintegros]
+      summary: Reintentar un reintegro sin duplicarlo (administrador)
+      description: |
+        - Exitoso: no se llama a Pagos.
+        - Pendiente sin respuesta: se repite el pedido con el mismo `refundRequestId` y la
+          misma `Idempotency-Key`; Pagos no lo duplica.
+        - Fallido: `POST /api/v1/refunds/{id}/retry` de Pagos sobre el mismo reintegro. Si
+          responde 409, se consulta el estado del reintegro en Pagos.
+
+        Si el reintegro es de una devolución, se retoma la devolución completa desde el
+        paso que falló (y, con el reintegro exitoso, la entrada pasa a devuelta).
+
+        Si es de un evento cancelado (`origen: CANCELACION_EVENTO`), con el reintegro
+        exitoso pasan a devuelta las entradas que incluye y que todavía no lo estén.
+
+        Si Entradas no responde o rechaza pasar una entrada a devuelta (conflicto de
+        estado), el reintegro sigue exitoso, el motivo queda en `ultimoError` y responde 202.
+      parameters:
+        - name: reintegroId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoleAdmin'
+      responses:
+        '200':
+          description: >-
+            Reintegro exitoso (y, si es de una devolución o de un evento cancelado, con sus
+            entradas devueltas)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reintegro' }
+        '202':
+          description: Sigue pendiente o fallido; ver ultimoError
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reintegro' }
+              examples:
+                fallido:
+                  $ref: '#/components/examples/ReintegroFallido'
+        '401':
+          $ref: '#/components/responses/NoIdentificado'
+        '403':
+          $ref: '#/components/responses/SoloAdministrador'
+        '404':
+          description: El reintegro no existe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 404
+                error: REINTEGRO_NO_ENCONTRADO
+                mensaje: No existe el reintegro 1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081
+
+  /eventos-cancelados:
+    post:
+      tags: [Cancelación de eventos]
+      summary: Aviso de cancelación de un evento (llamada interna de Eventos)
+      description: |
+        E-1. Idempotente por `eventoId`: el mismo evento se procesa una sola vez. Responde
+        enseguida y procesa en segundo plano:
+
+        1. Pide a Entradas pasar a en reintegro las entradas del evento (la cantidad que
+           responde es solo informativa).
+        2. Por cada compra **confirmada** del evento: cierra como rechazadas sus solicitudes
+           de devolución pendientes (motivo "Evento cancelado: reintegro automático") y pide
+           **un** reintegro con `reason` "Evento cancelado" por el precio unitario de las
+           entradas que siguen vigentes (las que tienen una devolución aprobada no se
+           vuelven a reintegrar). Con el reintegro exitoso, esas entradas pasan a devuelta.
+        3. Cada compra **pendiente** del evento se cierra como `FALLIDA`:
+           - con un pago aprobado (registrado, o que Pagos informa en
+             `GET /api/v1/payments/purchase/{purchaseId}` porque se perdió la respuesta del
+             cobro): **un** reintegro por el total con `reason` "Evento cancelado" y
+             `origen: CANCELACION_EVENTO`. Las entradas que llegaron a asociarse a la compra
+             pasan a devuelta con el reintegro exitoso;
+           - sin un pago aprobado: queda `FALLIDA` sin reintegro;
+           - si Pagos no responde esa consulta, la compra sigue `PENDIENTE` y la cancelación
+             queda en proceso y se retoma automáticamente pasado el plazo.
+
+           Si un pago de esa compra se está retomando a la vez, gana quien cambia primero su
+           estado: si el pago la confirma antes, se trata como confirmada (punto 2).
+           Límite (Entrega 1): si la emisión se hizo en Entradas pero la respuesta no llegó,
+           esas entradas quedan en reintegro y no pasan a devuelta, porque este servicio no
+           conoce su ID.
+        4. Las compras que ya estaban fallidas no generan reintegro.
+
+        Un reintegro que falla queda registrado y se reintenta con
+        `POST /reintegros/{reintegroId}/reintento`; no frena a las demás compras.
+
+        Si la cancelación quedó en proceso más de `compras.cancelacion.plazo-en-proceso`
+        (5 minutos por defecto; el servicio se cayó a mitad de camino o una compra falló), se
+        retoma automáticamente, sin esperar otro aviso: el servicio revisa las cancelaciones
+        en proceso cada `compras.cancelacion.intervalo-reanudacion` (60 s por defecto). La
+        retoma no duplica reintegros ni vuelve a pedir a Entradas una marcación ya hecha.
+        Eventos no necesita reenviar el aviso después de recibir 202; si lo reenvía, la
+        respuesta es la misma (202 mientras se procesa, 200 cuando terminó).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelacionEventoPedido' }
+            example:
+              eventoId: evento-1
+              motivo: Suspendido por lluvia
+              canceladoEn: '2026-11-08T12:00:00Z'
+      responses:
+        '202':
+          description: Aviso nuevo aceptado, o la cancelación de ese evento todavía se está procesando
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AvisoCancelacion' }
+              example:
+                eventoId: evento-1
+                resultado: ACEPTADO
+        '200':
+          description: La cancelación de ese evento ya se procesó; no se repite nada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AvisoCancelacion' }
+              example:
+                eventoId: evento-1
+                resultado: YA_PROCESADO
+        '400':
+          description: Falta el `eventoId` o el cuerpo no es un JSON válido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 400
+                error: VALIDACION
+                mensaje: El pedido tiene datos inválidos
+                campos:
+                  eventoId: es obligatorio
+
+components:
+  parameters:
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: ID del usuario (lo completa el Gateway en la Entrega 1)
+      schema: { type: string }
+      example: cliente-1
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: false
+      description: Rol del usuario
+      schema: { type: string }
+      example: CLIENTE
+    CompraId:
+      name: compraId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+    DevolucionId:
+      name: devolucionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+    XUserRoleAdmin:
+      name: X-User-Role
+      in: header
+      required: true
+      description: Debe ser el rol de administrador (ADMIN por defecto)
+      schema: { type: string }
+      example: ADMIN
+
+  schemas:
+    IniciarCompraPedido:
+      type: object
+      required: [reservaId]
+      properties:
+        reservaId: { type: string, description: ID de una reserva propia y vigente }
+    PagoPedido:
+      type: object
+      required: [medioDePago]
+      properties:
+        medioDePago:
+          type: string
+          enum: [CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, DIGITAL_WALLET]
+    Compra:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, enum: [PENDIENTE, CONFIRMADA, FALLIDA] }
+        reservaId: { type: string }
+        evento:
+          type: object
+          properties:
+            id: { type: string }
+            nombre: { type: string }
+            fechaInicio: { type: string, format: date-time }
+        lugares:
+          type: array
+          description: Una fila por entrada
+          items: { $ref: '#/components/schemas/Lugar' }
+        total:
+          type: number
+          description: En pesos, con 2 decimales como máximo
+        medioDePago:
+          type: string
+          nullable: true
+          description: Vacío hasta que se pide el cobro
+        fecha: { type: string, format: date-time }
+        reintegros:
+          type: array
+          description: Reintegros pedidos sobre la compra (devoluciones de entradas o venta rechazada)
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              monto: { type: number }
+              origen: { type: string, enum: [DEVOLUCION, CANCELACION_EVENTO, VENTA_RECHAZADA] }
+              estado: { type: string, enum: [PENDIENTE, EXITOSO, FALLIDO] }
+    SolicitarDevolucionPedido:
+      type: object
+      required: [entradaId]
+      properties:
+        entradaId: { type: string, description: ID de una entrada vigente propia }
+    RechazarDevolucionPedido:
+      type: object
+      required: [motivo]
+      properties:
+        motivo: { type: string, maxLength: 255 }
+    Devolucion:
+      type: object
+      description: El estado de la solicitud y el de su reintegro son independientes.
+      properties:
+        id: { type: string, format: uuid, description: devolucionId }
+        estado: { type: string, enum: [PENDIENTE, APROBADA, RECHAZADA] }
+        entradaId: { type: string }
+        compraId: { type: string, format: uuid }
+        evento:
+          type: object
+          properties:
+            id: { type: string }
+            nombre: { type: string }
+            fechaInicio: { type: string, format: date-time }
+        lugar:
+          type: object
+          properties:
+            sectorId: { type: string }
+            sectorNombre: { type: string }
+            fila: { type: integer, nullable: true, description: Solo en sectores numerados }
+            numero: { type: integer, nullable: true }
+        monto: { type: number, description: Precio unitario pagado por la entrada }
+        motivoRechazo: { type: string, description: Solo si fue rechazada }
+        creadaEn: { type: string, format: date-time }
+        resueltaEn: { type: string, format: date-time, nullable: true }
+        coordinacion:
+          type: object
+          description: Solo si fue aprobada
+          properties:
+            completa: { type: boolean }
+            pasoPendiente:
+              type: string
+              nullable: true
+              enum: [ENTRADA_EN_REINTEGRO, LIBERAR_LUGAR, REINTEGRO, ENTRADA_DEVUELTA]
+            ultimoError: { type: string, nullable: true }
+        reintegro:
+          type: object
+          description: Solo si fue aprobada
+          properties:
+            id: { type: string, format: uuid }
+            estado: { type: string, enum: [PENDIENTE, EXITOSO, FALLIDO] }
+            intentos: { type: integer }
+    Reintegro:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        compraId: { type: string, format: uuid }
+        refundRequestId:
+          type: string
+          format: uuid
+          description: En una devolución es el devolucionId; en los demás orígenes lo genera este servicio
+        monto: { type: number, description: En un evento cancelado, el precio de las entradas que seguían vigentes }
+        motivo: { type: string, description: 'Se envía a Pagos como reason (obligatorio). En un evento cancelado: "Evento cancelado"' }
+        origen:
+          type: string
+          enum: [DEVOLUCION, CANCELACION_EVENTO, VENTA_RECHAZADA]
+          description: CANCELACION_EVENTO es el reintegro automático de una compra confirmada, o pendiente ya cobrada, de un evento cancelado
+        estado: { type: string, enum: [PENDIENTE, EXITOSO, FALLIDO] }
+        intentos: { type: integer }
+        pagosReintegroId: { type: string, nullable: true, description: ID del reintegro en Pagos }
+        ultimoError: { type: string, nullable: true }
+        creadoEn: { type: string, format: date-time }
+        actualizadoEn: { type: string, format: date-time }
+    CancelacionEventoPedido:
+      type: object
+      required: [eventoId]
+      properties:
+        eventoId: { type: string }
+        motivo: { type: string, description: Motivo de la cancelación en Eventos (informativo) }
+        canceladoEn: { type: string, format: date-time }
+    AvisoCancelacion:
+      type: object
+      properties:
+        eventoId: { type: string }
+        resultado: { type: string, enum: [ACEPTADO, YA_PROCESADO] }
+    Lugar:
+      type: object
+      properties:
+        sectorId: { type: string }
+        sectorNombre: { type: string }
+        fila: { type: integer, nullable: true, description: Solo en sectores numerados }
+        numero: { type: integer, nullable: true, description: Solo en sectores numerados }
+        precioUnitario: { type: number, description: Precio al momento de la compra }
+        entradaId: { type: string, nullable: true, description: Vacío hasta que se emite la entrada }
+    OperacionEnCurso:
+      type: object
+      properties:
+        compraId: { type: string, format: uuid }
+        estado: { type: string, enum: [EN_CURSO] }
+        mensaje: { type: string }
+    Error:
+      type: object
+      required: [timestamp, status, error, mensaje]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        error: { type: string, description: Código del error }
+        mensaje: { type: string }
+        campos:
+          type: object
+          additionalProperties: { type: string }
+          description: Solo en errores de validación
+
+  responses:
+    SoloAdministrador:
+      description: La operación es solo para administradores
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 403
+            error: SOLO_ADMINISTRADOR
+            mensaje: Esta operación solo la puede hacer un administrador
+    DevolucionNoEncontrada:
+      description: La solicitud no existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 404
+            error: DEVOLUCION_NO_ENCONTRADA
+            mensaje: No existe la devolución 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+    DevolucionYaResuelta:
+      description: La solicitud ya fue aprobada o rechazada
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 409
+            error: DEVOLUCION_YA_RESUELTA
+            mensaje: La devolución 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071 ya fue aprobada o rechazada
+    Validacion:
+      description: Datos inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 400
+            error: VALIDACION
+            mensaje: El pedido tiene datos inválidos
+            campos:
+              reservaId: es obligatorio
+    ParametroInvalido:
+      description: El ID no es un UUID
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 400
+            error: PARAMETRO_INVALIDO
+            mensaje: El parámetro compraId no tiene un formato válido
+    NoIdentificado:
+      description: Falta X-User-Id
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 401
+            error: USUARIO_NO_IDENTIFICADO
+            mensaje: Falta el encabezado X-User-Id
+    AccesoDenegado:
+      description: La compra es de otro cliente
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 403
+            error: ACCESO_DENEGADO
+            mensaje: La compra 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718 pertenece a otro cliente
+    CompraNoEncontrada:
+      description: La compra no existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 404
+            error: COMPRA_NO_ENCONTRADA
+            mensaje: No existe la compra 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+    ServicioNoDisponible:
+      description: Otro servicio no respondió
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-08T18:00:00Z'
+            status: 503
+            error: SERVICIO_NO_DISPONIBLE
+            mensaje: El servicio de Pagos no está disponible. Intente de nuevo más tarde
+
+  examples:
+    CompraPendiente:
+      value:
+        id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        estado: PENDIENTE
+        reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugares:
+          - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: null }
+          - { sectorId: campo, sectorNombre: Campo, fila: null, numero: null, precioUnitario: 8000.50, entradaId: null }
+        total: 23000.50
+        medioDePago: null
+        fecha: '2026-11-08T18:00:00Z'
+    CompraConfirmada:
+      value:
+        id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        estado: CONFIRMADA
+        reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugares:
+          - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f }
+          - { sectorId: campo, sectorNombre: Campo, fila: null, numero: null, precioUnitario: 8000.50, entradaId: 6e1c9f30-2b4d-4c7e-8f90-1b2c3d4e5f60 }
+        total: 23000.50
+        medioDePago: CREDIT_CARD
+        fecha: '2026-11-08T18:00:00Z'
+    CompraFallida:
+      value:
+        id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        estado: FALLIDA
+        reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugares:
+          - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: null }
+          - { sectorId: campo, sectorNombre: Campo, fila: null, numero: null, precioUnitario: 8000.50, entradaId: null }
+        total: 23000.50
+        medioDePago: DIGITAL_WALLET
+        fecha: '2026-11-08T18:00:00Z'
+    CompraPagadaSinEntradas:
+      summary: Pago aprobado, emisión de entradas pendiente
+      value:
+        id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        estado: PENDIENTE
+        reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugares:
+          - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: null }
+          - { sectorId: campo, sectorNombre: Campo, fila: null, numero: null, precioUnitario: 8000.50, entradaId: null }
+        total: 23000.50
+        medioDePago: CREDIT_CARD
+        fecha: '2026-11-08T18:00:00Z'
+    CompraFallidaConReintegro:
+      summary: Pago aprobado y venta rechazada por Reservas, con reintegro automático
+      value:
+        id: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        estado: FALLIDA
+        reservaId: 7b1d3f6e-2c4a-4e1b-9f0d-5a8c2e7b4d11
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugares:
+          - { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1, precioUnitario: 15000.00, entradaId: null }
+        total: 15000.00
+        medioDePago: CREDIT_CARD
+        fecha: '2026-11-08T18:00:00Z'
+        reintegros:
+          - { id: 2c3d4e5f-6071-4829-8b3c-4d5e6f708192, monto: 15000.00, origen: VENTA_RECHAZADA, estado: EXITOSO }
+    DevolucionPendiente:
+      value:
+        id: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        estado: PENDIENTE
+        entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugar: { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1 }
+        monto: 15000.00
+        creadaEn: '2026-11-08T18:00:00Z'
+        resueltaEn: null
+    DevolucionAprobada:
+      summary: Aprobada con la coordinación completa
+      value:
+        id: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        estado: APROBADA
+        entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugar: { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1 }
+        monto: 15000.00
+        creadaEn: '2026-11-08T18:00:00Z'
+        resueltaEn: '2026-11-08T19:00:00Z'
+        coordinacion: { completa: true, pasoPendiente: null, ultimoError: null }
+        reintegro: { id: 1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081, estado: EXITOSO, intentos: 1 }
+    DevolucionIncompleta:
+      summary: Aprobada, Reservas no respondió al liberar el lugar
+      value:
+        id: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        estado: APROBADA
+        entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugar: { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1 }
+        monto: 15000.00
+        creadaEn: '2026-11-08T18:00:00Z'
+        resueltaEn: '2026-11-08T19:00:00Z'
+        coordinacion:
+          completa: false
+          pasoPendiente: LIBERAR_LUGAR
+          ultimoError: 'LIBERAR_LUGAR: Sin respuesta de Reservas en liberarPorDevolucion'
+        reintegro: { id: 1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081, estado: PENDIENTE, intentos: 0 }
+    DevolucionRechazada:
+      value:
+        id: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        estado: RECHAZADA
+        entradaId: 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        evento: { id: evento-1, nombre: Recital de prueba, fechaInicio: '2026-12-01T21:00:00Z' }
+        lugar: { sectorId: platea, sectorNombre: Platea, fila: 10, numero: 1 }
+        monto: 15000.00
+        motivoRechazo: La entrada ya fue usada
+        creadaEn: '2026-11-08T18:00:00Z'
+        resueltaEn: '2026-11-08T19:00:00Z'
+    ReintegroFallido:
+      value:
+        id: 1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081
+        compraId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+        refundRequestId: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+        monto: 15000.00
+        motivo: Devolución de entrada 5d0b8e2f-1a3c-4b6d-9e7f-0a1b2c3d4e5f
+        origen: DEVOLUCION
+        estado: FALLIDO
+        intentos: 2
+        pagosReintegroId: 9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4
+        ultimoError: Pagos no logró el reintegro
+        creadoEn: '2026-11-08T18:00:00Z'
+        actualizadoEn: '2026-11-08T19:30:00Z'

@@ -1,0 +1,98 @@
+erDiagram
+    compras ||--o{ detalles_compra : "tiene (FK)"
+    compras ||--o{ claves_idempotencia : "compraId"
+    compras ||--o{ solicitudes_devolucion : "compraId"
+    compras ||--o{ reintegros : "compraId"
+    solicitudes_devolucion ||--o| reintegros : "id = refundRequestId"
+    reintegros ||--o{ entradas_de_reintegro : "reintegroId"
+    cancelaciones_evento ||--o{ compras : "eventoId"
+
+    compras {
+        UUID id PK
+        string estado "PENDIENTE, CONFIRMADA, FALLIDA"
+        string clienteId
+        string reservaId UK
+        string eventoId
+        string eventoNombre
+        datetime eventoFechaInicio
+        decimal total
+        string medioDePago
+        string pagoId "ID del pago en Pagos"
+        boolean ventaConfirmada
+        datetime fecha
+    }
+    detalles_compra {
+        long id PK
+        UUID compra_id FK
+        string sectorId
+        string sectorNombre
+        int fila "nulo si no es numerado"
+        int numero "nulo si no es numerado"
+        decimal precioUnitario
+        string entradaId UK "ID en Entradas"
+    }
+    claves_idempotencia {
+        string cliente_id PK
+        string clave PK
+        UUID compraId
+        string huellaPedido
+        string claveCobro "Idempotency-Key hacia Pagos"
+        string estado "EN_PROCESO, COMPLETADA, INTERRUMPIDA"
+        text resultado
+        datetime creadaEn
+        datetime tomadaEn
+    }
+    solicitudes_devolucion {
+        UUID id PK "devolucionId"
+        string clienteId
+        string entradaId
+        UUID compraId
+        string sectorId
+        string sectorNombre
+        int fila
+        int numero
+        decimal monto "precio unitario"
+        string eventoId
+        string eventoNombre
+        datetime eventoFechaInicio
+        string estado "PENDIENTE, APROBADA, RECHAZADA"
+        string motivoRechazo
+        datetime creadaEn
+        datetime resueltaEn
+        string resueltaPor
+        string entradaActiva UK "NULL si se rechaza"
+        boolean entradaEnReintegro
+        boolean lugarLiberado
+        boolean entradaDevuelta
+        string ultimoError
+    }
+    reintegros {
+        UUID id PK
+        UUID compraId
+        UUID refundRequestId UK
+        string pagosReintegroId "ID en Pagos"
+        decimal monto
+        string motivo
+        string origen "DEVOLUCION, CANCELACION_EVENTO, VENTA_RECHAZADA"
+        string estado "PENDIENTE, EXITOSO, FALLIDO"
+        int intentos
+        string ultimoError
+        datetime creadoEn
+        datetime actualizadoEn
+    }
+    entradas_de_reintegro {
+        long id PK
+        UUID reintegroId "UK junto a entradaId"
+        string entradaId "UK junto a reintegroId"
+        boolean devuelta
+    }
+    cancelaciones_evento {
+        string eventoId PK
+        string motivo
+        datetime canceladoEn
+        datetime recibidaEn
+        string estado "EN_PROCESO, PROCESADA"
+        datetime tomadaEn
+        int entradasMarcadas
+        string ultimoError
+    }
