@@ -1,0 +1,70 @@
+schema: spec-driven
+
+context: |
+  Proyecto: TicketYa, plataforma de venta de entradas (TP grupal de Arquitectura Web, TUDAI).
+  Este repositorio implementa SOLO el microservicio 3: Gestión de compras y devoluciones.
+  Los otros 4 microservicios (usuarios, eventos y lugares, reservas, pagos) y el API Gateway
+  los desarrollan otros integrantes del equipo.
+
+  Stack: Java 21, Spring Boot, Spring Data JPA,
+  MySQL.
+
+  Arquitectura (obligatoria):
+  - Un microservicio por responsabilidad.
+  - Base de datos MySQL propia. Ningún servicio accede a la base de otro.
+  - Comunicación entre servicios solo por REST. Las relaciones con datos de otros
+    servicios se guardan por ID, nunca por clave foránea.
+  - Entrega 1: el usuario se identifica con los headers X-User-Id y X-User-Role
+    (JWT recién en la Entrega 2). Cada servicio valida sus propios permisos.
+  - El API Gateway expone solo endpoints públicos.
+
+  Reglas de negocio que atraviesan todo el servicio:
+  - Estados independientes: compra (pendiente/confirmada/fallida), solicitud de
+    devolución (pendiente/aprobada/rechazada), reintegro (pendiente/exitoso/fallido),
+    entrada (vigente/en reintegro/devuelta).
+  - Idempotencia en las operaciones que se pueden reintentar: pago, confirmación de
+    venta, emisión de entradas y reintegros.
+  - No se puede vender dos veces el mismo lugar: usar transacciones, UPDATE condicionales
+    o restricciones únicas en la base.
+  - Ventana de devolución de 72 horas.
+  - Si un evento se cancela, los reintegros son automáticos y no requieren
+    aprobación del administrador.
+  - No se guardan datos reales de tarjetas.
+
+  Contratos con otros servicios: los de Eventos, Reservas y Pagos están acordados y
+  figuran en el design.md del cambio compras-y-pagos; usar exactamente esas rutas y
+  nombres de campos. El de Entradas es una propuesta de ese servicio con detalles por
+  confirmar: implementarlo como provisorio. No inventar endpoints fuera de esos
+  contratos; lo que falte acordar se lista como "contrato a acordar" en el diseño.
+
+  Estructura del código: el microservicio está en la carpeta compras/, con paquete base
+  ticketya (las entidades en ticketya.modelo, los repositorios en ticketya.repositorio).
+
+  Convenciones acordadas con el grupo:
+  - Los IDs de compra y de devolución son UUID. La fila del asiento es un entero (nula en sectores no numerados).
+  - Los errores usan {timestamp, status, error, mensaje, campos?}. El campo "error"
+    lleva un código, por ejemplo COMPRA_NO_ENCONTRADA.
+  - El usuario llega por los encabezados X-User-Id y X-User-Role.
+  - Pagos usa el puerto 8084. Su contrato está acordado pero el servicio todavía no está
+    implementado: implementar contra interfaces y probar con dobles de prueba.
+
+  Escribir todos los artefactos en español.
+
+rules:
+  proposal:
+    - Indicar siempre qué queda fuera de alcance
+    - Indicar de qué servicios externos depende el cambio
+  specs:
+    - Cada requisito usa SHALL y tiene al menos un escenario WHEN/THEN
+    - Incluir escenarios de error y de reintento (idempotencia)
+  design:
+    - Documentar los contratos acordados con otros servicios y listar lo que falte acordar, sin inventar rutas
+    - Explicar cómo se garantiza la atomicidad y la idempotencia
+  tasks:
+    - Tareas chicas, de máximo 2 horas
+    - Incluir tests por cada tarea que implemente reglas de negocio
+
+operations:
+  apply:
+    guidance:
+      - Implementar de a una tarea y marcarla antes de pasar a la siguiente
