@@ -1,6 +1,6 @@
 # Contrato para el API Gateway
 
-La tabla contiene todas las rutas públicas actuales de `GestionLugaresFisicos`. El Gateway debe exponer cada una (marcada **Sí**) y reenviar el path backend sin cambios al servicio. En local, el backend escucha en `http://localhost:8081` por defecto; `PORT` puede sobrescribirlo. El prefijo público del Gateway no está definido en este repositorio.
+La tabla contiene todas las rutas públicas actuales de `mcsv-lugares-sectores-eventos`. El Gateway debe exponer cada una (marcada **Sí**) y reenviar el path backend sin cambios al servicio. En local, el backend escucha en `http://localhost:8081` por defecto; `PORT` puede sobrescribirlo. El prefijo público del Gateway no está definido en este repositorio.
 
 Para las rutas públicas, el Gateway obtiene la identidad del usuario autenticado y propaga `X-User-Id` y `X-User-Role`. El microservicio aplica la autorización final. El Gateway envía los valores `CLIENTE`, `ORGANIZADOR` y `ADMIN`; el servicio compara sin distinguir mayúsculas y recorta espacios externos.
 

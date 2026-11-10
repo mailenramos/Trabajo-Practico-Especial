@@ -11,7 +11,7 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 
 ## Levantar MongoDB y el servicio
 
-Ejecutá estos pasos desde `GestionLugaresFisicos`.
+Ejecutá estos pasos desde `mcsv-lugares-sectores-eventos`.
 
 1. Iniciá MongoDB:
 
@@ -161,7 +161,7 @@ Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). 
 | `EVENTOS_CANCELACION_REENVIO_INTERVAL` | `eventos.cancelacion.reenvio-interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `dev` (perfil predeterminado) |
 
-Ejemplos para configurar variables e iniciar el servicio desde la carpeta `GestionLugaresFisicos`:
+Ejemplos para configurar variables e iniciar el servicio desde la carpeta `mcsv-lugares-sectores-eventos`:
 
 **PowerShell**
 
@@ -233,7 +233,7 @@ Las carpetas de aviso de cancelación se ejecutan en este orden y con estos serv
 
 Las carpetas **09 y 10 son excluyentes**: usan escenarios de cancelación separados. La 11 completa el caso de aviso pendiente creado en la 10.
 
-Para simular Compras, desde `GestionLugaresFisicos` ejecutá en otra terminal:
+Para simular Compras, desde `mcsv-lugares-sectores-eventos` ejecutá en otra terminal:
 
 ```sh
 node postman/compras-stub.js
@@ -252,7 +252,7 @@ Las carpetas **12 a 17 se ejecutan juntas en una sola corrida**, con Reservas en
 
 La carpeta **18 [Reservas APAGADO] Detalle sin disponibilidad** requiere haber corrido la 12 con Reservas encendido y luego apagar Reservas. También se puede reiniciar el simulador sin volver a publicar: en ese caso Reservas responde `404`. El detalle del evento responde `200` y cada sector queda con `disponibilidad: null`.
 
-Para simular Reservas en local, desde la carpeta GestionLugaresFisicos ejecutá en otra terminal:
+Para simular Reservas en local, desde la carpeta mcsv-lugares-sectores-eventos ejecutá en otra terminal:
 
 ```sh
 node postman/reservas-stub.js
@@ -264,7 +264,7 @@ El stub de Compras también ofrece `GET /_stub/avisos` para consultar avisos rec
 
 ## Ejecutar las pruebas automatizadas
 
-Desde `GestionLugaresFisicos`:
+Desde `mcsv-lugares-sectores-eventos`:
 
 ```sh
 mvn clean test
@@ -274,77 +274,8 @@ Las pruebas de integración de MongoDB usan Testcontainers y requieren Docker in
 
 ## Modelo de datos
 
-Los lugares están en la colección `lugares`, con sectores embebidos. Los asientos no se persisten: en sectores numerados se derivan de `filas` × `asientosPorFila` y se identifican como `(sectorId, fila, numero)`.
+El diagrama, los campos, índices, integraciones y decisiones del modelo se describen en [docs/modelo-de-datos.md](docs/modelo-de-datos.md).
 
-Los eventos están en la colección `eventos`. Copian `ciudad` y los datos de cada sector del lugar; precios y `precioMinimo` usan `BigDecimal`/Decimal128. El documento también guarda `motivoCancelacion`, `canceladoEn`, `avisoCancelacionPendiente` y `version`. Los avisos pendientes no tienen colección separada: la marca y los datos de cancelación viven en el documento del evento. En la respuesta JSON, los estados se serializan en minúsculas: `borrador`, `publicado`, `agotado`, `cancelado` y `finalizado`. `ventaSuspendida` es independiente. El límite por cliente es entero y vale `4` por defecto. `fechaHora` es el inicio del evento; al pasarla, el proceso automático intenta finalizarlo.
+## Diseño
 
-MongoDB crea los índices declarados en los documentos: lugares usa `idx_lugares_ciudad_nombre` y `idx_lugares_nombre`; eventos usa `idx_eventos_estado_fecha`, `idx_eventos_estado_ciudad_fecha`, `idx_eventos_organizador_estado`, `organizadorId`, `idx_eventos_tipo`, `idx_eventos_participantes`, el índice de `avisoCancelacionPendiente` y el índice de texto `Evento_TextIndex` sobre nombre, descripción y participantes.
-
-```mermaid
-classDiagram
-    direction LR
-
-    class LugarDocumento {
-        <<document>>
-        String id (ObjectId hexadecimal)
-        String nombre
-        String direccion
-        String ciudad
-        double latitud
-        double longitud
-        List~SectorEmbebido~ sectores
-        Long version
-    }
-
-    class SectorEmbebido {
-        <<embedded>>
-        String id (UUID)
-        String nombre
-        TipoSector tipo
-        Integer filas
-        Integer asientosPorFila
-        Integer capacidad
-    }
-
-    LugarDocumento "1" *-- "0..*" SectorEmbebido : sectores[]
-
-    class EventoDocumento {
-        <<document>>
-        String id (ObjectId hexadecimal)
-        String organizadorId
-        String lugarId
-        String ciudad
-        String nombre
-        String descripcion
-        String tipo
-        List~String~ participantes
-        Instant fechaHora
-        EstadoEvento estado
-        boolean ventaSuspendida
-        int limiteEntradasPorCliente
-        List~SectorEventoEmbebido~ sectores
-        BigDecimal precioMinimo
-        String motivoCancelacion
-        Instant canceladoEn
-        boolean avisoCancelacionPendiente
-        Long version
-    }
-
-    class SectorEventoEmbebido {
-        <<embedded>>
-        String sectorId
-        String nombre
-        TipoSector tipo
-        Integer filas
-        Integer asientosPorFila
-        Integer capacidad
-        BigDecimal precio
-    }
-
-    EventoDocumento "1" *-- "0..*" SectorEventoEmbebido : sectores[]
-    EventoDocumento ..> LugarDocumento : lugarId, referencia por ID
-
-    note for LugarDocumento "Colección MongoDB: lugares. El ID se expone como String hexadecimal."
-    note for SectorEmbebido "id es UUID String. Los asientos no se guardan como documentos."
-    note for EventoDocumento "Colección MongoDB: eventos. Estados JSON: borrador, publicado, agotado, cancelado, finalizado."
-```
+Las responsabilidades, integraciones, secuencias, decisiones de diseño y trazabilidad a OpenSpec/pruebas están en [docs/diseno.md](docs/diseno.md).
