@@ -30,9 +30,9 @@ tags:
     description: Operaciones de cliente publicadas a través del API Gateway.
 paths:
   /disponibilidad/eventos/{eventoId}:
-    parameters:
-      - $ref: '#/components/parameters/EventoId'
     get:
+      parameters:
+        - $ref: '#/components/parameters/EventoIdLookup'
       tags: [Internal - MS1]
       operationId: consultarDisponibilidadEventoParaMs1
       summary: Consultar disponibilidad actual de un evento
@@ -52,13 +52,13 @@ paths:
               example:
                 eventoId: EVT-123
                 sectores:
-                  - sectorId: SEC-01
+                  - sectorId: SEC-GENERAL
                     tipo: NO_NUMERADO
                     capacidadTotal: 500
                     cantidadDisponible: 120
-                  - sectorId: SEC-02
+                  - sectorId: SEC-PLATEA
                     tipo: NUMERADO
-                    capacidadTotal: 100
+                    capacidadTotal: 2
                     cantidadDisponible: 2
                     asientosDisponibles:
                       - fila: 1
@@ -70,6 +70,8 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
     put:
+      parameters:
+        - $ref: '#/components/parameters/EventoIdValidated'
       tags: [Internal - MS1]
       operationId: inicializarDisponibilidadEvento
       summary: Inicializar la disponibilidad de un evento
@@ -114,9 +116,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
   /disponibilidad/eventos/{eventoId}/venta:
-    parameters:
-      - $ref: '#/components/parameters/EventoId'
     put:
+      parameters:
+        - $ref: '#/components/parameters/EventoIdLookup'
       tags: [Internal - MS1]
       operationId: aplicarEstadoVentaDesdeMs1
       summary: Aplicar un estado de venta recibido de MS1
@@ -183,9 +185,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
   /disponibilidad/eventos/{eventoId}/reservas:
-    parameters:
-      - $ref: '#/components/parameters/EventoId'
     post:
+      parameters:
+        - $ref: '#/components/parameters/EventoIdValidated'
       tags: [Public - Gateway]
       operationId: crearReservaTemporal
       summary: Crear una reserva temporal
@@ -216,10 +218,10 @@ paths:
             example:
               solicitudId: SOL-9b8d
               detalles:
-                - sectorId: SEC-02
+                - sectorId: SEC-PLATEA
                   fila: 1
                   numero: 5
-                - sectorId: SEC-01
+                - sectorId: SEC-GENERAL
                   cantidad: 2
       responses:
         '201':
@@ -456,20 +458,32 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 components:
   parameters:
-    EventoId:
+    EventoIdValidated:
       name: eventoId
       in: path
       required: true
       description: >-
         Identificador externo exacto, sin trim ni normalización. Inicialización y
-        creación rechazan blanco y más de 255 unidades UTF-16 (String.length de Java).
-        Consulta y cambio de venta buscan la identidad recibida; no ejecutan esa
-        validación de entrada y pueden responder 404 si no existe.
+        creación rechazan blanco según String.isBlank y más de 255 unidades UTF-16
+        (String.length de Java). maxLength aplica puntos de código según JSON Schema;
+        x-java-max-utf16-length registra el límite UTF-16 de Java.
       schema:
         type: string
         minLength: 1
         maxLength: 255
+        pattern: '[^\u0009-\u000D\u001C-\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]'
         x-java-max-utf16-length: 255
+      example: EVT-123
+    EventoIdLookup:
+      name: eventoId
+      in: path
+      required: true
+      description: >-
+        Identificador externo buscado exactamente tal como se recibe. La consulta
+        de disponibilidad y el cambio de venta no ejecutan el validador de entrada
+        de inicialización/creación; un identificador desconocido devuelve 404.
+      schema:
+        type: string
       example: EVT-123
     ReservaId:
       name: reservaId
@@ -525,7 +539,11 @@ components:
         sectorId:
           type: string
           minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          pattern: '[^\u0009-\u000D\u001C-\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]'
+          description: >-
+            Equivale a @NotBlank de Java (String.isBlank/Character.isWhitespace);
+            los espacios iniciales y finales se conservan si queda al menos un
+            carácter no blanco.
           maxLength: 255
           x-java-max-utf16-length: 255
           example: SEC-PLATEA
@@ -555,7 +573,11 @@ components:
         sectorId:
           type: string
           minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          pattern: '[^\u0009-\u000D\u001C-\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]'
+          description: >-
+            Equivale a @NotBlank de Java (String.isBlank/Character.isWhitespace);
+            los espacios iniciales y finales se conservan si queda al menos un
+            carácter no blanco.
           maxLength: 255
           x-java-max-utf16-length: 255
           example: SEC-GENERAL
@@ -600,9 +622,7 @@ components:
       properties:
         eventoId:
           type: string
-          minLength: 1
           maxLength: 255
-          x-java-max-utf16-length: 255
         sectores:
           type: array
           items:
@@ -616,10 +636,7 @@ components:
       properties:
         sectorId:
           type: string
-          minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
           maxLength: 255
-          x-java-max-utf16-length: 255
         tipo:
           const: NUMERADO
         capacidadTotal:
@@ -644,10 +661,7 @@ components:
       properties:
         sectorId:
           type: string
-          minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
           maxLength: 255
-          x-java-max-utf16-length: 255
         tipo:
           const: NO_NUMERADO
         capacidadTotal:
@@ -706,7 +720,11 @@ components:
         sectorId:
           type: string
           minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          pattern: '[^\u0009-\u000D\u001C-\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]'
+          description: >-
+            Equivale a @NotBlank de Java (String.isBlank/Character.isWhitespace);
+            los espacios iniciales y finales se conservan si queda al menos un
+            carácter no blanco. No se define un máximo DTO en este flujo.
         fila:
           type: integer
           format: int32
@@ -726,7 +744,11 @@ components:
         sectorId:
           type: string
           minLength: 1
-          description: Identificador exacto; no puede estar vacío ni ser blanco según Java. Los espacios iniciales y finales se conservan.
+          pattern: '[^\u0009-\u000D\u001C-\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]'
+          description: >-
+            Equivale a @NotBlank de Java (String.isBlank/Character.isWhitespace);
+            los espacios iniciales y finales se conservan si queda al menos un
+            carácter no blanco. No se define un máximo DTO en este flujo.
         cantidad:
           type: integer
           format: int32

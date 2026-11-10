@@ -408,7 +408,7 @@
                           {
                             "description": "Identificador String del titular propagado por el Gateway.",
                             "key": "X-User-Id",
-                            "value": "CLIENTE-42"
+                            "value": "{{usuarioId}}"
                           },
                           {
                             "key": "Content-Type",
@@ -421,7 +421,7 @@
                         ],
                         "body": {
                           "mode": "raw",
-                          "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                          "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                           "options": {
                             "raw": {
                               "headerFamily": "json",
@@ -448,7 +448,7 @@
                             }
                           ]
                         },
-                        "description": "El cliente crea la reserva a través del Gateway; MS3 no crea reservas. X-User-Id identifica al titular. Se reservan todos los detalles o ninguno. Cada reserva dura exactamente 10 minutos; este plazo es fijo y no configurable. El máximo es fijo en cuatro entradas por cliente y evento. solicitudId se conserva sin cambios en los reintentos. La identidad es (clienteId, solicitudId), sin eventoId en la clave; para comparar contenido se incluyen el eventoId de la URL y el body completo. Un reintento con ambos idénticos mientras la reserva original siga VIGENTE y no haya pasado su instante de expiración devuelve esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido otro eventoId, o una reserva original vencida/liberada, produce 409 y no crea otra reserva. Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id para identificar al titular; no requiere X-User-Role. La autorización corresponde al Gateway."
+                        "description": "El cliente crea la reserva a través del Gateway; MS3 no crea reservas. X-User-Id identifica al titular. Se reservan todos los detalles o ninguno. Cada reserva dura exactamente 10 minutos; este plazo es fijo y no configurable. El máximo es el límite recibido para ese evento durante la inicialización; MS1 envía 4 por defecto. solicitudId se conserva sin cambios en los reintentos. La identidad es (clienteId, solicitudId), sin eventoId en la clave; para comparar contenido se incluyen el eventoId de la URL y el body completo. Un reintento con ambos idénticos mientras la reserva original siga VIGENTE y no haya pasado su instante de expiración devuelve esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido otro eventoId, o una reserva original vencida/liberada, produce 409 y no crea otra reserva. Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id para identificar al titular; no requiere X-User-Role. La autorización corresponde al Gateway."
                       },
                       "response": [
                         {
@@ -472,7 +472,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -533,7 +533,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -594,7 +594,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -655,7 +655,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -716,7 +716,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -777,7 +777,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -838,7 +838,7 @@
                             ],
                             "body": {
                               "mode": "raw",
-                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-02\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-01\",\n      \"cantidad\": 2\n    }\n  ]\n}",
+                              "raw": "{\n  \"solicitudId\": \"SOL-9b8d\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"fila\": 1,\n      \"numero\": 5\n    },\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"cantidad\": 2\n    }\n  ]\n}",
                               "options": {
                                 "raw": {
                                   "headerFamily": "json",
@@ -952,7 +952,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"eventoId\": \"EVT-123\",\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-01\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"cantidadDisponible\": 120\n    },\n    {\n      \"sectorId\": \"SEC-02\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 100,\n      \"cantidadDisponible\": 2,\n      \"asientosDisponibles\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}"
+                      "body": "{\n  \"eventoId\": \"EVT-123\",\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"cantidadDisponible\": 120\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 100,\n      \"cantidadDisponible\": 2,\n      \"asientosDisponibles\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}"
                     },
                     {
                       "name": "No hay disponibilidad local registrada en MS2 para el evento.",
@@ -1080,7 +1080,7 @@
                         }
                       ]
                     },
-                    "description": "MS1 llama directamente a MS2. La inicialización se persiste como una unidad y el éxito solo se informa tras el commit. Un reintento idéntico no duplica ni restablece el inventario; contenido diferente devuelve 409. El límite es fijo: cuatro entradas por cliente para cada evento, no configurable por organizador ni por evento. MS1 siempre envía limiteEntradasPorCliente: 4 y MS2 valida ese valor. El límite no se modifica posteriormente. El evento queda PENDIENTE_PUBLICACION hasta que MS1 envíe ACTIVA."
+                    "description": "MS1 llama directamente a MS2. La inicialización se persiste como una unidad y el éxito solo se informa tras el commit. Un reintento idéntico no duplica ni restablece el inventario; contenido diferente devuelve 409. El límite corresponde a cada evento y lo envía MS1 mediante limiteEntradasPorCliente (4 por defecto); MS2 lo almacena y aplica durante todo el ciclo de vida. El límite no se modifica posteriormente. El evento queda PENDIENTE_PUBLICACION hasta que MS1 envíe ACTIVA."
                   },
                   "response": [
                     {
@@ -2103,7 +2103,7 @@
   ],
   "variable": [
     {
-      "key": "baseUrlMS2",
+      "key": "baseUrl",
       "value": "http://localhost:8080"
     },
     {
@@ -2116,7 +2116,7 @@
     },
     {
       "key": "usuarioId",
-      "value": ""
+      "value": "CLIENTE-42"
     }
   ]
 }

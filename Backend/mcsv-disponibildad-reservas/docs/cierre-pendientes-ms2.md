@@ -21,6 +21,7 @@ Configuración requerida al responsable del Gateway:
 - Publicar únicamente `POST /disponibilidad/eventos/{eventoId}/reservas`, preservando método y path completos hacia MS2. No usar una regla pública general `/disponibilidad/**`.
 - No publicar PUT de inicialización/venta, GET de disponibilidad/reserva, ni POST de confirmación/liberación. Comprobar también rechazo por método, no solamente por prefijo.
 - Obtener la identidad del cliente del contexto autenticado; sustituir un `X-User-Id` aportado por el consumidor en lugar de confiar en él o concatenarlo. MS2 usa ese header, nunca un titular del body.
+- Propagar `X-User-Role` con su valor canónico (`CLIENTE`, `ORGANIZADOR` o `ADMIN`) al endpoint público de MS2 junto con `X-User-Id`. MS2 no consume ni autoriza por `X-User-Role`; el Gateway debe autorizar según su política aprobada y no aceptar identidad/rol falsificados desde el cliente.
 - Conservar los roles canónicos `CLIENTE`, `ORGANIZADOR`, `ADMIN`; no inventar alias. Falta la configuración real de autenticación y la matriz de permisos del Gateway, incluida la eventual actuación de ORGANIZADOR/ADMIN como clientes; no se decide aquí.
 - Las comunicaciones MS1/MS3 → MS2 y MS2 → MS1 permanecen REST/JSON directas, fuera del Gateway. La URL pública del Gateway no está proporcionada.
 
@@ -28,7 +29,7 @@ Pruebas de aceptación pendientes: única ruta/método público; identidad auten
 
 ## Compensaciones — tarea 6.2 abierta
 
-MS3 (`Backend/mcsv-compras-devoluciones/Juan.java`) y MS4 (`Backend/mcvs-pagos/Mati.java`) contienen solamente comentarios. No existe un coordinador de compras/pagos ni contratos ejecutables de compensación que puedan corregirse aquí. MS2 conserva sus operaciones locales idempotentes; no asume pagos, compras, emisión ni invalidación de tickets.
+No existe en este checkout `Backend/mcsv-compras-devoluciones` ni código/contrato verificable de MS3. `Backend/mcvs-pagos/Mati.java` contiene solamente comentarios, sin implementación verificable de MS4. Sí está disponible `Backend/msvc-entradas/openapi-entradas.yaml` (MS5), que describe invalidación/reintegro de entradas, pero no coordina con MS2 ni MS4. MS2 conserva sus operaciones locales idempotentes; no asume pagos, compras, emisión ni invalidación de tickets.
 
 | Escenario | Contrato/responsabilidad existente | Recuperación que puede afirmarse y pendiente |
 |---|---|---|
@@ -37,7 +38,7 @@ MS3 (`Backend/mcsv-compras-devoluciones/Juan.java`) y MS4 (`Backend/mcvs-pagos/M
 | Pago rechazado, falla liberación | PAGO_RECHAZADO libera la reserva temporal completa, nunca una confirmada | Repetir esa operación no duplica efectos; el scheduler es una recuperación eventual adicional. MS3 debe definir/persistir el pendiente y su política de reintento. |
 | Devolución aprobada, falla liberación | Secuencia acordada: MS3 invalida en MS5, libera detalles en MS2, luego solicita reintegro a MS4 | Repetir exactamente el UUID global devolucionId, reserva y detalles devuelve 204; otra reserva/detalles produce 409. Conservar esa identidad y contenido. Falta el mecanismo durable de MS3, manejo de 409/errores definitivos, respuestas perdidas y recuperación entre invalidación, liberación y reintegro. No generar un UUID nuevo por reintento. |
 
-Un timeout no demuestra que una operación no se haya confirmado. No hay autorización para inventar endpoints, motivos de liberación, plazos ni una nueva saga. El Outbox existente de MS2 notifica disponibilidad a MS1; no es un coordinador de compensaciones MS3/MS4/MS5. 6.2 requiere implementación y verificación coordinada de sus responsables.
+Un timeout no demuestra que una operación no se haya confirmado. El contrato MS5 disponible usa idempotencia por entrada/compra; MS2 usa `devolucionId` global y MS4 carece de contrato verificable en este checkout. No se evidencia una clave común de saga ni persistencia durable de compensación entre esos servicios. No se inventan endpoints, motivos de liberación, plazos ni una saga nueva. El Outbox de MS2 notifica disponibilidad a MS1; no coordina compensaciones MS3/MS4/MS5. 6.2 requiere que sus responsables acuerden identidad durable de operación, reintentos/reconciliación ante resultado incierto y secuencia ante fallo parcial, y aporten evidencia de integración.
 
 ## Inventario operativo — tarea 1.1 abierta por entorno
 
@@ -70,12 +71,18 @@ La liberación física ocurre al confirmar la transacción del barrido automáti
 
 Hasta la liberación física, asientos y cantidades continúan ocupados y el contador reservado puede consumir el límite del cliente. La creación de reservas no ejecuta limpieza oportunista. El barrido vuelve a seleccionar reservas vencidas pendientes tras fallos/reinicio; no modifica ventas confirmadas.
 
-El equipo debe decidir si acepta esta recuperación eventual o requiere reutilización inmediata, y definir el plazo operativo aceptable antes de aprobar cambios. No se modifica el intervalo ni se agrega liberación inmediata.
+El equipo debe decidir el máximo aceptable desde `expiraEn` hasta que inventario y límite del cliente vuelvan a estar disponibles, considerando barrido de 60000 ms, tamaño del lote, errores y períodos sin servicio. Si ese plazo excede lo aceptado, debe elegir el comportamiento funcional requerido antes de modificar implementación. No se modifica el intervalo ni se agrega liberación inmediata.
 
-## Evidencia de esta ejecución
+## Evidencia de la ejecución de pruebas anterior
 
-Compilación Maven correcta. Suite completa: **242 pruebas aprobadas, 0 fallidas, 0 errores, 0 omitidas**, incluyendo las 49 MySQL antiguas (5 de migración, 43 de concurrencia y 1 de backfill) y las 13 de R2 en MySQL. Se usó una instancia nueva MySQL **8.4.13**, sin volúmenes preexistentes, con puerto efímero diferente de 3307; el contenedor y su volumen temporal se eliminaron al finalizar. Los informes detallados están en `target/surefire-reports/` y son artefactos de ejecución, no evidencia de despliegue persistente ni de integración real con Gateway/MS3/MS4.
+Compilación Maven correcta. Suite combinada: **242 pruebas aprobadas** (180 en la suite habitual, 49 MySQL de migraciones/concurrencia/backfill y 13 MySQL de R2), sin fallos ni errores. La ejecución habitual reportó además 56 pruebas omitidas por ser suites MySQL opt-in, que se ejecutaron por separado. Incluye las 49 MySQL antiguas (5 de migración, 43 de concurrencia y 1 de backfill) y las 13 de R2 en MySQL. Se usó una instancia nueva MySQL **8.4.13**, sin volúmenes preexistentes, con puerto efímero diferente de 3307; el contenedor y su volumen temporal se eliminaron al finalizar. Los informes detallados están en `target/surefire-reports/` y son artefactos de ejecución, no evidencia de despliegue persistente ni de integración real con Gateway/MS3/MS4.
 
 OpenSpec: validación estricta de `implementar-ms2-disponibilidad-reservas` aprobada. Las pruebas verifican las implementaciones y contratos locales disponibles; no existe una suite de contratos ejecutables del Gateway o de compensaciones entre los servicios ausentes.
 
 OpenAPI 3.1 validado con Redocly CLI (perfil minimal), sin errores y con 8 advertencias: servidor localhost y ausencia de declaraciones security en las siete operaciones. No se inventó una URL productiva ni un esquema de autenticación para silenciarlas. Se verificaron además 12 casos JSON Schema de variantes de reserva/devolución (válidos, null de otra variante e incompletos) con Ajv 2020, todos con el resultado esperado. `git diff --check` sin errores.
+
+## Segunda revisión técnica — 2026-11-09
+
+Esta revisión fue documental/estática; no repitió pruebas ni consultó bases de datos. En `docs/openapi/ms2.yaml` se corrigió el alcance del parámetro `eventoId` para distinguir entradas validadas de búsquedas exactas, se reflejó `@NotBlank` en los `sectorId` de entrada y se retiraron restricciones de no-blanco que no estaban garantizadas para datos históricos de respuesta. La validación Java y las rutas no cambiaron.
+
+Las cifras 198 y 201 de `planificacion-tecnica-ms2.md` son resultados históricos fechados; el resumen consolidado de 242 ejecuciones de pruebas previa se aclaró para separar las 180 pruebas habituales de las 62 ejecuciones MySQL opt-in y las 56 omisiones de la invocación habitual. Esas cifras no describen una ejecución de esta revisión.
