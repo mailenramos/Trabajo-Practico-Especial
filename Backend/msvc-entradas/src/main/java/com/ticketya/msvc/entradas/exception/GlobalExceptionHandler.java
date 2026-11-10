@@ -15,8 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -100,7 +99,7 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponseDTO> error(HttpStatus estado, String codigo,
                                                    String mensaje, Map<String, String> campos) {
         return ResponseEntity.status(estado).body(new ErrorResponseDTO(
-                LocalDateTime.now(ZoneOffset.UTC),
+                Instant.now(),
                 estado.value(),
                 codigo,
                 mensaje,

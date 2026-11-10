@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /** Copia mínima y de solo lectura de datos del evento (propiedad del servicio de eventos). */
 @Entity
@@ -24,5 +24,5 @@ public class CopiaEvento {
     private String nombre;
 
     @Column(name = "comienza_en", nullable = false)
-    private LocalDateTime comienzaEn;
+    private Instant comienzaEn;
 }
