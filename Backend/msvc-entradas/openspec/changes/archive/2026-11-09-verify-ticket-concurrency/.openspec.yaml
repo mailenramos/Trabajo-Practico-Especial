@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-09
+goal: Verificar con PostgreSQL real la exclusión de asientos numerados vigentes
+  en solicitudes concurrentes

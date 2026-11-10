@@ -37,6 +37,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -63,7 +64,7 @@ class EntradaServiceImplTest {
     private static final String ID_EVENTO = "evento-1";
     private static final String ID_SECTOR = "sector-1";
     private static final String ID_CLIENTE = "cliente-1";
-    private static final LocalDateTime COMIENZA_EN = LocalDateTime.of(2026, 12, 15, 21, 0);
+    private static final Instant COMIENZA_EN = Instant.parse("2026-12-15T21:00:00Z");
 
     @Mock
     private EntradaRepository entradaRepository;

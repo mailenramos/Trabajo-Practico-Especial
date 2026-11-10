@@ -84,6 +84,7 @@ Cada lugar contiene:
 - `numero`: número de asiento, cuando corresponde.
 
 Los identificadores de eventos y sectores son cadenas de texto porque pertenecen al modelo de datos del microservicio de Eventos.
+`comienzaEn` representa un instante, compatible con `Instant` de MS3; se envía y devuelve como fecha ISO-8601 con zona u offset, por ejemplo `2026-12-15T21:00:00Z`.
 
 ### Ejemplo de petición
 
@@ -94,7 +95,7 @@ Los identificadores de eventos y sectores son cadenas de texto porque pertenecen
   "evento": {
     "id": "evento-prueba-01",
     "nombre": "Recital de prueba",
-    "comienzaEn": "2026-12-15T21:00:00"
+    "comienzaEn": "2026-12-15T21:00:00Z"
   },
   "lugares": [
     {

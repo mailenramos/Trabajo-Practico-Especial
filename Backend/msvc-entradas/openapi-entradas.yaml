@@ -84,15 +84,15 @@ paths:
                 value:
                   idCompra: 7c1e5b0a-3f4d-4a8e-9c21-0d5e6f7a8b90
                   idCliente: cliente-123
-                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00'}
+                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00Z'}
                   lugares:
-                    - {idSector: platea-a, nombreSector: Platea A, fila: A, numero: 10}
-                    - {idSector: platea-a, nombreSector: Platea A, fila: A, numero: 11}
+                    - {idSector: platea-a, nombreSector: Platea A, fila: 1, numero: 10}
+                    - {idSector: platea-a, nombreSector: Platea A, fila: 1, numero: 11}
               sectorNoNumerado:
                 value:
                   idCompra: 8d2f6c1b-4a5e-4b9f-8d32-1e6f7a8b9c01
                   idCliente: cliente-123
-                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00'}
+                  evento: {id: evento-rock-2026, nombre: Recital Rock Nacional, comienzaEn: '2026-12-12T21:00:00Z'}
                   lugares:
                     - {idSector: campo, nombreSector: Campo, fila: null, numero: null}
                     - {idSector: campo, nombreSector: Campo, fila: null, numero: null}
@@ -203,10 +203,9 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
           example:
-            timestamp: '2026-11-08T14:30:00'
+            timestamp: '2026-11-08T14:30:00Z'
             status: 400
-            error: Bad Request
-            codigo: VALIDACION
+            error: VALIDACION
             mensaje: Datos inválidos
             campos: {'lugares[0].idSector': no debe estar vacío}
     NoIdentificado:
@@ -214,25 +213,25 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
-          example: {timestamp: '2026-11-08T14:30:00', status: 401, error: Unauthorized, codigo: FALTA_IDENTIFICACION, mensaje: Falta el encabezado X-User-Id}
+          example: {timestamp: '2026-11-08T14:30:00Z', status: 401, error: FALTA_IDENTIFICACION, mensaje: Falta el encabezado X-User-Id}
     AccesoDenegado:
       description: El usuario no es el titular de la entrada.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
-          example: {timestamp: '2026-11-08T14:30:00', status: 403, error: Forbidden, codigo: ACCESO_DENEGADO, mensaje: La entrada no pertenece al usuario}
+          example: {timestamp: '2026-11-08T14:30:00Z', status: 403, error: ACCESO_DENEGADO, mensaje: La entrada no pertenece al usuario}
     EntradaNoEncontrada:
       description: No existe una entrada con ese identificador.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
-          example: {timestamp: '2026-11-08T14:30:00', status: 404, error: Not Found, codigo: ENTRADA_NO_ENCONTRADA, mensaje: No existe la entrada indicada}
+          example: {timestamp: '2026-11-08T14:30:00Z', status: 404, error: ENTRADA_NO_ENCONTRADA, mensaje: No existe la entrada indicada}
     TransicionInvalida:
       description: La entrada no está en un estado que permita la operación.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
-          example: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: TRANSICION_INVALIDA, mensaje: La entrada no puede pasar al estado solicitado desde su estado actual}
+          example: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: TRANSICION_INVALIDA, mensaje: La entrada no puede pasar al estado solicitado desde su estado actual}
     ConflictoEmision:
       description: La compra fue procesada con datos distintos o algún lugar ya tiene una entrada vigente.
       content:
@@ -240,9 +239,9 @@ components:
           schema: {$ref: '#/components/schemas/Error'}
           examples:
             idempotenciaConflicto:
-              value: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: IDEMPOTENCIA_CONFLICTO, mensaje: La compra ya fue procesada con datos diferentes}
+              value: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: IDEMPOTENCIA_CONFLICTO, mensaje: La compra ya fue procesada con datos diferentes}
             lugarDuplicado:
-              value: {timestamp: '2026-11-08T14:30:00', status: 409, error: Conflict, codigo: ENTRADA_VIGENTE_DUPLICADA, mensaje: Ya existe una entrada vigente para alguno de los lugares indicados}
+              value: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: ENTRADA_VIGENTE_DUPLICADA, mensaje: Ya existe una entrada vigente para alguno de los lugares indicados}
 
   schemas:
     EstadoEntrada:
@@ -255,7 +254,7 @@ components:
       properties:
         id: {type: string, description: Identificador textual del evento, example: evento-rock-2026}
         nombre: {type: string, example: Recital Rock Nacional}
-        comienzaEn: {type: string, format: date-time, example: '2026-12-12T21:00:00'}
+        comienzaEn: {type: string, format: date-time, description: Instante ISO-8601 con zona u offset., example: '2026-12-12T21:00:00Z'}
     SectorResumen:
       type: object
       required: [id, nombre]
@@ -271,7 +270,7 @@ components:
         estado: {$ref: '#/components/schemas/EstadoEntrada'}
         evento: {$ref: '#/components/schemas/EventoResumen'}
         sector: {$ref: '#/components/schemas/SectorResumen'}
-        fila: {type: string, nullable: true, description: Nula en sectores no numerados.}
+        fila: {type: integer, nullable: true, description: Nula en sectores no numerados.}
         numero: {type: integer, nullable: true, description: Nulo en sectores no numerados.}
         idCompra: {type: string, format: uuid}
         idCliente: {type: string, description: Identificador textual del cliente, example: cliente-123}
@@ -290,7 +289,7 @@ components:
       properties:
         idSector: {type: string, description: Identificador textual del sector, example: platea-a}
         nombreSector: {type: string, example: Platea A}
-        fila: {type: string, nullable: true, description: Obligatoria si se informa numero.}
+        fila: {type: integer, nullable: true, description: Obligatoria si se informa numero.}
         numero: {type: integer, nullable: true, description: Nulo en sectores no numerados.}
     EmisionRequest:
       type: object
@@ -306,7 +305,7 @@ components:
       properties:
         idEntrada: {type: string, format: uuid}
         idSector: {type: string, description: Identificador textual del sector.}
-        fila: {type: string, nullable: true}
+        fila: {type: integer, nullable: true}
         numero: {type: integer, nullable: true}
         codigoQr: {type: string, format: uuid}
         estado: {$ref: '#/components/schemas/EstadoEntrada'}
@@ -324,12 +323,11 @@ components:
         entradasMarcadas: {type: integer, description: Cantidad de entradas que pasaron a EN_REINTEGRO.}
     Error:
       type: object
-      required: [timestamp, status, error, codigo, mensaje]
+      required: [timestamp, status, error, mensaje]
       properties:
         timestamp: {type: string, format: date-time, description: Momento UTC en que se generó el error.}
         status: {type: integer, description: Código HTTP, example: 404}
-        error: {type: string, description: Texto estándar asociado al estado HTTP, example: Not Found}
-        codigo: {type: string, description: Código estable para consumidores programáticos, example: ENTRADA_NO_ENCONTRADA}
+        error: {type: string, description: Código estable del error, example: ENTRADA_NO_ENCONTRADA}
         mensaje: {type: string, example: No existe la entrada indicada}
         campos:
           type: object

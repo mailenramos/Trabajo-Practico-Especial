@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public interface CopiaEventoRepository extends JpaRepository<CopiaEvento, String> {
 
@@ -17,5 +17,5 @@ public interface CopiaEventoRepository extends JpaRepository<CopiaEvento, String
             nativeQuery = true)
     void insertarSiNoExiste(@Param("id") String id,
                             @Param("nombre") String nombre,
-                            @Param("comienzaEn") LocalDateTime comienzaEn);
+                            @Param("comienzaEn") Instant comienzaEn);
 }
