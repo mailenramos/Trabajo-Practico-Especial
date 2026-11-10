@@ -120,7 +120,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/publicar")
-    @Operation(summary = "Publicar evento e inicializar disponibilidad en Reservas", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
+    @Operation(summary = "Publicar evento e inicializar su disponibilidad y venta en Reservas", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento publicado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),

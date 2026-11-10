@@ -1,0 +1,130 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: ticketya-api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: ms1-lugares-lista
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/lugares
+                - Method=GET,POST
+            - id: ms1-lugar-detalle
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/lugares/{id}
+                - Method=GET
+            - id: ms1-lugar-sectores
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/lugares/{id}/sectores
+                - Method=GET,POST
+            - id: ms1-eventos-lista
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos
+                - Method=GET,POST
+            - id: ms1-evento-detalle
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}
+                - Method=GET
+            - id: ms1-evento-precio-sector
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/sectores/{sectorId}/precio
+                - Method=PUT
+            - id: ms1-evento-limite-cliente
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/limite-entradas-por-cliente
+                - Method=PUT
+            - id: ms1-evento-publicar
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/publicar
+                - Method=PUT
+            - id: ms1-evento-suspender
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/venta/suspender
+                - Method=PUT
+            - id: ms1-evento-reactivar
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/venta/reactivar
+                - Method=PUT
+            - id: ms1-evento-cancelar
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/cancelar
+                - Method=PUT
+            - id: ms2-crear-reserva
+              uri: ${gateway.services.ms2-url:${MS2_URL:http://localhost:8080}}
+              predicates:
+                - Path=/disponibilidad/eventos/{eventoId}/reservas
+                - Method=POST
+            - id: ms3-compras-lista
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/compras
+                - Method=GET,POST
+            - id: ms3-compra-detalle
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/compras/{compraId}
+                - Method=GET
+            - id: ms3-compra-pago
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/compras/{compraId}/pago
+                - Method=POST
+            - id: ms3-devoluciones-lista
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/devoluciones
+                - Method=GET,POST
+            - id: ms3-devolucion-detalle
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/devoluciones/{devolucionId}
+                - Method=GET
+            - id: ms3-devolucion-aprobar
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/devoluciones/{devolucionId}/aprobacion
+                - Method=POST
+            - id: ms3-devolucion-rechazar
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/devoluciones/{devolucionId}/rechazo
+                - Method=POST
+            - id: ms3-reintegros-lista
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/reintegros
+                - Method=GET
+            - id: ms3-reintegro-reintentar
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/reintegros/{reintegroId}/reintento
+                - Method=POST
+            - id: ms5-entradas-lista
+              uri: ${gateway.services.ms5-url:${MS5_URL:http://localhost:8085}}
+              predicates:
+                - Path=/entradas
+                - Method=GET
+            - id: ms5-entrada-detalle
+              uri: ${gateway.services.ms5-url:${MS5_URL:http://localhost:8085}}
+              predicates:
+                - Path=/entradas/{id}
+                - Method=GET
+
+gateway:
+  cors:
+    allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173}

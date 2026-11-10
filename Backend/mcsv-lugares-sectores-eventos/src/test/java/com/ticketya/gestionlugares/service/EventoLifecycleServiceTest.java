@@ -53,7 +53,7 @@ class EventoLifecycleServiceTest {
     }
 
     @Test
-    void publicaSoloDespuesDeInicializarYDerivaAsientosSinPersistirlos() {
+    void publicaSoloDespuesDeInicializarYActivarVentasEnReservas() {
         Evento draft = draft();
         Evento published = draft();
         published.setEstado(EstadoEvento.PUBLICADO);
@@ -74,7 +74,21 @@ class EventoLifecycleServiceTest {
         assertEquals(List.of(), request.getValue().sectores().get(1).asientos());
         InOrder order = inOrder(reservasClient, eventoService);
         order.verify(reservasClient).inicializarDisponibilidad(any(), any());
+        order.verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
         order.verify(eventoService).confirmarPublicacion(EVENTO_ID, USER_ID, "organizador");
+    }
+
+    @Test
+    void fallaLaPublicacionSiNoPuedeActivarVentasEnReservas() {
+        Evento draft = draft();
+        when(eventoService.validarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(draft);
+        org.mockito.Mockito.doThrow(new ReservasClientException("HTTP 503"))
+                .when(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
+
+        assertThrows(ServiceUnavailableException.class,
+                () -> lifecycleService.publicar(EVENTO_ID, USER_ID, "organizador"));
+        assertEquals(EstadoEvento.BORRADOR, draft.getEstado());
+        verify(eventoService, never()).confirmarPublicacion(any(), any(), any());
     }
 
     @Test
