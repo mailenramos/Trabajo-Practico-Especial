@@ -1,0 +1,753 @@
+{
+  "info": {
+    "_postman_id": "438f6a0a-28d0-4b54-a157-97bd1379f21e",
+    "name": "TicketYa Pagos - Verificacion run2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8084" },
+    { "key": "paymentId", "value": "" },
+    { "key": "refundId", "value": "" },
+    { "key": "rejectedPaymentId", "value": "" },
+    { "key": "failedRefundId", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Transversal: no responde 500', function () { pm.expect(pm.response.code).to.not.eql(500); });",
+          "pm.test('Transversal: no expone datos de tarjeta', function () { pm.expect(pm.response.text()).to.not.match(/\\\"?(cardNumber|card|pan|cvv|cvc)\\\"?\\s*:/i); });",
+          "pm.test('Transversal: errores con formato ApiError', function () { if (pm.response.code >= 400) { const body = pm.response.json(); pm.expect(body).to.have.property('timestamp'); pm.expect(body.status).to.eql(pm.response.code); pm.expect(body.error).to.be.a('string'); pm.expect(body.mensaje).to.be.a('string'); } });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "A1 Crear pago",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "K1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1\",\n  \"amount\": 1500.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A1 status 201 y pago aprobado', function () { pm.response.to.have.status(201); const body = pm.response.json(); pm.expect(body.status).to.eql('APROBADO'); pm.expect(body.purchaseId).to.eql('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'); pm.expect(body.amount).to.eql(1500); pm.expect(body.paymentMethod).to.eql('CREDIT_CARD'); pm.expect(body.id).to.be.a('string'); pm.collectionVariables.set('paymentId', body.id); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A2 Consultar pago creado",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/pagos/{{paymentId}}" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A2 status 200 y mismos datos de A1', function () { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.id).to.eql(pm.collectionVariables.get('paymentId')); pm.expect(body.purchaseId).to.eql('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'); pm.expect(body.amount).to.eql(1500); pm.expect(body.paymentMethod).to.eql('CREDIT_CARD'); pm.expect(body.status).to.eql('APROBADO'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A3 Listar pagos por compra",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/pagos/compra/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A3 status 200 y contiene el pago A1', function () { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body).to.be.an('array'); pm.expect(body.some(function (p) { return p.id === pm.collectionVariables.get('paymentId') && p.status === 'APROBADO'; })).to.eql(true); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A4 Repetir pago idéntico",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "K1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1\",\n  \"amount\": 1500.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A4 idempotencia devuelve el mismo pago', function () { pm.expect([200, 201]).to.include(pm.response.code); const body = pm.response.json(); pm.expect(body.id).to.eql(pm.collectionVariables.get('paymentId')); pm.expect(body.amount).to.eql(1500); pm.expect(body.status).to.eql('APROBADO'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A5 Reusar clave de pago con otro amount",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "K1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1\",\n  \"amount\": 2000.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A5 conflicto 4xx con ApiError', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A5 Verificar pago original sin cambios",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/pagos/{{paymentId}}" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A5 pago original conserva id, amount y estado', function () { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.id).to.eql(pm.collectionVariables.get('paymentId')); pm.expect(body.amount).to.eql(1500); pm.expect(body.status).to.eql('APROBADO'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A6 Compra ya aprobada con clave nueva",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1\",\n  \"amount\": 1500.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A6 pago aprobado duplicado devuelve 4xx', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A7 Crear pago sin Idempotency-Key",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"purchaseId\": \"{{$guid}}\",\n  \"amount\": 50.00,\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A7 sin header devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A8a amount cero",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":0,\"paymentMethod\":\"CREDIT_CARD\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A8a amount 0 devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A8b amount negativo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":-10,\"paymentMethod\":\"CREDIT_CARD\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A8b amount -10 devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A8c amount con tres decimales",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":10.555,\"paymentMethod\":\"CREDIT_CARD\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A8c amount 10.555 devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A9a paymentMethod BITCOIN",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":10,\"paymentMethod\":\"BITCOIN\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A9a BITCOIN devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A9b paymentMethod ausente",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":10}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A9b paymentMethod ausente devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A10 purchaseId inválido",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"purchaseId\":\"abc\",\"amount\":10,\"paymentMethod\":\"CREDIT_CARD\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A10 purchaseId inválido devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A11a Consultar UUID inexistente",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/pagos/99999999-9999-4999-8999-999999999999" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A11a UUID inexistente devuelve 404', function () { pm.response.to.have.status(404); pm.expect(pm.response.json().status).to.eql(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A11b Consultar ID no UUID",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/pagos/1" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A11b ID no UUID devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "A11c DELETE no permitido",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/internal/pagos/{{paymentId}}" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('A11c DELETE devuelve 405', function () { pm.response.to.have.status(405); pm.expect(pm.response.json().status).to.eql(405); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B1 Crear reintegro 500",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777771\",\n  \"amount\": 500.00,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('B1 status 201, EXITOSO, intento 1', function () { pm.response.to.have.status(201); const body = pm.response.json(); pm.expect(body.status).to.eql('EXITOSO'); pm.expect(body.attemptCount).to.eql(1); pm.expect(body.amount).to.eql(500); pm.expect(body.paymentId).to.eql(pm.collectionVariables.get('paymentId')); pm.collectionVariables.set('refundId', body.id); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B2 Repetir reintegro idéntico",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777771\",\n  \"amount\": 500.00,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('B2 idempotencia devuelve el mismo reintegro', function () { pm.expect([200, 201]).to.include(pm.response.code); const body = pm.response.json(); pm.expect(body.id).to.eql(pm.collectionVariables.get('refundId')); pm.expect(body.status).to.eql('EXITOSO'); pm.expect(body.amount).to.eql(500); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B3 Reusar R1 con amount distinto",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R1-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777771\",\n  \"amount\": 300.00,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B3 clave repetida con otro payload devuelve 4xx', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B4 Reintegro excede saldo disponible",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R2-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777772\",\n  \"amount\": 1100.00,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B4 reintegro que supera saldo devuelve 4xx', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B5 Reintegrar saldo restante",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R3-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777773\",\n  \"amount\": 1000.00,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B5 se reintegra saldo restante por 1000', function () { pm.expect([200, 201]).to.include(pm.response.code); const body = pm.response.json(); pm.expect(body.status).to.eql('EXITOSO'); pm.expect(body.amount).to.eql(1000); pm.expect(body.attemptCount).to.eql(1); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B6 Intentar reintegro tras completar saldo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "R4-run2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refundRequestId\": \"77777777-7777-4777-8777-777777777774\",\n  \"amount\": 0.01,\n  \"reason\": \"Prueba run2\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B6 saldo completo impide reintegro adicional', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B7a Reintegro con amount cero",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"refundRequestId\":\"{{$guid}}\",\"amount\":0,\"reason\":\"Prueba\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B7a amount 0 devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B7b Reintegro con amount negativo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"refundRequestId\":\"{{$guid}}\",\"amount\":-1,\"reason\":\"Prueba\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos/{{paymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B7b amount negativo devuelve 400', function () { pm.response.to.have.status(400); pm.expect(pm.response.json().status).to.eql(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B8 Reintegro sobre pago inexistente",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"refundRequestId\":\"{{$guid}}\",\"amount\":10,\"reason\":\"Prueba\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{baseUrl}}/internal/pagos/99999999-9999-4999-8999-999999999999/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B8 pago inexistente devuelve 404', function () { pm.response.to.have.status(404); pm.expect(pm.response.json().status).to.eql(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B9a Crear pago rechazado",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":100,\"paymentMethod\":\"CREDIT_CARD\"}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B9a pago de prueba queda RECHAZADO', function () { pm.response.to.have.status(201); const body = pm.response.json(); pm.expect(body.status).to.eql('RECHAZADO'); pm.collectionVariables.set('rejectedPaymentId', body.id); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B9b Reintegro sobre pago rechazado",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refundRequestId\":\"{{$guid}}\",\"amount\":10,\"reason\":\"Prueba\"}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{rejectedPaymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B9b pago rechazado no admite reintegro', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B12a Crear pago para reintegro fallido",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"purchaseId\":\"{{$guid}}\",\"amount\":100,\"paymentMethod\":\"CREDIT_CARD\"}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B12a pago base aprobado', function () { pm.response.to.have.status(201); const body = pm.response.json(); pm.expect(body.status).to.eql('APROBADO'); pm.collectionVariables.set('failurePaymentId', body.id); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B12b Crear reintegro fallido",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{$guid}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refundRequestId\":\"{{$guid}}\",\"amount\":50,\"reason\":\"Prueba retry\"}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/internal/pagos/{{failurePaymentId}}/reintegros"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B12b reintegro queda FALLIDO con intento 1', function () { pm.response.to.have.status(201); const body = pm.response.json(); pm.expect(body.status).to.eql('FALLIDO'); pm.expect(body.attemptCount).to.eql(1); pm.collectionVariables.set('failedRefundId', body.id); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B12c Retry exitoso del reintegro fallido",
+      "request": { "method": "POST", "url": "{{baseUrl}}/internal/reintegros/{{failedRefundId}}/reintentar" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B12c retry pasa a EXITOSO con intento 2', function () { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.status).to.eql('EXITOSO'); pm.expect(body.attemptCount).to.eql(2); pm.expect(body.id).to.eql(pm.variables.get('failedRefundId')); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B12d Segundo retry ya no permitido",
+      "request": { "method": "POST", "url": "{{baseUrl}}/internal/reintegros/{{failedRefundId}}/reintentar" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B12d segundo retry devuelve 4xx', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B10a Consultar reintegro existente",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/reintegros/{{refundId}}" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B10a reintegro existente devuelve 200', function () { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.id).to.eql(pm.collectionVariables.get('refundId')); pm.expect(body.status).to.eql('EXITOSO'); pm.expect(body.attemptCount).to.eql(1); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B10b Consultar reintegro inexistente",
+      "request": { "method": "GET", "url": "{{baseUrl}}/internal/reintegros/99999999-9999-4999-8999-999999999999" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B10b reintegro inexistente devuelve 404', function () { pm.response.to.have.status(404); pm.expect(pm.response.json().status).to.eql(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "B11 Retry sobre reintegro exitoso",
+      "request": { "method": "POST", "url": "{{baseUrl}}/internal/reintegros/{{refundId}}/reintentar" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('B11 retry de EXITOSO devuelve 4xx', function () { pm.expect(pm.response.code).to.be.within(400, 499); pm.expect(pm.response.json().status).to.eql(pm.response.code); });"]
+          }
+        }
+      ]
+    }
+  ]
+}
