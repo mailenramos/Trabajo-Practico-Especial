@@ -5,7 +5,7 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 ## Requisitos
 
 - JDK 21 o superior.
-- Maven 3.9 o superior.
+- No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez (se necesita Internet).
 - Docker Desktop con Docker Compose para MongoDB y las pruebas de integración.
 - Node.js (opcional, para simular Reservas o Compras desde Postman).
 
@@ -15,27 +15,29 @@ Ejecutá estos pasos desde `mcsv-lugares-sectores-eventos`.
 
 1. Iniciá MongoDB:
 
-   ```sh
+   ```powershell
    docker compose up -d mongodb
    ```
 
    MongoDB queda disponible en `localhost:27017`; Compose conserva los datos en `mongodb_data`.
 
-2. Iniciá el servicio:
+2. Iniciá primero MS2 - Disponibilidad y Reservas en `http://localhost:8080`. El perfil `dev` sincroniza los inventarios de los eventos publicados de ejemplo al arrancar MS1; si MS2 no está disponible, MS1 informa el error y no termina de iniciar.
 
-   ```sh
-   mvn spring-boot:run
+3. Iniciá el servicio:
+
+   ```powershell
+   .\mvnw.cmd spring-boot:run
    ```
 
    Por defecto, MongoDB usa `mongodb://localhost:27017/ticketya_lugares` y el servicio escucha en `http://localhost:8081`. El perfil predeterminado es `dev` y carga datos de ejemplo.
 
-3. Consultá lugares con headers de identidad:
+4. Consultá lugares con headers de identidad:
 
    ```sh
    curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Role: ORGANIZADOR" http://localhost:8081/lugares
    ```
 
-4. La documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
+5. La documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
 
 Para detener MongoDB sin borrar sus datos:
 
@@ -120,7 +122,7 @@ Ejemplo de respuesta paginada:
 {"contenido":[{"id":"672a1f77bcf86cd799439011","nombre":"Festival Central","tipo":"MUSICA","participantes":["Artista A"],"fechaHora":"2027-05-16T00:00:00Z","ciudad":"Buenos Aires","estado":"publicado","ventaSuspendida":false,"precioMinimo":15000.00}],"pagina":0,"tamano":20,"totalElementos":1,"totalPaginas":1}
 ```
 
-En `GET /eventos/{eventoId}`, un borrador solo es visible para el `ORGANIZADOR` dueño (mismo `X-User-Id`) y `ADMIN`; para otros roles responde `404`. Los demás estados se pueden consultar con cualquiera de los tres roles. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
+En `GET /eventos/{eventoId}`, un borrador solo es visible para el `ORGANIZADOR` dueño (mismo `X-User-Id`) y `ADMIN`; para otros roles responde `404`. Los demás estados se pueden consultar con cualquiera de los tres roles. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal` y `cantidadDisponible`. Para sectores numerados, `asientosDisponibles` contiene solo pares libres `{fila, numero, estado}`, mientras que `asientos` muestra todos los lugares y su estado (`LIBRE`, `RESERVADO` o `VENDIDO`), sin datos de quién hizo la reserva. Las reservas temporales duran 10 minutos; la consulta de disponibilidad expira las vencidas antes de responder, por lo que vuelven a ofrecerse. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
 
 Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
@@ -195,7 +197,7 @@ $env:COMPRAS_READ_TIMEOUT = "5s"
 $env:EVENTOS_FINALIZACION_INTERVAL = "60s"
 $env:EVENTOS_CANCELACION_REENVIO_INTERVAL = "60s"
 $env:SPRING_PROFILES_ACTIVE = "dev"
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 **cmd**
@@ -212,7 +214,7 @@ set COMPRAS_READ_TIMEOUT=5s
 set EVENTOS_FINALIZACION_INTERVAL=60s
 set EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
 set SPRING_PROFILES_ACTIVE=dev
-mvn spring-boot:run
+mvnw.cmd spring-boot:run
 ```
 
 **Git Bash**
@@ -229,7 +231,7 @@ export COMPRAS_READ_TIMEOUT=5s
 export EVENTOS_FINALIZACION_INTERVAL=60s
 export EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
 export SPRING_PROFILES_ACTIVE=dev
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 ## Pruebas con Postman
@@ -285,7 +287,7 @@ El stub de Compras también ofrece `GET /_stub/avisos` para consultar avisos rec
 Desde `mcsv-lugares-sectores-eventos`:
 
 ```sh
-mvn clean test
+.\mvnw.cmd clean test
 ```
 
 Las pruebas de integración de MongoDB usan Testcontainers y requieren Docker iniciado.

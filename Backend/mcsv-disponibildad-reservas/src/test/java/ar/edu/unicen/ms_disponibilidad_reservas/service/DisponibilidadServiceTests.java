@@ -137,7 +137,7 @@ class DisponibilidadServiceTests {
     }
 
     @Test
-    void eventAvailabilityReturnsMultipleSectorTypesAndOnlyFreeNumberedSeats() throws Exception {
+    void eventAvailabilityReturnsAllNumberedSeatStatesAndCountsOnlyFreeSeats() throws Exception {
         saveSector("evento-1", "sector-n1", TipoSector.NUMERADO, 3, 0, 0);
         saveSector("evento-1", "sector-n2", TipoSector.NUMERADO, 1, 0, 0);
         saveSector("evento-1", "sector-g", TipoSector.NO_NUMERADO, 10, 3, 2);
@@ -163,16 +163,22 @@ class DisponibilidadServiceTests {
         assertEquals(1, numberedWithFreeSeat.asientosDisponibles().size());
         assertEquals(1, numberedWithFreeSeat.asientosDisponibles().getFirst().fila());
         assertEquals(1, numberedWithFreeSeat.asientosDisponibles().getFirst().numero());
+        assertEquals(3, numberedWithFreeSeat.asientos().size());
+        assertEquals(List.of(EstadoAsiento.LIBRE, EstadoAsiento.RESERVADO, EstadoAsiento.VENDIDO),
+                numberedWithFreeSeat.asientos().stream().map(asiento -> asiento.estado()).toList());
 
         SectorDisponibilidadResponse numberedWithoutFreeSeats = sectorResponse(response, "sector-n2");
         assertEquals(0, numberedWithoutFreeSeats.cantidadDisponible());
         assertTrue(numberedWithoutFreeSeats.asientosDisponibles().isEmpty());
+        assertEquals(1, numberedWithoutFreeSeats.asientos().size());
+        assertEquals(EstadoAsiento.RESERVADO, numberedWithoutFreeSeats.asientos().getFirst().estado());
 
         SectorDisponibilidadResponse nonNumbered = sectorResponse(response, "sector-g");
         assertEquals(TipoSector.NO_NUMERADO, nonNumbered.tipo());
         assertEquals(10, nonNumbered.capacidadTotal());
         assertEquals(5, nonNumbered.cantidadDisponible());
         assertNull(nonNumbered.asientosDisponibles());
+        assertNull(nonNumbered.asientos());
 
     }
 

@@ -5,18 +5,18 @@ Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/R
 ## Requisitos y ejecución
 
 - JDK 17 o superior.
-- Maven 3.9 o superior.
+- No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez que se ejecuta. Se requiere conexión a Internet para esa descarga.
 
 Desde esta carpeta:
 
 ```powershell
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 Para ejecutar toda la suite automatizada (pruebas unitarias y de integración):
 
 ```powershell
-mvn clean verify
+.\mvnw.cmd clean verify
 ```
 
 Las pruebas usan servidores HTTP falsos y no requieren levantar MS1–MS5, MongoDB, MySQL ni Docker. Cubren el encaminamiento por servicio, preservación de la solicitud/respuesta, exclusión de rutas internas, identidad, CORS y fallos de conexión.
@@ -35,7 +35,7 @@ Para una reserva, completá `eventoId` con un evento publicado con disponibilida
 Iniciá MongoDB/MySQL y los microservicios necesarios siguiendo el README de cada uno. Para consultar Eventos/Lugares, MS1 y MongoDB deben estar disponibles; para el flujo completo de compra y emisión también deben responder los servicios y bases de datos requeridos por MS2, MS3, MS4 y MS5. Finalmente iniciá el Gateway en esta carpeta:
 
 ```powershell
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 Si un request público responde `503`, comprobá que su servicio destino esté escuchando en el puerto configurado y, para una compra, que estén disponibles también las dependencias directas de MS3. Un `404` para una ruta interna o no publicada es esperado. Postman no aplica CORS: ese comportamiento se verifica con la suite automatizada o desde un navegador.

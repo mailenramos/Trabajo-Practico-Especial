@@ -1,0 +1,14 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MS2_DB_PASSWORD:?Set MS2_DB_PASSWORD from application.properties}
+      MYSQL_DATABASE: disponibilidad_reservas
+    volumes:
+      - reservas_mysql_data:/var/lib/mysql
+
+volumes:
+  reservas_mysql_data:

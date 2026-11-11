@@ -1,20 +1,25 @@
 # TicketYa - Interfaz de cliente
 
-Aplicacion de demostracion hecha con Vue 3 y Vite. Permite buscar eventos, elegir lugares, reservar, iniciar una compra, pagar con la simulacion local de MS4 y consultar las entradas emitidas. Todas las llamadas de negocio pasan por el API Gateway.
+Aplicacion de demostracion hecha con Vue 3 y Vite. Permite buscar eventos, elegir lugares, reservar, iniciar una compra, pagar con la simulacion local de MS4 y consultar las entradas emitidas. Todas las operaciones de TicketYa pasan por el API Gateway.
 
 ## Requisitos
 
-- Node.js 20.19+ o 22.12+.
+- Node.js 20.19+ o 22.12+ instalado. `npm` se instala junto con Node.js; `npm ci` descarga las dependencias del proyecto, no instala Node.js.
 - API Gateway en `http://localhost:8086` y los microservicios requeridos por el flujo encendidos.
 
-Desde esta carpeta, en PowerShell:
+En Windows, abre PowerShell desde esta carpeta. La primera vez que se descarga el proyecto, instala las dependencias:
 
 ```powershell
-npm install
+npm ci
+```
+
+Luego inicia el servidor local:
+
+```powershell
 npm run dev
 ```
 
-Abrir la URL que informa Vite (por defecto `http://localhost:5173`). El Gateway ya permite ese origen para CORS.
+Deja la terminal abierta y abre la URL que informa Vite (por defecto `http://localhost:5173`). En ejecuciones posteriores no hace falta volver a ejecutar `npm ci`; alcanza con `npm run dev`. El Gateway ya permite ese origen para CORS.
 
 Para cambiar la URL del Gateway, crear `.env.local` desde `.env.example` y ajustar `VITE_GATEWAY_URL`, o definir esa variable antes de iniciar Vite. Reiniciar el servidor de desarrollo luego de cambiarla.
 

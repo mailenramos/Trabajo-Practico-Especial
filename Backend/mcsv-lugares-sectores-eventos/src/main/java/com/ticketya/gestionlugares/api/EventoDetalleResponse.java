@@ -42,15 +42,22 @@ public record EventoDetalleResponse(String id, String nombre, String descripcion
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record DisponibilidadSectorResponse(int capacidadTotal, int cantidadDisponible,
-            List<AsientoResponse> asientosDisponibles) {
+            List<AsientoResponse> asientosDisponibles, List<AsientoResponse> asientos) {
         static DisponibilidadSectorResponse from(SectorDisponibilidadResponse disponibilidad) {
-            List<AsientoResponse> asientos = disponibilidad.asientosDisponibles() == null ? null
+            List<AsientoResponse> disponibles = disponibilidad.asientosDisponibles() == null ? null
                     : disponibilidad.asientosDisponibles().stream()
-                            .map(asiento -> new AsientoResponse(asiento.fila(), asiento.numero())).toList();
+                            .map(asiento -> new AsientoResponse(asiento.fila(), asiento.numero(), asiento.estado())).toList();
+            List<AsientoResponse> asientos = disponibilidad.asientos() == null ? null
+                    : disponibilidad.asientos().stream()
+                            .map(asiento -> new AsientoResponse(asiento.fila(), asiento.numero(), asiento.estado())).toList();
             return new DisponibilidadSectorResponse(disponibilidad.capacidadTotal(),
-                    disponibilidad.cantidadDisponible(), asientos);
+                    disponibilidad.cantidadDisponible(), disponibles, asientos);
         }
     }
 
-    public record AsientoResponse(int fila, int numero) { }
+    public record AsientoResponse(int fila, int numero, String estado) {
+        public AsientoResponse(int fila, int numero) {
+            this(fila, numero, "LIBRE");
+        }
+    }
 }

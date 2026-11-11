@@ -15,9 +15,30 @@ También permite consultar entradas, gestionar reintegros y registrar devolucion
 - Spring Data JPA.
 - PostgreSQL 16.
 - Flyway para el control de versiones y migraciones de la base de datos.
-- Maven.
+- Maven Wrapper (`mvnw.cmd` en Windows); no hace falta instalar Maven.
 
 ## 3. Configuración
+
+### Inicio local en Windows (PowerShell)
+
+Requisitos: JDK 17 o superior y PostgreSQL disponible en `localhost:5433`, con la base `entradas` y las credenciales configuradas abajo. No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez, por lo que se requiere Internet. Desde la raíz del repositorio:
+
+En una instalación nueva, crea primero PostgreSQL para desarrollo local:
+
+```powershell
+docker run --name ticketya-entradas-postgres --restart unless-stopped -e POSTGRES_DB=entradas -e POSTGRES_USER=entradas -e POSTGRES_PASSWORD=entradas -p 5433:5432 -d postgres:16
+```
+
+En siguientes ejecuciones, si el contenedor ya existe, iniciálo con `docker start ticketya-entradas-postgres`. El contenedor conserva sus datos; no lo elimines ni borres su volumen para reiniciarlo.
+
+Luego inicia MS5:
+
+```powershell
+cd .\Backend\msvc-entradas
+.\mvnw.cmd spring-boot:run
+```
+
+La aplicación escucha en `http://localhost:8085`.
 
 | Propiedad | Valor |
 |---|---|
@@ -29,6 +50,16 @@ También permite consultar entradas, gestionar reintegros y registrar devolucion
 | Estrategia de Hibernate | `validate` |
 
 La aplicación utiliza Flyway para mantener actualizada la estructura de la base de datos y Hibernate para validar que las entidades coincidan con el esquema existente.
+
+### Ejecución local en Windows (PowerShell)
+
+Se necesita un JDK 17 o superior y PostgreSQL disponible en `localhost:5433`. No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 automáticamente la primera vez (se necesita conexión a Internet). Desde la carpeta `Backend\msvc-entradas`:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+También se puede ejecutar `.\mvnw.cmd test` para las pruebas. En Linux o macOS, usar `./mvnw`.
 
 ## 4. Endpoints
 

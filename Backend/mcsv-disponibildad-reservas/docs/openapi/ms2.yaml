@@ -39,6 +39,9 @@ paths:
       description: >-
         MS1 consulta directamente a MS2 para combinar esta disponibilidad con
         los datos del evento. MS2 informa sus datos locales y no consulta MS1.
+        Antes de responder, libera las reservas temporales vencidas. Para sectores
+        numerados, asientos contiene todos los lugares con su estado actual, y
+        asientosDisponibles conserva únicamente los asientos LIBRE.
         cantidadDisponible puede ser cero por reservas temporales vigentes; eso
         no significa que el evento esté agotado, ya que el agotamiento depende
         únicamente de las ventas confirmadas.
@@ -59,12 +62,18 @@ paths:
                   - sectorId: SEC-PLATEA
                     tipo: NUMERADO
                     capacidadTotal: 2
-                    cantidadDisponible: 2
+                    cantidadDisponible: 1
                     asientosDisponibles:
                       - fila: 1
+                        numero: 8
+                        estado: LIBRE
+                    asientos:
+                      - fila: 1
                         numero: 5
+                        estado: RESERVADO
                       - fila: 1
                         numero: 8
+                        estado: LIBRE
         '404':
           $ref: '#/components/responses/AvailabilityNotRegistered'
         '500':
@@ -632,7 +641,7 @@ components:
     SectorNumeradoDisponibilidad:
       type: object
       additionalProperties: false
-      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, asientosDisponibles]
+      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, asientosDisponibles, asientos]
       properties:
         sectorId:
           type: string
@@ -654,6 +663,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AsientoDisponible'
+        asientos:
+          type: array
+          description: Todos los asientos numerados con su estado actual.
+          items:
+            $ref: '#/components/schemas/AsientoEstado'
     SectorNoNumeradoDisponibilidad:
       type: object
       additionalProperties: false
@@ -678,7 +692,7 @@ components:
     AsientoDisponible:
       type: object
       additionalProperties: false
-      required: [fila, numero]
+      required: [fila, numero, estado]
       properties:
         fila:
           type: integer
@@ -691,6 +705,26 @@ components:
           format: int32
           maximum: 2147483647
           minimum: 1
+        estado:
+          const: LIBRE
+    AsientoEstado:
+      type: object
+      additionalProperties: false
+      required: [fila, numero, estado]
+      properties:
+        fila:
+          type: integer
+          format: int32
+          minimum: -2147483648
+          maximum: 2147483647
+        numero:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 2147483647
+        estado:
+          type: string
+          enum: [LIBRE, RESERVADO, VENDIDO]
     CrearReservaRequest:
       type: object
       additionalProperties: false

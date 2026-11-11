@@ -12,5 +12,6 @@ public record SectorDisponibilidadResponse(
         TipoSector tipo,
         Integer capacidadTotal,
         int cantidadDisponible,
-        List<AsientoDisponibleResponse> asientosDisponibles) {
+        List<AsientoDisponibleResponse> asientosDisponibles,
+        List<AsientoDisponibleResponse> asientos) {
 }

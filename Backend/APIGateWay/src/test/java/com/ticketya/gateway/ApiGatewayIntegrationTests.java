@@ -206,6 +206,10 @@ class ApiGatewayIntegrationTests {
         assertNotPublished("GET", "/internal/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/reservas/reserva-1", null);
+        assertNotPublished("POST", "/disponibilidad/reservas/reserva-1/cancelacion", "{}",
+                "Content-Type", "application/json");
+        assertNotPublished("POST", "/compras/compra-1/cancelacion", "{}",
+                "Content-Type", "application/json");
         assertNotPublished("PUT", "/eventos/evento-1/disponibilidad", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/eventos-cancelados", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/internal/entradas/emision", "{}", "Content-Type", "application/json");

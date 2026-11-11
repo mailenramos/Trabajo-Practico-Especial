@@ -10,6 +10,7 @@ import ticketya.modelo.EstadoCompra;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -165,6 +166,18 @@ class IniciarCompraTest extends PruebaIntegracion {
                 .andExpect(jsonPath("$.error").value("SERVICIO_NO_DISPONIBLE"));
 
         assertThat(compras.count()).isZero();
+    }
+
+    @Test
+    void compraPendienteNoPuedeCancelarseManualmente() throws Exception {
+        UUID compraId = compraPendiente("cliente-1");
+
+        mvc.perform(post("/compras/{id}/cancelacion", compraId)
+                        .header("X-User-Id", "cliente-1").header("X-User-Role", "CLIENTE"))
+                .andExpect(status().isNotFound());
+
+        assertThat(compras.findById(compraId).orElseThrow().getEstado()).isEqualTo(EstadoCompra.PENDIENTE);
+        assertThat(reservas.liberaciones()).isZero();
     }
 
     private List<DetalleCompra> compraConDetalle(String reservaId) {

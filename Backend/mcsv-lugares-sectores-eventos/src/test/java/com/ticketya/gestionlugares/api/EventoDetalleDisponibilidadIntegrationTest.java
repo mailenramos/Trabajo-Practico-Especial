@@ -69,7 +69,9 @@ class EventoDetalleDisponibilidadIntegrationTest {
                 evento.getId(), List.of(
                         new SectorDisponibilidadResponse("sector-b", TipoSector.NO_NUMERADO, 50, 17, null),
                         new SectorDisponibilidadResponse("sector-a", TipoSector.NUMERADO, 2, 1,
-                                List.of(new AsientoDisponibleResponse(1, 2))))));
+                                List.of(new AsientoDisponibleResponse(1, 2)),
+                                List.of(new AsientoDisponibleResponse(1, 1, "RESERVADO"),
+                                        new AsientoDisponibleResponse(1, 2, "LIBRE"))))));
 
         mockMvc.perform(get("/eventos/" + evento.getId())
                         .header("X-User-Id", "cliente-1").header("X-User-Role", "CLIENTE"))
@@ -80,6 +82,8 @@ class EventoDetalleDisponibilidadIntegrationTest {
                 .andExpect(jsonPath("$.sectores[0].disponibilidad.cantidadDisponible").value(1))
                 .andExpect(jsonPath("$.sectores[0].disponibilidad.asientosDisponibles[0].fila").value(1))
                 .andExpect(jsonPath("$.sectores[0].disponibilidad.asientosDisponibles[0].numero").value(2))
+                .andExpect(jsonPath("$.sectores[0].disponibilidad.asientos[0].estado").value("RESERVADO"))
+                .andExpect(jsonPath("$.sectores[0].disponibilidad.asientos[1].estado").value("LIBRE"))
                 .andExpect(jsonPath("$.sectores[1].disponibilidad.cantidadDisponible").value(17))
                 .andExpect(jsonPath("$.sectores[2].disponibilidad").value(org.hamcrest.Matchers.nullValue()));
         verify(reservasClient).consultarDisponibilidad(evento.getId());

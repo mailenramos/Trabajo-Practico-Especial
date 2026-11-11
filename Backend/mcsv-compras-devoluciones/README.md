@@ -15,7 +15,7 @@ Qué no hace: no crea reservas, no procesa cobros ni reintegros y no emite entra
 
 - **Java 21** (la compilación falla con una versión anterior). Verificá con `java -version` y que `JAVA_HOME` apunte al JDK 21.
 - **MySQL 8**, corriendo en `localhost:3306`.
-- No hace falta instalar Maven: el proyecto trae el wrapper (`mvnw`).
+- No hace falta instalar Maven: el proyecto trae el wrapper. En Windows, `mvnw.cmd` descarga Maven la primera vez (se necesita Internet).
 
 ## Configuración
 
@@ -54,10 +54,24 @@ Las rutas de Pagos deben empezar con `/` (si no, el servicio no arranca) y conse
 
 Desde la carpeta `Backend/mcsv-compras-devoluciones` (relativa a la raíz del repositorio), en PowerShell (Windows):
 
+Si ya existe el contenedor local, iniciálo:
+
+```powershell
+docker start ticketya-mysql
+```
+
+Si todavía no existe, crealo para desarrollo local (reemplazá la contraseña por una propia):
+
+```powershell
+docker run --name ticketya-mysql --restart unless-stopped -e MYSQL_ROOT_PASSWORD='tu-contraseña' -e MYSQL_DATABASE=ticketya_compras -p 3306:3306 -d mysql:8.0
+```
+
+Luego inicia la aplicación con la misma contraseña que configuraste en MySQL:
+
 ```powershell
 $env:DB_USER = 'root'
 $env:DB_PASSWORD = 'tu-contraseña'
-.\mvnw spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 Usá comillas simples en la contraseña: con comillas dobles, PowerShell interpreta caracteres como `$`. En Linux o macOS:
@@ -81,7 +95,7 @@ Sin los otros servicios, igual se pueden consultar compras y devoluciones (lista
 ## Pruebas
 
 ```powershell
-.\mvnw test
+.\mvnw.cmd test
 ```
 
 Corre más de 150 pruebas: de los repositorios, de los servicios, de los endpoints de punta a punta y de los clientes de los otros servicios. Los otros servicios se reemplazan por dobles de prueba, así que no hace falta tenerlos corriendo. Lo único necesario es MySQL con `DB_USER` y `DB_PASSWORD` configuradas: las pruebas crean y borran su propia base `ticketya_compras_test`, y una de ellas arranca la aplicación contra `ticketya_compras`.

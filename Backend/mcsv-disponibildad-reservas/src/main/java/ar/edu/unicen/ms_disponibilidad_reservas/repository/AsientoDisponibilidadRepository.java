@@ -21,6 +21,8 @@ public interface AsientoDisponibilidadRepository extends JpaRepository<AsientoDi
 
     List<AsientoDisponibilidad> findAllByEventoIdAndEstado(String eventoId, EstadoAsiento estado);
 
+    List<AsientoDisponibilidad> findAllByEventoId(String eventoId);
+
     @Modifying(flushAutomatically = true)
     @Query("UPDATE AsientoDisponibilidad a SET a.estado = :nuevoEstado "
             + "WHERE a.eventoId = :eventoId AND a.sectorId = :sectorId "

@@ -51,27 +51,31 @@ public class DisponibilidadService {
                     "No existe disponibilidad registrada para el evento " + eventoId + " en MS2");
         }
 
-        Map<String, List<AsientoDisponibilidad>> asientosLibresPorSector = asientoRepository
-                .findAllByEventoIdAndEstado(eventoId, EstadoAsiento.LIBRE)
+        Map<String, List<AsientoDisponibilidad>> asientosPorSector = asientoRepository
+                .findAllByEventoId(eventoId)
                 .stream()
                 .collect(Collectors.groupingBy(AsientoDisponibilidad::getSectorId));
 
         List<SectorDisponibilidadResponse> respuestas = sectores.stream()
                 .map(sector -> {
                     if (sector.getTipo() == TipoSector.NUMERADO) {
-                        List<AsientoDisponibleResponse> disponibles = asientosLibresPorSector
+                        List<AsientoDisponibleResponse> asientos = asientosPorSector
                                 .getOrDefault(sector.getSectorId(), List.of())
                                 .stream()
                                 .sorted(Comparator.comparing(AsientoDisponibilidad::getFila)
                                         .thenComparing(AsientoDisponibilidad::getNumero))
-                                .map(asiento -> new AsientoDisponibleResponse(asiento.getFila(), asiento.getNumero()))
+                                .map(asiento -> new AsientoDisponibleResponse(
+                                        asiento.getFila(), asiento.getNumero(), asiento.getEstado()))
+                                .toList();
+                        List<AsientoDisponibleResponse> disponibles = asientos.stream()
+                                .filter(asiento -> asiento.estado() == EstadoAsiento.LIBRE)
                                 .toList();
                         return new SectorDisponibilidadResponse(sector.getSectorId(), sector.getTipo(),
-                                sector.getCapacidadTotal(), disponibles.size(), disponibles);
+                                sector.getCapacidadTotal(), disponibles.size(), disponibles, asientos);
                     }
 
                     return new SectorDisponibilidadResponse(sector.getSectorId(), sector.getTipo(),
-                            sector.getCapacidadTotal(), calcularDisponibilidadNoNumerada(sector), null);
+                            sector.getCapacidadTotal(), calcularDisponibilidadNoNumerada(sector), null, null);
                 })
                 .toList();
 
