@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Este servicio persiste dos colecciones MongoDB propias: `lugares` y `eventos`. Los sectores son subdocumentos embebidos; no tienen colección propia. En el diagrama, `PK` indica la clave del documento o la clave estable del subdocumento, no una restricción de clave foránea de MongoDB.
+Este servicio persiste tres colecciones MongoDB propias: `lugares`, `eventos` y `outbox`. Los sectores son subdocumentos embebidos; no tienen colección propia. En el diagrama, `PK` indica la clave del documento o la clave estable del subdocumento, no una restricción de clave foránea de MongoDB.
 
 ```mermaid
 erDiagram
@@ -39,7 +39,6 @@ erDiagram
         BigDecimal precioMinimo "nullable hasta publicar"
         string motivoCancelacion "nullable"
         Instant canceladoEn "nullable"
-        boolean avisoCancelacionPendiente
         Long version
     }
 
@@ -53,14 +52,35 @@ erDiagram
         BigDecimal precio "nullable hasta asignarlo"
     }
 
+    AVISO_OUTBOX {
+        string _id PK "ID estable; único"
+        string tipo
+        string eventoId "referencia lógica al evento"
+        string destino
+        object payload
+        EstadoAvisoOutbox estado
+        int intentos
+        Instant proximoIntento
+        string ultimoError "nullable"
+        Instant creadoEn
+        Instant actualizadoEn
+        Instant leaseHasta "nullable"
+        Instant entregadoEn "nullable"
+    }
+
     LUGAR ||--o{ SECTOR_LUGAR : "sectores embebidos"
     LUGAR ||--o{ EVENTO : "evento.lugarId referencia lugar._id"
     EVENTO ||--o{ SECTOR_EVENTO : "sectores embebidos"
+    EVENTO ||--o{ AVISO_OUTBOX : "eventoId referencia lógica"
 ```
 
 `LUGAR._id` y `EVENTO._id` son propiedades Java `String` marcadas con `@Id`; el código las crea como hexadecimal de `ObjectId`. `SECTOR_LUGAR.id` se genera como UUID en formato `String`. Al crear un evento se copia ese valor a `SECTOR_EVENTO.sectorId`. `TipoSector` admite `NUMERADO` y `NO_NUMERADO`; `EstadoEvento` admite `BORRADOR`, `PUBLICADO`, `AGOTADO`, `CANCELADO` y `FINALIZADO` (la API los serializa en minúsculas).
 
 La relación `evento.lugarId` es una referencia por ID entre documentos de este mismo servicio. Se resuelve mediante `LugarRepository`; no hay una clave foránea ni una relación gestionada por MongoDB. Las listas de sectores, en cambio, forman parte de cada documento.
+
+La colección `outbox` guarda avisos de cambio a otros servicios. El campo `eventoId` es una referencia lógica, no una clave foránea. La cancelación usa el ID determinístico `cancelacion-{eventoId}`. Los avisos transitan por `PENDIENTE`, `PROCESANDO`, `ENTREGADO` y `ERROR_FINAL`; `leaseHasta` marca el vencimiento de una reclamación.
+
+Los documentos `Evento` ya no tienen el campo `avisoCancelacionPendiente`. El backfill de arranque migra los documentos legacy que aún lo contienen y lo elimina después de insertar o encontrar el aviso correspondiente en `outbox`.
 
 ## Relaciones con otros servicios
 
@@ -99,11 +119,13 @@ Además de los índices automáticos `_id_` de MongoDB, el código declara los s
 | `eventos` | `idx_eventos_tipo` | `tipo` ascendente | Filtro por tipo de evento. |
 | `eventos` | `idx_eventos_participantes` | `participantes` ascendente (multikey) | Filtro por participante. |
 | `eventos` | `Evento_TextIndex` | `nombre`, `descripcion`, `participantes` | Búsqueda de texto y orden por relevancia. |
-| `eventos` | `avisoCancelacionPendiente` (nombre generado) | `avisoCancelacionPendiente` ascendente | Encontrar documentos con avisos de cancelación pendientes para reintentar su entrega. |
+| `outbox` | `_id_` (automático, único) | `_id` ascendente | Impide IDs de aviso duplicados; la cancelación usa `cancelacion-{eventoId}`. |
+| `outbox` | `idx_outbox_estado_proximo_intento` | `estado`, `proximoIntento`, `intentos` ascendentes | Reclamar avisos pendientes cuyo próximo intento venció y que no agotaron los intentos. |
+| `outbox` | `idx_outbox_estado_lease` | `estado`, `leaseHasta`, `intentos` ascendentes | Recuperar avisos `PROCESANDO` con lease vencido y seleccionar candidatos al barrido de intentos agotados. |
 
 El orden por `precioMinimo` se realiza en las consultas, pero no hay un índice de precio declarado en el modelo. Los índices compuestos ayudan a los filtros/órdenes indicados, aunque el plan elegido depende de la consulta y de MongoDB.
 
-En el perfil `dev`, `DevSampleDataInitializer` inserta eventos de ejemplo directamente en la colección `eventos`, después de cargar los lugares. Copia a cada evento la ciudad y los sectores del lugar (incluidos sus UUID), y asigna precios como `BigDecimal` salvo en el evento borrador. Estos documentos no se publican mediante el flujo de la API y, por lo tanto, no inicializan disponibilidad en Reservas: el detalle puede devolver `disponibilidad: null`, y las operaciones de suspender o cancelar eventos publicados fallan con `503` si Reservas no los conoce. El evento de ejemplo cancelado se persiste con `avisoCancelacionPendiente = false`, sin solicitar un aviso a Compras al iniciar el servicio.
+En el perfil `dev`, `DevSampleDataInitializer` inserta eventos de ejemplo directamente en la colección `eventos`, después de cargar los lugares. Copia a cada evento la ciudad y los sectores del lugar (incluidos sus UUID), y asigna precios como `BigDecimal` salvo en el evento borrador. Estos documentos no se publican mediante el flujo de la API y, por lo tanto, no inicializan disponibilidad en Reservas: el detalle puede devolver `disponibilidad: null`, y las operaciones de suspender o cancelar eventos publicados fallan con `503` si Reservas no los conoce. El evento de ejemplo cancelado no genera un aviso outbox al iniciar el servicio.
 
 ## Decisiones del modelo
 
@@ -119,5 +141,5 @@ En el perfil `dev`, `DevSampleDataInitializer` inserta eventos de ejemplo direct
 - Documentos y subdocumentos: `domain/Lugar.java`, `domain/Sector.java`, `domain/Evento.java`, `domain/EventoSector.java`.
 - Copia de lugar a evento y de ciudad/sectores: `service/EventoService.java`.
 - Generación de sectores de asiento para Reservas y callback: `service/EventoLifecycleService.java`, `api/EventoController.java`.
-- Índices MongoDB: anotaciones de `domain/Lugar.java` y `domain/Evento.java`; prueba de índices de evento en `EventoRepositoryMongoTest`.
+- Índices MongoDB: anotaciones de `domain/Lugar.java`, `domain/Evento.java` y `domain/AvisoOutbox.java`; pruebas en `LugarRepositoryMongoTest`, `EventoRepositoryMongoTest` y `OutboxAvisoRepositoryMongoTest`.
 - Contratos de integración: `api/EventoInternoResponse.java`, `reservas/dto/InicializarDisponibilidadRequest.java` y `reservas/dto/SectorDisponibilidadRequest.java`.

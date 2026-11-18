@@ -33,4 +33,6 @@ Al crear un evento, `limiteEntradasPorCliente` es opcional y vale `4` por defect
 
 El Gateway usa una lista explícita de rutas públicas: no debe publicar el callback `PUT /eventos/{eventoId}/disponibilidad`, ninguna ruta bajo `/internal/**` (incluido `GET /internal/eventos/{eventoId}`), ni las llamadas salientes de Eventos a Reservas o Compras. En la Entrega 1, la comunicación entre microservicios es directa y sin autenticación entre servicios. El aviso saliente de cancelación usa `POST /eventos-cancelados`; no es una ruta de este servicio.
 
+La persistencia de avisos es interna y no agrega rutas al Gateway. MS1 guarda los avisos en la colección MongoDB `outbox`, con `_id_` único y los índices compuestos `idx_outbox_estado_proximo_intento` (`estado`, `proximoIntento`, `intentos`) e `idx_outbox_estado_lease` (`estado`, `leaseHasta`, `intentos`). El antiguo campo `avisoCancelacionPendiente` de `eventos` fue retirado; un backfill transitorio migra documentos legacy al iniciar.
+
 Los errores controlados usan `timestamp`, `status`, `error`, `mensaje` y, si corresponde, `campos` como lista de `{campo, mensaje}`. OpenAPI está disponible en `/v3/api-docs`; Swagger UI, en `/swagger-ui/index.html`.

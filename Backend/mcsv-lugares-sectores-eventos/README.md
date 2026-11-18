@@ -27,7 +27,7 @@ Ejecutá estos pasos desde `mcsv-lugares-sectores-eventos`.
    mvn spring-boot:run
    ```
 
-   Por defecto, MongoDB usa `mongodb://localhost:27017/ticketya_lugares` y el servicio escucha en `http://localhost:8081`. El perfil predeterminado es `dev` y carga datos de ejemplo.
+   Por defecto, MongoDB usa `mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0` y el servicio escucha en `http://localhost:8081`. MongoDB debe estar iniciado como replica set `rs0` para habilitar transacciones. El perfil predeterminado es `dev` y carga datos de ejemplo.
 
 3. Consultá lugares con headers de identidad:
 
@@ -63,7 +63,7 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | PUT | `/eventos/{eventoId}/venta/suspender` | `ADMIN` | Suspende la venta sin crear un estado formal nuevo. |
 | PUT | `/eventos/{eventoId}/venta/reactivar` | `ADMIN` | Reactiva la venta. |
 | PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
-| PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Role`; no debe exponerse por el API Gateway. |
+| PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Roles`; no debe exponerse por el API Gateway. |
 | GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
 ## Identidad y usuarios de prueba
@@ -130,7 +130,7 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 ## Integración con otros servicios
 
-La comunicación entre servicios en la Entrega 1 es directa, por REST/JSON, y no usa autenticación entre servicios. El Gateway propaga los headers de usuario solo para las rutas públicas.
+La comunicación entre servicios en la Entrega 1 es directa, por REST/JSON, y no usa autenticación entre servicios. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
 
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
@@ -150,12 +150,37 @@ Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` 
 
 ### Compras — contrato confirmado
 
-Contrato confirmado con Compras y Devoluciones. URL base configurable con `compras.base-url` (default `http://localhost:8083`); timeouts: `compras.connect-timeout` (2 s) y `compras.read-timeout` (5 s).
+URL base configurable con `compras.base-url` (default `http://localhost:8083`).
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
-- **Aviso de cancelación:** este servicio llama `POST /eventos-cancelados` después de que Reservas confirma la cancelación local. El aviso se considera entregado solo si Compras responde `200` o `202`; cualquier otro resultado, incluidos `4xx`, `5xx` y timeout, lo deja pendiente. El scheduler reintenta cada `eventos.cancelacion.reenvio-interval` (60 s por defecto), sin backoff ni límite de intentos. El aviso pendiente se guarda en `avisoCancelacionPendiente`, dentro del documento del evento, y sobrevive a un reinicio. Una vez entregado, no se vuelve a enviar. Con varias instancias puede enviarse duplicado; Compras absorbe el duplicado y responde `200`.
+- **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
 
-El GET interno es una ruta directa entre servicios: no exige `X-User-Id` ni `X-User-Role` y no se publica por el Gateway. Los errores remotos del aviso no revierten la cancelación.
+### Outbox de avisos
+
+Los avisos se guardan en la colección MongoDB `outbox`:
+
+| Estado | Significado |
+|---|---|
+| `PENDIENTE` | Espera el próximo intento. |
+| `PROCESANDO` | Reclamado por una instancia; el campo `leaseHasta` marca el vencimiento del lease de 60 s. |
+| `ENTREGADO` | El destino respondió con cualquier `2xx`. |
+| `ERROR_FINAL` | Error definitivo o se agotaron los intentos; requiere revisión. |
+
+`OUTBOX_DISPATCHER_INTERVAL` (`outbox.dispatcher.interval`, default `60s`) configura el intervalo del scheduler. El resto de la política actualmente no es configurable: máximo 8 intentos contados al reclamar; espera inicial de 30 s, factor 2, tope de 15 min, sin jitter y `leaseHasta` fijado a 60 s desde el reclamo.
+
+Para inspeccionar avisos con `mongosh`:
+
+```javascript
+use ticketya_lugares
+db.outbox.find({ estado: "PENDIENTE" }).sort({ proximoIntento: 1 })
+db.outbox.find({ estado: "PROCESANDO" }).sort({ leaseHasta: 1 })
+db.outbox.find({ estado: "ERROR_FINAL" }).sort({ actualizadoEn: -1 })
+db.outbox.find({ _id: "cancelacion-<eventoId>" })
+```
+
+Al arrancar, un backfill transitorio busca documentos antiguos con `avisoCancelacionPendiente=true`. Inserta avisos `PENDIENTE` con ID determinístico `cancelacion-{eventoId}`; si el ID ya existe no sobrescribe el aviso. Solo después de que el aviso exista elimina el campo legacy. Registra los conteos de migrados, ya existentes y omitidos; eventos legacy inconsistentes se omiten con `WARN` y no bloquean el arranque.
+
+El GET interno es una ruta directa entre servicios: no exige headers de usuario y no se publica por el Gateway. Los errores remotos del aviso no revierten la cancelación.
 
 ## Puertos
 
@@ -168,16 +193,16 @@ Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). 
 | Variable de entorno | Propiedad | Default |
 |---|---|---|
 | `PORT` | `server.port` | `8081` |
-| `MONGODB_URI` | `spring.data.mongodb.uri` | `mongodb://localhost:27017/ticketya_lugares` |
+| `MONGODB_URI` | `spring.data.mongodb.uri` | `mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0` |
 | `RESERVAS_BASE_URL` | `reservas.base-url` | `http://localhost:8080` |
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://localhost:8083` |
-| `COMPRAS_CONNECT_TIMEOUT` | `compras.connect-timeout` | `2s` |
-| `COMPRAS_READ_TIMEOUT` | `compras.read-timeout` | `5s` |
 | `EVENTOS_FINALIZACION_INTERVAL` | `eventos.finalizacion.interval` | `60s` |
-| `EVENTOS_CANCELACION_REENVIO_INTERVAL` | `eventos.cancelacion.reenvio-interval` | `60s` |
+| `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `dev` (perfil predeterminado) |
+
+Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5s`). También son fijos el máximo de intentos, backoff y lease descritos arriba; no hay variables de entorno para esos valores.
 
 Ejemplos para configurar variables e iniciar el servicio desde la carpeta `mcsv-lugares-sectores-eventos`:
 
@@ -185,15 +210,13 @@ Ejemplos para configurar variables e iniciar el servicio desde la carpeta `mcsv-
 
 ```powershell
 $env:PORT = "8081"
-$env:MONGODB_URI = "mongodb://localhost:27017/ticketya_lugares"
+$env:MONGODB_URI = "mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0"
 $env:RESERVAS_BASE_URL = "http://localhost:8080"
 $env:RESERVAS_CONNECT_TIMEOUT = "2s"
 $env:RESERVAS_READ_TIMEOUT = "5s"
 $env:COMPRAS_BASE_URL = "http://localhost:8083"
-$env:COMPRAS_CONNECT_TIMEOUT = "2s"
-$env:COMPRAS_READ_TIMEOUT = "5s"
 $env:EVENTOS_FINALIZACION_INTERVAL = "60s"
-$env:EVENTOS_CANCELACION_REENVIO_INTERVAL = "60s"
+$env:OUTBOX_DISPATCHER_INTERVAL = "60s"
 $env:SPRING_PROFILES_ACTIVE = "dev"
 mvn spring-boot:run
 ```
@@ -202,15 +225,13 @@ mvn spring-boot:run
 
 ```bat
 set PORT=8081
-set MONGODB_URI=mongodb://localhost:27017/ticketya_lugares
+set MONGODB_URI=mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0
 set RESERVAS_BASE_URL=http://localhost:8080
 set RESERVAS_CONNECT_TIMEOUT=2s
 set RESERVAS_READ_TIMEOUT=5s
 set COMPRAS_BASE_URL=http://localhost:8083
-set COMPRAS_CONNECT_TIMEOUT=2s
-set COMPRAS_READ_TIMEOUT=5s
 set EVENTOS_FINALIZACION_INTERVAL=60s
-set EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
+set OUTBOX_DISPATCHER_INTERVAL=60s
 set SPRING_PROFILES_ACTIVE=dev
 mvn spring-boot:run
 ```
@@ -219,15 +240,13 @@ mvn spring-boot:run
 
 ```bash
 export PORT=8081
-export MONGODB_URI=mongodb://localhost:27017/ticketya_lugares
+export MONGODB_URI=mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0
 export RESERVAS_BASE_URL=http://localhost:8080
 export RESERVAS_CONNECT_TIMEOUT=2s
 export RESERVAS_READ_TIMEOUT=5s
 export COMPRAS_BASE_URL=http://localhost:8083
-export COMPRAS_CONNECT_TIMEOUT=2s
-export COMPRAS_READ_TIMEOUT=5s
 export EVENTOS_FINALIZACION_INTERVAL=60s
-export EVENTOS_CANCELACION_REENVIO_INTERVAL=60s
+export OUTBOX_DISPATCHER_INTERVAL=60s
 export SPRING_PROFILES_ACTIVE=dev
 mvn spring-boot:run
 ```
@@ -237,9 +256,9 @@ mvn spring-boot:run
 En `postman/` están las dos colecciones:
 
 - `TicketYa-Lugares.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa-Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 18**.
+- `TicketYa-Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 19**.
 
-Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET interno para Compras; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado.
+Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET interno para Compras; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET interno para Compras** no depende de servicios externos.
 
@@ -247,7 +266,7 @@ Las carpetas de aviso de cancelación se ejecutan en este orden y con estos serv
 
 1. **09 [Reservas y Compras ENCENDIDOS]** requiere ambos servicios respondiendo en `localhost:8080` y `localhost:8083`.
 2. **10 [Reservas ENCENDIDO, Compras APAGADO]** requiere Reservas respondiendo en `localhost:8080` y que Compras no esté disponible en `localhost:8083`.
-3. **11 [Correr después de la 10]** se ejecuta después de volver a encender Compras en `localhost:8083` y esperar el siguiente ciclo de reenvío, hasta `eventos.cancelacion.reenvio-interval` (60 s por defecto).
+3. **11 [Correr después de la 10]** se ejecuta después de volver a encender Compras en `localhost:8083` y esperar el siguiente ciclo del dispatcher, hasta `outbox.dispatcher.interval` (60 s por defecto).
 
 Las carpetas **09 y 10 son excluyentes**: usan escenarios de cancelación separados. La 11 completa el caso de aviso pendiente creado en la 10.
 

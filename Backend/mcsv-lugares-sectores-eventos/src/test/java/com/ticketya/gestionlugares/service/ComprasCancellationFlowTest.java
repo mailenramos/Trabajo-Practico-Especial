@@ -113,6 +113,19 @@ class ComprasCancellationFlowTest {
         verify(outboxDispatcher, never()).procesarAviso(any());
     }
 
+    @Test
+    void noPermiteCancelarEventoFinalizado() {
+        evento.setEstado(EstadoEvento.FINALIZADO);
+        when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
+
+        assertThrows(ConflictException.class,
+                () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "ADMIN"));
+
+        verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
+        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
+        verify(outboxDispatcher, never()).procesarAviso(any());
+    }
+
     private static Evento cancelado(String motivo, Instant cuando) {
         Evento event = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());

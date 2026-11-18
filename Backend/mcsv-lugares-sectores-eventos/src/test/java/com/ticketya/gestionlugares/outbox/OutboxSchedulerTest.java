@@ -1,53 +1,117 @@
 package com.ticketya.gestionlugares.outbox;
 
-import static org.mockito.Mockito.inOrder;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.util.Map;
+import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.ticketya.gestionlugares.domain.AvisoOutbox;
+import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 
-@ExtendWith(MockitoExtension.class)
+@SpringBootTest(properties = "outbox.dispatcher.interval=3600000")
+@ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
 class OutboxSchedulerTest {
 
-    @Mock
-    private OutboxAvisoRepository outboxRepository;
+    private static final Instant AHORA = Instant.parse("2026-11-18T18:00:00Z");
 
-    @Mock
-    private OutboxDispatcher dispatcher;
+    @Container
+    private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8.0");
+
+    @DynamicPropertySource
+    static void configureMongo(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.mongodb.uri", () -> MONGO.getReplicaSetUrl()
+                .replace("/test", "/ticketya_lugares"));
+    }
+
+    @Autowired private OutboxScheduler scheduler;
+    @Autowired private OutboxAvisoRepository outboxRepository;
+    @MockBean private OutboxHttpClient httpClient;
+
+    @BeforeEach
+    void limpiarOutbox() {
+        outboxRepository.deleteAll();
+    }
 
     @Test
-    void cadaPasadaMarcaIntentosAgotadosAntesDeDespachar() {
-        Instant ahora = Instant.parse("2026-11-18T18:00:00Z");
-        OutboxScheduler scheduler = new OutboxScheduler(outboxRepository, dispatcher,
-                Clock.fixed(ahora, ZoneOffset.UTC));
-        when(dispatcher.procesarSiguiente()).thenReturn(false);
+    void reclamaYEntregaAvisoPendienteConProximoIntentoVencido() {
+        AvisoOutbox aviso = aviso("cancelacion-evento-vencido", AHORA.minusSeconds(1), 0);
+        outboxRepository.insert(aviso);
+        when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
 
         scheduler.procesarPendientes();
 
-        InOrder orden = inOrder(outboxRepository, dispatcher);
-        orden.verify(outboxRepository).marcarAvisosAgotados(ahora, OutboxDispatcher.MAX_INTENTOS);
-        orden.verify(dispatcher).procesarSiguiente();
+        AvisoOutbox entregado = outboxRepository.findById(aviso.getId()).orElseThrow();
+        assertEquals(EstadoAvisoOutbox.ENTREGADO, entregado.getEstado());
+        assertEquals(1, entregado.getIntentos());
+        verify(httpClient).enviar(any(AvisoOutbox.class));
+    }
+
+    @Test
+    void cadaPasadaMarcaIntentosAgotadosAntesDeDespachar() {
+        AvisoOutbox agotado = aviso("cancelacion-agotado",
+                Instant.now().minusSeconds(1), OutboxDispatcher.MAX_INTENTOS);
+        outboxRepository.insert(agotado);
+
+        scheduler.procesarPendientes();
+
+        AvisoOutbox persistido = outboxRepository.findById(agotado.getId()).orElseThrow();
+        assertEquals(EstadoAvisoOutbox.ERROR_FINAL, persistido.getEstado());
+        assertEquals("intentos agotados", persistido.getUltimoError());
+        verify(httpClient, never()).enviar(any(AvisoOutbox.class));
     }
 
     @Test
     void limitaCadaPasadaACienAvisos() {
-        OutboxScheduler scheduler = new OutboxScheduler(outboxRepository, dispatcher,
-                Clock.fixed(Instant.parse("2026-11-18T18:00:00Z"), ZoneOffset.UTC));
-        when(dispatcher.procesarSiguiente()).thenReturn(true);
+        List<AvisoOutbox> avisos = java.util.stream.IntStream.range(0,
+                OutboxScheduler.MAX_AVISOS_POR_PASADA + 1)
+                .mapToObj(index -> aviso("cancelacion-" + index, Instant.now().minusSeconds(1), 0))
+                .toList();
+        outboxRepository.insert(avisos);
+        when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
 
         scheduler.procesarPendientes();
 
-        verify(dispatcher, times(OutboxScheduler.MAX_AVISOS_POR_PASADA)).procesarSiguiente();
+        long entregados = outboxRepository.findAll().stream()
+                .filter(aviso -> aviso.getEstado() == EstadoAvisoOutbox.ENTREGADO).count();
+        long pendientes = outboxRepository.findAll().stream()
+                .filter(aviso -> aviso.getEstado() == EstadoAvisoOutbox.PENDIENTE).count();
+        assertEquals(OutboxScheduler.MAX_AVISOS_POR_PASADA, entregados);
+        assertEquals(1, pendientes);
+        verify(httpClient, times(OutboxScheduler.MAX_AVISOS_POR_PASADA)).enviar(any(AvisoOutbox.class));
+    }
+
+    private AvisoOutbox aviso(String id, Instant proximoIntento, int intentos) {
+        AvisoOutbox aviso = new AvisoOutbox();
+        aviso.setId(id);
+        aviso.setTipo("CANCELACION");
+        aviso.setEventoId(id);
+        aviso.setDestino("http://compras.test/eventos-cancelados");
+        aviso.setPayload(Map.of("eventoId", id));
+        aviso.setEstado(EstadoAvisoOutbox.PENDIENTE);
+        aviso.setIntentos(intentos);
+        aviso.setProximoIntento(proximoIntento);
+        aviso.setCreadoEn(AHORA.minusSeconds(10));
+        aviso.setActualizadoEn(AHORA.minusSeconds(10));
+        return aviso;
     }
 }

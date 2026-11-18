@@ -7,5 +7,5 @@
 - [x] 5. Migrar la cancelación para guardar evento y aviso `cancelacion-{eventoId}` en una transacción; mantener el intento inmediato posterior al commit y la respuesta actual aunque Compras falle.
 - [x] 6. Hacer backfill idempotente de avisos legacy pendientes usando el ID determinístico y verificar que no queden pendientes sin migrar.
 - [x] 7. Retirar el flag de cancelación y el scheduler dedicado solo después de verificar el backfill y confirmar que el flujo nuevo procesa los avisos.
-- [ ] 8. Agregar y ejecutar pruebas de integración para rollback, destino caído, clasificación 4xx/5xx/timeouts, header de idempotencia, reentrega duplicada, dos instancias, lease vencido, agotamiento y compatibilidad del flujo de cancelación.
-- [ ] 9. Actualizar README, diseño, configuración y spec existente `eventos`; ejecutar `openspec validate generalizar-outbox-ms1 --strict --no-interactive`.
+- [x] 8. Agregar y ejecutar pruebas de integración para rollback, destino caído, clasificación 4xx/5xx/timeouts, header de idempotencia, reentrega duplicada, dos instancias, lease vencido, agotamiento y compatibilidad del flujo de cancelación.
+- [x] 9. Actualizar README, diseño, configuración y spec existente `eventos`; ejecutar `openspec validate generalizar-outbox-ms1 --strict --no-interactive`.

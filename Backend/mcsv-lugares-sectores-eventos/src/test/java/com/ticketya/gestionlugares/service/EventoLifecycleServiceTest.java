@@ -162,6 +162,13 @@ class EventoLifecycleServiceTest {
         lifecycleService.reactivarVenta(EVENTO_ID, "admin-1", "ADMIN");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
 
+        when(eventoService.buscarEvento("evento-2")).thenReturn(evento);
+        org.mockito.Mockito.doThrow(new ReservasClientException("timeout"))
+                .when(reservasClient).cambiarEstadoVenta("evento-2", EstadoVentaReservas.ACTIVA);
+        assertThrows(ServiceUnavailableException.class,
+                () -> lifecycleService.reactivarVenta("evento-2", "admin-1", "ADMIN"));
+        verify(eventoService, never()).reactivarVentaLocal("evento-2");
+
         when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(
                 org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
         lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN");

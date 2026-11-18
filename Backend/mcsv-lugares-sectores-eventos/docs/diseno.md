@@ -89,19 +89,18 @@ sequenceDiagram
     GL->>R: PUT /disponibilidad/eventos/{id}/venta (CANCELADA)
     alt Reservas confirma (204)
         R-->>GL: 204 No Content
-        GL->>DB: Guarda CANCELADO, motivo, fecha y avisoPendiente=true
-        DB-->>GL: Cancelación persistida
-        GL->>C: POST /eventos-cancelados
-        alt Compras responde 200 o 202
-            C-->>GL: Aviso aceptado
-            GL->>DB: Marca avisoPendiente=false
-            DB-->>GL: Cambio guardado
-        else Compras falla / timeout / respuesta no aceptada
-            C--xGL: Error
-            Note over GL,DB: La cancelación se conserva y el aviso queda pendiente
-            S->>DB: Busca eventos con avisoPendiente=true
-            DB-->>S: Eventos pendientes
-            S->>C: Reintenta POST /eventos-cancelados en el siguiente ciclo
+        GL->>DB: Transacción: guarda CANCELADO y aviso outbox
+        DB-->>GL: Commit de evento y aviso
+        GL->>C: POST /eventos-cancelados + X-Aviso-Id
+        alt Compras responde 2xx
+            C-->>GL: Recepción aceptada
+            GL->>DB: Marca aviso ENTREGADO
+        else Compras falla o responde no exitoso
+            C--xGL: Error / respuesta no exitosa
+            Note over GL,DB: La cancelación sigue confirmada y el aviso queda PENDIENTE o ERROR_FINAL
+            S->>DB: Barre agotados y reclama avisos elegibles
+            DB-->>S: Avisos outbox reclamados
+            S->>C: Reintenta POST /eventos-cancelados + mismo X-Aviso-Id
         end
         GL-->>GW: 200 OK con evento cancelado
         GW-->>Admin: Resultado de cancelación
@@ -113,7 +112,7 @@ sequenceDiagram
     end
 ```
 
-El aviso se intenta inmediatamente después de guardar la cancelación. Su fallo no revierte la cancelación ni cambia la respuesta exitosa de la operación; el scheduler busca los avisos pendientes y los reenvía con el intervalo configurado (60 segundos por defecto).
+El aviso se guarda en la misma transacción MongoDB que la cancelación y se intenta inmediatamente después del commit. Su fallo no revierte la cancelación ni cambia la respuesta exitosa. El scheduler general primero marca como `ERROR_FINAL` los avisos `PENDIENTE` con el máximo de intentos y los `PROCESANDO` cuyo lease venció tras alcanzar el máximo; luego reclama avisos elegibles y reintenta hasta 100 por pasada. El intervalo se configura con `OUTBOX_DISPATCHER_INTERVAL` (60 segundos por defecto).
 
 ### Consultar el detalle y su disponibilidad
 
@@ -155,7 +154,8 @@ sequenceDiagram
 |---|---|
 | MongoDB desde la Entrega 1 | Según la consigna indicada para este trabajo, la tabla de la Entrega 1 pide una base relacional. La implementación adoptó MongoDB desde esta entrega para evitar migrar datos y cambiar contratos en la Entrega 2. El código confirma MongoDB (`spring-boot-starter-data-mongodb`, colecciones `lugares` y `eventos` y Compose con Mongo), pero el texto de la consigna no está incluido en `openspec/specs` ni en este repositorio; el motivo de anticipar Mongo se documenta como la decisión del proyecto. |
 | Confirmar primero en Reservas antes de cambiar el estado local | Evita publicar, suspender, reactivar, cancelar o finalizar localmente si Reservas no confirma la operación correspondiente. En publicación, un fallo remoto devuelve `503` y conserva `BORRADOR`; en cancelación, el fallo evita tanto el cambio local como el aviso a Compras. La secuencia está implementada en `EventoLifecycleService`. |
-| Aviso a Compras de mejor esfuerzo, persistido y reenviado | Primero persiste la cancelación y marca `avisoCancelacionPendiente`; después intenta notificar a Compras. Un fallo no revierte el estado local. El scheduler busca los pendientes y reintenta, y al recibir aceptación se borra la marca. Esto evita perder el aviso al reiniciar el proceso. |
+| Aviso a Compras mediante outbox transaccional | Guarda la cancelación y el aviso en `outbox` en una única transacción MongoDB. El dispatcher envía `POST /eventos-cancelados` después del commit, con el ID estable en `X-Aviso-Id`; cualquier `2xx` marca `ENTREGADO`, y los errores temporales se reintentan. El flag `avisoCancelacionPendiente` fue retirado; un backfill transitorio migra documentos legacy al iniciar. |
+| Índices de outbox | `_id_` único garantiza que no se repita el ID del aviso. `idx_outbox_estado_proximo_intento` (`estado`, `proximoIntento`, `intentos`) selecciona pendientes vencidos; `idx_outbox_estado_lease` (`estado`, `leaseHasta`, `intentos`) recupera leases vencidos y apoya el barrido de intentos agotados. |
 | Control optimista de concurrencia por versión | `Lugar` y `Evento` declaran `@Version`. Las escrituras concurrentes con una versión obsoleta no pisan silenciosamente el documento; se traducen a conflicto de actualización. |
 | Identidad propagada por el Gateway, sin autenticación local | El Gateway valida el JWT y envía el claim `sub` como `X-User-Id` y la lista de roles como `X-User-Roles`. El microservicio evalúa todos los roles sin precedencia arbitraria y aplica además la titularidad; no valida el token directamente. |
 | Comunicación directa entre servicios, fuera del Gateway y sin autenticación entre servicios | Las llamadas REST a Reservas y Compras y las rutas internas se dirigen directamente a los servicios correspondientes. El contrato del Gateway excluye el callback de disponibilidad, la consulta interna de Compras y las llamadas salientes. Esta es la configuración documentada para la Entrega 1; los clientes HTTP no propagan credenciales de servicio. |
@@ -163,9 +163,8 @@ sequenceDiagram
 
 ## Limitaciones conocidas
 
-- El reenvío de avisos de cancelación usa un intervalo fijo (60 s por defecto), sin backoff ni límite de intentos.
-- Con varias instancias de este servicio, más de una puede leer y enviar el mismo aviso pendiente antes de que se marque como entregado; puede haber avisos duplicados. Compras debe tolerar duplicados.
-- No hay un endpoint para solicitar manualmente el reenvío de un aviso ya entregado. El scheduler solo selecciona eventos cuyo `avisoCancelacionPendiente` sigue en `true`.
+- `ERROR_FINAL` requiere revisión directa en MongoDB; no existe un endpoint para reprocesar manualmente avisos.
+- El dispatcher limita cada pasada a 100 avisos. Un lease vencido permite recuperar un reclamo; el destino puede recibir una reentrega con el mismo `X-Aviso-Id` y debe tolerar duplicados.
 
 ## Trazabilidad de OpenSpec a pruebas
 
@@ -183,7 +182,8 @@ Las capacidades de la tabla son los requisitos de `openspec/specs/lugares-y-sect
 | `eventos` | Definir límite de entradas por cliente | `EventoServiceTest`, `EventoControllerTest`, `EventoLifecycleServiceTest` |
 | `eventos` | Definir precios por sector en borrador | `EventoServiceTest`, `EventoControllerTest` |
 | `eventos` | Publicar eventos con disponibilidad inicializada | `EventoLifecycleServiceTest`, `EventoControllerTest`, `HttpReservasClientTest` |
-| `eventos` | Administrar suspensión, reactivación y cancelación | `EventoLifecycleServiceTest`, `ComprasCancellationFlowTest`, `HttpComprasClientTest` |
+| `eventos` | Administrar suspensión, reactivación y cancelación | `EventoLifecycleServiceTest`, `ComprasCancellationFlowTest`, `EventoCancelacionOutboxIntegrationTest` |
+| `eventos` | Persistir y entregar avisos outbox | `OutboxAvisoRepositoryMongoTest`, `OutboxDispatcherTest`, `OutboxSchedulerTest`, `RestClientOutboxHttpClientTest`, `EventoCancelacionOutboxIntegrationTest` |
 | `eventos` | Reflejar automáticamente disponibilidad y finalización | `EventoLifecycleServiceTest`, `EventoServiceTest`, `EventoControllerTest` |
 | `eventos` | Ofrecer a Compras una consulta interna del evento | `EventoControllerTest` |
 | `eventos` | Mantener estados y formato de errores acordados | `EventoServiceTest`, `EventoControllerTest`, `OpenApiDocumentationTest` |

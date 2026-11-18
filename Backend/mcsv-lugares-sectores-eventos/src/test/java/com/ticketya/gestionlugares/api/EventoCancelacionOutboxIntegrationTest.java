@@ -36,6 +36,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.ResourceAccessException;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -91,7 +92,12 @@ class EventoCancelacionOutboxIntegrationTest {
     @Test
     void cancelaEnUnaTransaccionYEntregaAvisoOutbox() throws Exception {
         Evento evento = guardarEventoPublicado();
-        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
+        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(EstadoEvento.CANCELADO,
+                    eventoRepository.findById(evento.getId()).orElseThrow().getEstado());
+            return 204;
+        });
 
         mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo"))
                 .andExpect(status().isOk())

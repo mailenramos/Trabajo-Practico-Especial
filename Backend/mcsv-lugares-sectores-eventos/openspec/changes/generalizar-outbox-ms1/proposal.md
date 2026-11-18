@@ -8,9 +8,10 @@ MS1 ya conserva una cancelación cuando Compras no está disponible, pero el pen
 
 - Agregar una colección MongoDB `outbox` con avisos estables, destino, payload, estado, intentos, planificación del próximo intento, errores y timestamps.
 - Registrar el cambio local de cancelación y su aviso a Compras en la misma transacción MongoDB.
-- Migrar la entrega inmediata y los reintentos actuales de `POST /eventos-cancelados` al dispatcher general, conservando la respuesta y el comportamiento ante Compras caído.
-- Incorporar selección atómica, recuperación de avisos `PROCESANDO` vencidos, reintentos limitados y espera progresiva configurable.
+- Migrar la entrega inmediata y los reintentos de `POST /eventos-cancelados` al dispatcher general; cualquier `2xx` se considera recepción exitosa y los fallos de Compras no cambian la respuesta al administrador.
+- Incorporar selección atómica, recuperación de avisos `PROCESANDO` vencidos, máximo de 8 intentos y backoff progresivo de 30 s × 2 hasta 15 min, sin jitter. Solo el intervalo del scheduler es configurable; el límite, backoff y lease son fijos.
 - Configurar `MongoTransactionManager`; el entorno ya usa MongoDB como replica set de un nodo (`rs0`).
+- Migrar al iniciar los pendientes legacy con un backfill idempotente y retirar el flag y el scheduler dedicados.
 - No modificar Docker Compose ni agregar en este cambio productores de avisos para publicación o modificación de eventos; esos cambios dependerán de esta infraestructura.
 - Actualizar la especificación existente `eventos`, sin crear una capacidad paralela.
 
@@ -26,6 +27,6 @@ Ninguna.
 
 ## Impact
 
-Afecta la persistencia MongoDB de MS1, la configuración transaccional, el servicio de ciclo de vida de eventos, el cliente HTTP a Compras y las pruebas de integración. El aviso conserva su endpoint y payload actuales; la transmisión de un identificador de aviso requiere confirmar el contrato de deduplicación con Compras.
+Afecta la persistencia MongoDB de MS1, la configuración transaccional, el servicio de ciclo de vida de eventos, el cliente HTTP a Compras y las pruebas de integración. El aviso conserva `POST /eventos-cancelados` y su payload actual; el identificador estable se envía en `X-Aviso-Id` sin cambiar el payload y Compras puede continuar deduplicando por `eventoId`.
 
-Las políticas acordadas de reintentos, lease, deduplicación y recuperación operativa se detallan en `design.md`.
+Las políticas de clasificación HTTP, reintentos, lease, backfill y revisión de `ERROR_FINAL` se detallan en `design.md`.

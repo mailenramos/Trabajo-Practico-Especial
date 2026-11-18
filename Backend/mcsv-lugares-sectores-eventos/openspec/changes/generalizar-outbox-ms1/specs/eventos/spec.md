@@ -30,7 +30,7 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 
 #### Scenario: Compras acepta el aviso de cancelación
 - **GIVEN** Reservas confirmó la cancelación y el evento y el aviso outbox quedaron confirmados localmente
-- **WHEN** Compras responde `202 Accepted` al aviso
+- **WHEN** Compras responde con cualquier `2xx` al aviso
 - **THEN** el aviso pasa a `ENTREGADO` porque Compras aceptó la recepción, sin asumir que terminó su procesamiento, y el administrador recibe `200 OK`
 
 #### Scenario: Compras ya procesó el aviso de cancelación
@@ -50,7 +50,7 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 
 #### Scenario: Reenviar aviso de cancelación pendiente
 - **GIVEN** un aviso de cancelación `PENDIENTE` cuyo próximo intento ya venció
-- **WHEN** el dispatcher general lo entrega y Compras responde `202` o `200`
+- **WHEN** el dispatcher general lo entrega y Compras responde con cualquier `2xx`
 - **THEN** el aviso pasa a `ENTREGADO` y se conserva el identificador original
 
 #### Scenario: Rechazar cancelación de evento finalizado o cancelado
@@ -73,8 +73,8 @@ Cuando una mutación origine un aviso, MS1 SHALL guardar el cambio local y un av
 - **WHEN** falla una de las escrituras antes del commit
 - **THEN** no queda persistido ni el cambio local del evento ni un aviso huérfano
 
-### Requirement: Entregar avisos con reintentos configurables
-El dispatcher programado SHALL enviar avisos HTTP fuera de la transacción, con timeout de conexión de `2 s` y lectura de `5 s`. Timeouts, errores de conexión, `5xx`, `408` y `429` SHALL reintentarse; otros `4xx` SHALL ser definitivos. Se permitirán hasta 8 intentos contados al reclamar, con espera de 30 s duplicada por intento, tope de 15 min y sin jitter. `200`/`202` marcan `ENTREGADO`; errores definitivos o límite agotado marcan `ERROR_FINAL` sin reintento automático.
+### Requirement: Entregar avisos con reintentos limitados
+El dispatcher SHALL enviar avisos mediante `POST` fuera de la transacción con timeouts de conexión/lectura de `2 s`/`5 s`; cualquier `2xx` marca `ENTREGADO`. Reintenta timeouts, errores de conexión, `5xx`, `408` y `429`; el resto de `4xx` y las respuestas `3xx` son definitivos. El máximo es 8 reclamos con backoff de 30 s × 2, tope 15 min y sin jitter; el polling es configurable y el lease fijo de 60 s.
 
 #### Scenario: Entregar al destino fuera de la transacción
 - **GIVEN** un cambio de evento y su aviso fueron confirmados por MongoDB
@@ -86,20 +86,25 @@ El dispatcher programado SHALL enviar avisos HTTP fuera de la transacción, con 
 - **WHEN** el dispatcher registra la respuesta
 - **THEN** el aviso pasa a `ERROR_FINAL`, conserva el error y no se reintenta
 
-#### Scenario: Reintentar un error 5xx o timeout
-- **GIVEN** un aviso pendiente y un destino que responde con `5xx` o no responde antes del timeout
-- **WHEN** el dispatcher registra el fallo antes de agotar los intentos
-- **THEN** el aviso vuelve a quedar pendiente con próximo intento según la espera progresiva
+#### Scenario: No reintentar una respuesta 3xx
+- **GIVEN** un aviso pendiente y un destino que responde con una redirección `3xx`
+- **WHEN** el dispatcher registra la respuesta
+- **THEN** el aviso pasa a `ERROR_FINAL`, conserva el error y no se reintenta
 
-#### Scenario: Agotar los reintentos sin volver a entregar
-- **GIVEN** un aviso que alcanza el límite configurado de intentos o recibe un error definitivo
+#### Scenario: Reintentar errores temporales de entrega
+- **GIVEN** un aviso pendiente y un destino que responde con `5xx`, `408` o `429`, no responde antes del timeout o no está disponible por un error de conexión
+- **WHEN** el dispatcher registra el fallo antes de agotar los intentos
+- **THEN** el aviso registra intentos y último error, vuelve a quedar pendiente con próximo intento según la espera progresiva y el cambio original del evento permanece confirmado
+
+#### Scenario: Barrer avisos con intentos agotados antes de entregarlos
+- **GIVEN** un aviso `PENDIENTE` con 8 intentos o `PROCESANDO` con el lease vencido y 8 intentos
+- **WHEN** comienza una pasada del scheduler
+- **THEN** el aviso pasa a `ERROR_FINAL` con último error `intentos agotados`, se limpia su lease si lo tenía y no se entrega en esa pasada ni vuelve a reclamarse automáticamente
+
+#### Scenario: Agotar los intentos durante una entrega fallida
+- **GIVEN** un aviso que alcanza el límite de 8 intentos o recibe un error definitivo
 - **WHEN** el dispatcher registra el resultado
 - **THEN** pasa a `ERROR_FINAL`, conserva el último error para revisión y no vuelve a seleccionarlo automáticamente
-
-#### Scenario: Reintentar un destino temporalmente caído
-- **GIVEN** un aviso pendiente y un destino temporalmente no disponible
-- **WHEN** falla la entrega HTTP antes de alcanzar el límite
-- **THEN** el aviso registra intentos y último error, queda elegible en el próximo intento programado según la espera progresiva y el cambio original del evento permanece confirmado
 
 ### Requirement: Reclamar avisos de forma exclusiva e idempotente
 El dispatcher SHALL reclamar avisos atómicamente con un lease de 60 s para impedir entregas simultáneas desde varias instancias. Cada reclamo SHALL contar como intento. Una reentrega SHALL conservar el ID estable original. Un aviso `PROCESANDO` vencido SHALL poder recuperarse respetando el límite de 8 intentos.
