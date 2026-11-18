@@ -8,7 +8,7 @@ spring:
     name: gestion-lugares
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares}
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0}
       auto-index-creation: true
 
 server:

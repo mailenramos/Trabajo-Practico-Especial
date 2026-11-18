@@ -1,127 +1,12 @@
 {
   "info": {
+    "_postman_id": "a8719607-ab22-4c0e-a360-3cd1e96ad84d",
     "name": "TicketYa - Eventos",
     "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos con Reservas encendido (la 12 prepara los datos y las publica). 18: detalle con Reservas apagado. Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "55960073",
+    "_collection_link": "https://go.postman.co/collection/55960073-a8719607-ab22-4c0e-a360-3cd1e96ad84d?source=collection_link"
   },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8081"
-    },
-    {
-      "key": "comprasUrl",
-      "value": "http://localhost:8083"
-    },
-    {
-      "key": "reservasUrl",
-      "value": "http://localhost:8080"
-    },
-    {
-      "key": "lugarId",
-      "value": ""
-    },
-    {
-      "key": "lugarOtroId",
-      "value": ""
-    },
-    {
-      "key": "sectorNumeradoId",
-      "value": ""
-    },
-    {
-      "key": "sectorNoNumeradoId",
-      "value": ""
-    },
-    {
-      "key": "sectorAjenoId",
-      "value": ""
-    },
-    {
-      "key": "eventoId",
-      "value": ""
-    },
-    {
-      "key": "eventoSinPreciosId",
-      "value": ""
-    },
-    {
-      "key": "eventoParcialId",
-      "value": ""
-    },
-    {
-      "key": "eventoPublicadoId",
-      "value": ""
-    },
-    {
-      "key": "eventoSinReservasId",
-      "value": ""
-    },
-    {
-      "key": "eventoCompraId",
-      "value": ""
-    },
-    {
-      "key": "eventoCancelaId",
-      "value": ""
-    },
-    {
-      "key": "eventoCancelaSinMotivoId",
-      "value": ""
-    },
-    {
-      "key": "eventoPendienteId",
-      "value": ""
-    },
-    {
-      "key": "orgBusq",
-      "value": ""
-    },
-    {
-      "key": "lugarTandilId",
-      "value": ""
-    },
-    {
-      "key": "secNumTandilId",
-      "value": ""
-    },
-    {
-      "key": "secNoNumTandilId",
-      "value": ""
-    },
-    {
-      "key": "lugarCordobaId",
-      "value": ""
-    },
-    {
-      "key": "secCordobaId",
-      "value": ""
-    },
-    {
-      "key": "evBusq1",
-      "value": ""
-    },
-    {
-      "key": "evBusq2",
-      "value": ""
-    },
-    {
-      "key": "evBusq3",
-      "value": ""
-    },
-    {
-      "key": "evBusq4",
-      "value": ""
-    },
-    {
-      "key": "evBusq5",
-      "value": ""
-    },
-    {
-      "key": "evBusq6",
-      "value": ""
-    }
-  ],
   "item": [
     {
       "name": "00 Preparación (ejecutar primero)",
@@ -158,15 +43,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/lugares",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lugares"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Teatro Central\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
@@ -175,8 +51,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "P2 Sector numerado",
@@ -211,6 +97,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 20,\n  \"asientosPorFila\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
               "host": [
@@ -221,17 +116,9 @@
                 "{{lugarId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 20,\n  \"asientosPorFila\": 30\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "P3 Sector no numerado",
@@ -266,6 +153,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarId}}/sectores",
               "host": [
@@ -276,17 +172,9 @@
                 "{{lugarId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "P4 Crear segundo lugar (para probar sectores ajenos)",
@@ -320,15 +208,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/lugares",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lugares"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Estadio Norte\",\n  \"direccion\": \"Av. Corrientes 1234\",\n  \"ciudad\": \"Buenos Aires\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
@@ -337,8 +216,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "P5 Sector del segundo lugar",
@@ -373,6 +262,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Popular\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarOtroId}}/sectores",
               "host": [
@@ -383,17 +281,9 @@
                 "{{lugarOtroId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Popular\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 1000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Crea los lugares y sectores que usan los demás requests. Guarda los IDs en variables de la colección."
@@ -433,15 +323,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -450,8 +331,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E02 Sin limiteEntradasPorCliente (debe quedar en 4)",
@@ -482,15 +373,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\"\n}",
@@ -500,8 +382,18 @@
                 }
               }
             },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
             "description": "Si la respuesta incluye limiteEntradasPorCliente, debe ser 4."
-          }
+          },
+          "response": []
         },
         {
           "name": "E03 Fecha pasada",
@@ -537,15 +429,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2020-01-01T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -554,8 +437,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E04 Lugar inexistente",
@@ -591,15 +484,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"000000000000000000000000\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -608,8 +492,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E05 Sin nombre",
@@ -645,15 +539,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -662,8 +547,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E06 Sin fechaHora",
@@ -699,15 +594,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -716,8 +602,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E07 Sin lugarId",
@@ -753,15 +649,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -770,8 +657,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E08 Rol cliente",
@@ -807,15 +704,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -824,8 +712,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E09 Rol administrador (solo el organizador crea)",
@@ -861,15 +759,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -878,8 +767,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E10 Rol desconocido",
@@ -915,15 +814,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -932,8 +822,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E11 Sin headers",
@@ -961,15 +861,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -978,8 +869,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E12 X-User-Id vacío",
@@ -1015,15 +916,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -1033,8 +925,18 @@
                 }
               }
             },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
             "description": "Si Postman no envía el header vacío, el resultado es el mismo que sin headers (401)."
-          }
+          },
+          "response": []
         },
         {
           "name": "E13 Rol en minúsculas (se acepta, no distingue mayúsculas)",
@@ -1065,15 +967,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -1082,8 +975,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "E14 Método no soportado (DELETE /eventos)",
@@ -1119,7 +1022,8 @@
                 "eventos"
               ]
             }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -1155,15 +1059,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 1\n}",
@@ -1172,8 +1067,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "L02 Límite = 0",
@@ -1209,15 +1114,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 0\n}",
@@ -1226,8 +1122,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "L03 Límite negativo",
@@ -1263,15 +1169,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": -1\n}",
@@ -1280,8 +1177,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "L04 Límite decimal (2.5, no debe truncarse)",
@@ -1317,15 +1224,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 2.5\n}",
@@ -1334,8 +1232,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "L05 Límite texto",
@@ -1371,15 +1279,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": \"abc\"\n}",
@@ -1388,8 +1287,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "L06 Límite null explícito (se trata como omitido: queda 4)",
@@ -1420,15 +1329,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": null\n}",
@@ -1438,8 +1338,18 @@
                 }
               }
             },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
             "description": "Decisión: null en el POST equivale a omitir el campo y queda el valor por defecto 4. En el PUT, null sí da 400."
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere haber ejecutado la carpeta 00."
@@ -1479,15 +1389,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -1496,8 +1397,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR01 Precio válido, sector numerado",
@@ -1528,6 +1439,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -1540,17 +1460,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR02 Precio válido, sector no numerado",
@@ -1581,6 +1493,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -1593,17 +1514,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR03 Precio 0 (permitido, >= 0)",
@@ -1634,6 +1547,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -1646,17 +1568,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR04 Precio negativo",
@@ -1692,6 +1606,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -1704,17 +1627,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": -1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR05 Precio texto",
@@ -1750,6 +1665,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": \"abc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -1762,17 +1686,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": \"abc\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR06 Sin campo precio",
@@ -1808,6 +1724,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -1820,17 +1745,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR07 Sector que no pertenece al lugar del evento (rechazado)",
@@ -1866,6 +1783,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorAjenoId}}/precio",
               "host": [
@@ -1879,17 +1805,9 @@
                 "precio"
               ]
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
             "description": "La spec dice que se rechaza sin fijar el código; se aceptan 400, 404 o 409. Anotá cuál devuelve."
-          }
+          },
+          "response": []
         },
         {
           "name": "PR08 Sector inexistente",
@@ -1925,6 +1843,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/00000000-0000-0000-0000-000000000000/precio",
               "host": [
@@ -1937,17 +1864,9 @@
                 "00000000-0000-0000-0000-000000000000",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR09 Evento inexistente",
@@ -1983,6 +1902,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/000000000000000000000000/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -1995,17 +1923,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR10 Organizador que no es dueño del evento",
@@ -2041,6 +1961,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -2053,17 +1982,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR11 Rol cliente",
@@ -2099,6 +2020,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -2111,17 +2041,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR12 Rol administrador",
@@ -2157,6 +2079,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -2169,17 +2100,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PR13 Sin headers",
@@ -2207,6 +2130,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -2219,17 +2151,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00 (lugares y sectores). El primer request crea el evento que usa el resto."
@@ -2269,15 +2193,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -2286,8 +2201,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM01 Límite válido (8)",
@@ -2318,6 +2243,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 8\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2328,17 +2262,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 8\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM02 Límite = 1",
@@ -2369,6 +2295,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2379,17 +2314,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM03 Límite = 0",
@@ -2425,6 +2352,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2435,17 +2371,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM04 Límite negativo",
@@ -2481,6 +2409,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": -1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2491,17 +2428,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": -1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM05 Límite decimal (2.5)",
@@ -2537,6 +2466,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 2.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2547,17 +2485,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 2.5\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM06 Límite texto",
@@ -2593,6 +2523,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": \"abc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2603,17 +2542,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": \"abc\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM07 Límite null",
@@ -2649,6 +2580,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2659,17 +2599,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": null\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM08 Sin campo",
@@ -2705,6 +2637,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2715,17 +2656,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM09 Evento inexistente",
@@ -2761,6 +2694,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/000000000000000000000000/limite-entradas-por-cliente",
               "host": [
@@ -2771,17 +2713,9 @@
                 "000000000000000000000000",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM10 Organizador que no es dueño",
@@ -2817,6 +2751,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2827,17 +2770,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM11 Rol cliente",
@@ -2873,6 +2808,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2883,17 +2827,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM12 Rol administrador",
@@ -2929,6 +2865,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2939,17 +2884,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "LM13 Sin headers",
@@ -2977,6 +2914,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoId}}/limite-entradas-por-cliente",
               "host": [
@@ -2987,17 +2933,9 @@
                 "{{eventoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 4\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00 (lugares y sectores). El primer request crea el evento que usa el resto."
@@ -3037,15 +2975,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -3054,8 +2983,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB00b Crear evento para el caso de un solo precio",
@@ -3089,15 +3028,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -3106,8 +3036,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB00c Definir precio solo en el sector numerado",
@@ -3138,6 +3078,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoParcialId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -3150,17 +3099,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB01 Publicar sin ningún precio (rechazado)",
@@ -3204,7 +3145,8 @@
               ]
             },
             "description": "La spec pide un error que indique qué sectores faltan. Se aceptan 400 o 409; revisá que el mensaje nombre los sectores."
-          }
+          },
+          "response": []
         },
         {
           "name": "PB02 Publicar con un sector sin precio (rechazado)",
@@ -3247,7 +3189,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB03 Publicar evento inexistente",
@@ -3290,7 +3233,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB04 Publicar evento de otro organizador",
@@ -3333,7 +3277,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB05 Publicar con rol cliente",
@@ -3376,7 +3321,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB06 Publicar con rol administrador",
@@ -3419,7 +3365,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PB07 Publicar sin headers",
@@ -3453,7 +3400,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SU01 Suspender un evento en borrador",
@@ -3497,7 +3445,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SU02 Suspender evento inexistente",
@@ -3541,7 +3490,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SU03 Suspender con rol organizador",
@@ -3585,7 +3535,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SU04 Suspender con rol cliente",
@@ -3629,7 +3580,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SU05 Suspender sin headers",
@@ -3664,7 +3616,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RE01 Reactivar un evento en borrador",
@@ -3708,7 +3661,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RE02 Reactivar evento inexistente",
@@ -3752,7 +3706,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RE03 Reactivar con rol organizador",
@@ -3796,7 +3751,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RE04 Reactivar sin headers",
@@ -3831,7 +3787,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CA01 Cancelar un evento en borrador",
@@ -3875,7 +3832,8 @@
               ]
             },
             "description": "La spec habla de cancelar eventos publicados o agotados. Si devuelve 200, hay que decidir si se permite cancelar borradores."
-          }
+          },
+          "response": []
         },
         {
           "name": "CA02 Cancelar evento inexistente",
@@ -3918,7 +3876,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CA03 Cancelar con rol organizador",
@@ -3961,7 +3920,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CA04 Cancelar con rol cliente",
@@ -4004,7 +3964,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CA05 Cancelar sin headers",
@@ -4038,7 +3999,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG01 Agotado sobre un evento en borrador",
@@ -4066,6 +4028,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
               "host": [
@@ -4076,17 +4047,9 @@
                 "{{eventoSinPreciosId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG02 Agotado sobre evento inexistente",
@@ -4114,6 +4077,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/000000000000000000000000/disponibilidad",
               "host": [
@@ -4124,17 +4096,9 @@
                 "000000000000000000000000",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG03 Agotado: body sin el campo",
@@ -4162,6 +4126,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
               "host": [
@@ -4172,17 +4145,9 @@
                 "{{eventoSinPreciosId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG04 Agotado: valor texto",
@@ -4210,6 +4175,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": \"si\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
               "host": [
@@ -4220,17 +4194,9 @@
                 "{{eventoSinPreciosId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": \"si\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG05 Agotado: null",
@@ -4258,6 +4224,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinPreciosId}}/disponibilidad",
               "host": [
@@ -4268,17 +4243,9 @@
                 "{{eventoSinPreciosId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": null\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AG06 Agotado: sin body",
@@ -4307,7 +4274,8 @@
                 "disponibilidad"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00. Se puede correr con Reservas encendido o apagado: ninguna de estas validaciones llega a llamarlo."
@@ -4347,15 +4315,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -4364,8 +4323,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL00b Precio del sector numerado",
@@ -4396,6 +4365,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -4408,17 +4386,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL00c Precio del sector no numerado",
@@ -4449,6 +4419,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -4461,17 +4440,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL01 Publicar (Reservas responde 204)",
@@ -4509,7 +4480,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL02 Publicar de nuevo un evento ya publicado",
@@ -4548,7 +4520,8 @@
               ]
             },
             "description": "Se aceptan 200 (idempotente) o 409. Anotá cuál devuelve."
-          }
+          },
+          "response": []
         },
         {
           "name": "FL03 Cambiar un precio con el evento publicado",
@@ -4584,6 +4557,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 20000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -4596,17 +4578,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 20000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL04 Cambiar el límite con el evento publicado",
@@ -4642,6 +4616,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limiteEntradasPorCliente\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/limite-entradas-por-cliente",
               "host": [
@@ -4652,17 +4635,9 @@
                 "{{eventoPublicadoId}}",
                 "limite-entradas-por-cliente"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"limiteEntradasPorCliente\": 2\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL05 Suspender la venta",
@@ -4701,7 +4676,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL06 Suspender de nuevo",
@@ -4740,7 +4716,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL07 Reactivar la venta",
@@ -4779,7 +4756,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL08 Reactivar con la venta ya activa",
@@ -4818,7 +4796,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL09 Reservas avisa: agotado",
@@ -4841,6 +4820,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
               "host": [
@@ -4851,17 +4839,9 @@
                 "{{eventoPublicadoId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL10 Reservas repite: agotado (idempotente)",
@@ -4884,6 +4864,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
               "host": [
@@ -4894,17 +4883,9 @@
                 "{{eventoPublicadoId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL11 Reservas avisa: vuelve a haber lugares",
@@ -4927,6 +4908,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
               "host": [
@@ -4937,17 +4927,9 @@
                 "{{eventoPublicadoId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": false\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL12 Cancelar el evento",
@@ -4985,7 +4967,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL13 Cancelar de nuevo",
@@ -5028,7 +5011,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL14 Aviso tardío de agotado sobre evento cancelado (se ignora)",
@@ -5051,6 +5035,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPublicadoId}}/disponibilidad",
               "host": [
@@ -5061,17 +5054,9 @@
                 "{{eventoPublicadoId}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL15 Suspender un evento cancelado",
@@ -5115,7 +5100,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL16 Reactivar un evento cancelado",
@@ -5159,7 +5145,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FL17 Publicar un evento cancelado",
@@ -5202,7 +5189,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00 y un servicio de Reservas respondiendo en localhost:8080 (el real o reservas-stub.js). Correr esta carpeta sola, no junto con la 07."
@@ -5242,15 +5230,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -5259,8 +5238,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SD00b Precio del sector numerado",
@@ -5291,6 +5280,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -5303,17 +5301,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SD00c Precio del sector no numerado",
@@ -5344,6 +5334,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -5356,17 +5355,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SD01 Publicar con Reservas apagado (503)",
@@ -5409,7 +5400,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SD02 El evento sigue en borrador (todavía se puede cambiar el precio)",
@@ -5440,6 +5432,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 16000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoSinReservasId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -5452,17 +5453,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 16000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "SD03 Reintentar la publicación (sigue 503)",
@@ -5505,7 +5498,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00 y que NO haya nada escuchando en localhost:8080. Parar el stub o el servicio de Reservas antes de correr esta carpeta, y correrla sola."
@@ -5545,15 +5539,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -5562,8 +5547,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG01 Definir precio solo del sector numerado",
@@ -5594,6 +5589,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCompraId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -5606,17 +5610,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG02 GET interno: borrador con un sector sin precio (precio null)",
@@ -5665,7 +5661,8 @@
               ]
             },
             "description": "Compras llama sin headers de usuario. Contrato: eventoId, nombre, fechaInicio (UTC), estado y sectores con sectorId, nombre y precio."
-          }
+          },
+          "response": []
         },
         {
           "name": "CG03 Definir precio del sector no numerado",
@@ -5696,6 +5693,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCompraId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -5708,17 +5714,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG04 GET interno: ambos sectores con precio",
@@ -5766,7 +5764,8 @@
                 "{{eventoCompraId}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG05 GET interno con headers de usuario (se ignoran)",
@@ -5804,7 +5803,8 @@
                 "{{eventoCompraId}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG06 GET interno de evento inexistente",
@@ -5838,7 +5838,8 @@
                 "000000000000000000000000"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CG07 GET interno con id mal formado",
@@ -5873,7 +5874,8 @@
               ]
             },
             "description": "Se aceptan 400 o 404. Anotá cuál devuelve."
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00. No depende de Reservas ni de Compras."
@@ -5913,15 +5915,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -5930,8 +5923,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN00b Precio del sector numerado",
@@ -5962,6 +5965,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -5974,17 +5986,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN00c Precio del sector no numerado",
@@ -6015,6 +6019,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -6027,17 +6040,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN01 Publicar (Reservas encendido)",
@@ -6075,7 +6080,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN02 Cancelar con motivo",
@@ -6106,6 +6112,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Problemas de seguridad en el recinto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCancelaId}}/cancelar",
               "host": [
@@ -6116,17 +6131,9 @@
                 "{{eventoCancelaId}}",
                 "cancelar"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"motivo\": \"Problemas de seguridad en el recinto\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN03 Compras recibió el aviso con el motivo enviado",
@@ -6163,7 +6170,8 @@
                 "avisos"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN04 Cancelar de nuevo (409, no se vuelve a avisar)",
@@ -6206,7 +6214,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN05 Compras sigue con un solo aviso de ese evento",
@@ -6243,7 +6252,8 @@
                 "avisos"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CN06 GET interno de un evento cancelado",
@@ -6274,7 +6284,8 @@
                 "{{eventoCancelaId}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS00 Crear evento",
@@ -6308,15 +6319,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -6325,8 +6327,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS00b Precio del sector numerado",
@@ -6357,6 +6369,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -6369,17 +6390,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS00c Precio del sector no numerado",
@@ -6410,6 +6423,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoCancelaSinMotivoId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -6422,17 +6444,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS01 Publicar el segundo evento",
@@ -6470,7 +6484,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS02 Cancelar sin body (motivo por defecto)",
@@ -6508,7 +6523,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CS03 Compras recibió el aviso con motivo por defecto",
@@ -6545,7 +6561,8 @@
                 "avisos"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00, un Reservas respondiendo en localhost:8080 (reservas-stub.js) y el simulador de Compras en localhost:8083 (compras-stub.js)."
@@ -6585,15 +6602,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival Central\",\n  \"descripcion\": \"Música en vivo\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Artista A\"\n  ],\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -6602,8 +6610,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR00b Precio del sector numerado",
@@ -6634,6 +6652,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/sectores/{{sectorNumeradoId}}/precio",
               "host": [
@@ -6646,17 +6673,9 @@
                 "{{sectorNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR00c Precio del sector no numerado",
@@ -6687,6 +6706,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/sectores/{{sectorNoNumeradoId}}/precio",
               "host": [
@@ -6699,17 +6727,9 @@
                 "{{sectorNoNumeradoId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR01 Publicar (Reservas encendido)",
@@ -6747,7 +6767,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR02 Cancelar con Compras apagado (la cancelación igual se hace)",
@@ -6778,6 +6799,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cancelado con Compras apagado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{eventoPendienteId}}/cancelar",
               "host": [
@@ -6788,17 +6818,9 @@
                 "{{eventoPendienteId}}",
                 "cancelar"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"motivo\": \"Cancelado con Compras apagado\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR03 El evento quedó cancelado",
@@ -6829,7 +6851,8 @@
                 "{{eventoPendienteId}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "CR04 Cancelar de nuevo (409)",
@@ -6872,7 +6895,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00, Reservas en localhost:8080 y NADA escuchando en el 8083. Después: encender compras-stub.js, esperar el reenvío (intervalo configurable) y correr la carpeta 11."
@@ -6915,10 +6939,11 @@
                 "avisos"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
-      "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-stub.js y esperado el intervalo de reenvío."
+      "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-stub.js y esperado el intervalo de reenvío (60 segundos)."
     },
     {
       "name": "12 Preparación de búsqueda (requiere Reservas ENCENDIDO)",
@@ -6967,7 +6992,8 @@
               ]
             },
             "description": "Su script previo genera orgBusq, un organizador propio de esta corrida, para que las búsquedas filtradas por organizadorId solo vean los eventos que crea esta carpeta."
-          }
+          },
+          "response": []
         },
         {
           "name": "BU01 Lugar en Tandil",
@@ -7001,15 +7027,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/lugares",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lugares"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Teatro de Tandil\",\n  \"direccion\": \"Av. Rivadavia 500\",\n  \"ciudad\": \"Tandil\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
@@ -7018,8 +7035,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU02 Sector numerado de Tandil",
@@ -7054,6 +7081,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 2,\n  \"asientosPorFila\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarTandilId}}/sectores",
               "host": [
@@ -7064,17 +7100,9 @@
                 "{{lugarTandilId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Platea\",\n  \"tipo\": \"NUMERADO\",\n  \"filas\": 2,\n  \"asientosPorFila\": 3\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU03 Sector no numerado de Tandil",
@@ -7109,6 +7137,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarTandilId}}/sectores",
               "host": [
@@ -7119,17 +7156,9 @@
                 "{{lugarTandilId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 100\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU04 Lugar en Cordoba",
@@ -7163,15 +7192,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/lugares",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "lugares"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Estadio de Cordoba\",\n  \"direccion\": \"Av. Colon 100\",\n  \"ciudad\": \"Cordoba\",\n  \"latitud\": -34.6037,\n  \"longitud\": -58.3816\n}",
@@ -7180,8 +7200,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lugares",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU05 Sector de Cordoba",
@@ -7216,6 +7246,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Popular\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/lugares/{{lugarCordobaId}}/sectores",
               "host": [
@@ -7226,17 +7265,9 @@
                 "{{lugarCordobaId}}",
                 "sectores"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nombre\": \"Popular\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 500\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU10 Crear Rock Nacional",
@@ -7270,15 +7301,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Rock Nacional\",\n  \"descripcion\": \"Noche de rock con bandas locales\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Alfa\",\n    \"Banda Beta\"\n  ],\n  \"fechaHora\": \"2027-03-10T21:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -7287,8 +7309,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU11 Precio platea Rock Nacional",
@@ -7319,6 +7351,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 20000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq1}}/sectores/{{secNumTandilId}}/precio",
               "host": [
@@ -7331,17 +7372,9 @@
                 "{{secNumTandilId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 20000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU12 Precio campo Rock Nacional",
@@ -7372,6 +7405,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 8000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq1}}/sectores/{{secNoNumTandilId}}/precio",
               "host": [
@@ -7384,17 +7426,9 @@
                 "{{secNoNumTandilId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 8000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU13 Publicar Rock Nacional",
@@ -7432,7 +7466,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU20 Crear Obra Clasica",
@@ -7466,15 +7501,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Obra Clasica\",\n  \"descripcion\": \"Funcion especial con el zorzal\",\n  \"tipo\": \"TEATRO\",\n  \"participantes\": [\n    \"Compania Gamma\"\n  ],\n  \"fechaHora\": \"2027-04-15T20:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -7483,8 +7509,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU21 Precio Obra Clasica",
@@ -7515,6 +7551,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 5000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq2}}/sectores/{{secCordobaId}}/precio",
               "host": [
@@ -7527,17 +7572,9 @@
                 "{{secCordobaId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 5000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU22 Publicar Obra Clasica",
@@ -7575,7 +7612,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU30 Crear Final del Torneo",
@@ -7609,15 +7647,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Final del Torneo\",\n  \"descripcion\": \"Gran final del campeonato\",\n  \"tipo\": \"DEPORTE\",\n  \"participantes\": [\n    \"Club Delta\",\n    \"Club Epsilon\"\n  ],\n  \"fechaHora\": \"2027-05-20T18:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -7626,8 +7655,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU31 Precio platea Final del Torneo",
@@ -7658,6 +7697,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 30000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq3}}/sectores/{{secNumTandilId}}/precio",
               "host": [
@@ -7670,17 +7718,9 @@
                 "{{secNumTandilId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 30000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU32 Precio campo Final del Torneo",
@@ -7711,6 +7751,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 12000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq3}}/sectores/{{secNoNumTandilId}}/precio",
               "host": [
@@ -7723,17 +7772,9 @@
                 "{{secNoNumTandilId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 12000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU33 Publicar Final del Torneo",
@@ -7771,7 +7812,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU34 Reservas avisa: Final del Torneo agotado",
@@ -7794,6 +7836,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agotado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq3}}/disponibilidad",
               "host": [
@@ -7804,17 +7855,9 @@
                 "{{evBusq3}}",
                 "disponibilidad"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"agotado\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU40 Crear Festival de Verano",
@@ -7848,15 +7891,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Festival de Verano\",\n  \"descripcion\": \"Festival de musica al aire libre\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Alfa\"\n  ],\n  \"fechaHora\": \"2027-06-01T22:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -7865,8 +7899,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU41 Precio Festival de Verano",
@@ -7897,6 +7941,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 15000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq4}}/sectores/{{secCordobaId}}/precio",
               "host": [
@@ -7909,17 +7962,9 @@
                 "{{secCordobaId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 15000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU42 Publicar Festival de Verano",
@@ -7957,7 +8002,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU50 Crear Evento en Borrador (queda en borrador)",
@@ -7991,15 +8037,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Evento en Borrador\",\n  \"descripcion\": \"Todavia en preparacion\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda Zeta\"\n  ],\n  \"fechaHora\": \"2027-07-01T21:00:00Z\",\n  \"lugarId\": \"{{lugarTandilId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -8008,8 +8045,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU60 Crear Evento Cancelado",
@@ -8043,15 +8090,6 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/eventos",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "eventos"
-              ]
-            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"nombre\": \"Evento Cancelado\",\n  \"descripcion\": \"Se cancelo por lluvia\",\n  \"tipo\": \"TEATRO\",\n  \"participantes\": [\n    \"Compania Eta\"\n  ],\n  \"fechaHora\": \"2027-08-01T21:00:00Z\",\n  \"lugarId\": \"{{lugarCordobaId}}\",\n  \"limiteEntradasPorCliente\": 4\n}",
@@ -8060,8 +8098,18 @@
                   "language": "json"
                 }
               }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/eventos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU61 Precio Evento Cancelado",
@@ -8092,6 +8140,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 7000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{baseUrl}}/eventos/{{evBusq6}}/sectores/{{secCordobaId}}/precio",
               "host": [
@@ -8104,17 +8161,9 @@
                 "{{secCordobaId}}",
                 "precio"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"precio\": 7000.0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU62 Publicar Evento Cancelado",
@@ -8152,7 +8201,8 @@
                 "publicar"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BU63 Cancelar Evento Cancelado",
@@ -8190,7 +8240,8 @@
                 "cancelar"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Crea 2 lugares y 6 eventos de un organizador propio: 3 publicados, 1 agotado, 1 borrador y 1 cancelado. Requiere reservas-stub.js (o Reservas real) en localhost:8080. Cancelar el último evento genera un aviso a Compras (queda pendiente si Compras está apagado)."
@@ -8248,7 +8299,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ02 Por tipo MUSICA",
@@ -8298,7 +8350,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ03 Por tipo TEATRO (el cancelado no aparece)",
@@ -8348,7 +8401,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ04 Por participante",
@@ -8380,7 +8434,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&participante=Banda%20Alfa",
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&participante=Banda Alfa",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -8398,7 +8452,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ05 Participante inexistente",
@@ -8448,7 +8503,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ06 Por ciudad Tandil (el borrador no aparece)",
@@ -8498,7 +8554,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ07 Por ciudad Cordoba (el cancelado no aparece)",
@@ -8548,7 +8605,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ08 Combinado: tipo y ciudad",
@@ -8602,7 +8660,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ09 Combinado: tipo y participante",
@@ -8634,7 +8693,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=MUSICA&participante=Banda%20Beta",
+              "raw": "{{baseUrl}}/eventos?organizadorId={{orgBusq}}&tipo=MUSICA&participante=Banda Beta",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -8656,7 +8715,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ10 Combinado sin coincidencias",
@@ -8710,7 +8770,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ11 Rango de fechas (abril y mayo)",
@@ -8764,7 +8825,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ12 Límites de fecha inclusivos (desde = hasta = fecha del evento)",
@@ -8818,7 +8880,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ13 Solo fechaDesde",
@@ -8868,7 +8931,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ14 Solo fechaHasta",
@@ -8918,7 +8982,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ15 Organizador inexistente: lista vacía con 200",
@@ -8964,7 +9029,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "BQ16 Participante parcial (la spec dice coincidencia exacta)",
@@ -9015,7 +9081,8 @@
               ]
             },
             "description": "El participante se compara de forma exacta: 'Alfa' no coincide con 'Banda Alfa'. Si devuelve resultados, el filtro es de tipo 'contiene' y hay que alinear la spec."
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 12. Todas filtran por el organizador de la corrida.",
@@ -9080,7 +9147,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR02 orden=fecha explícito",
@@ -9130,7 +9198,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR03 orden=fecha con direccion=desc (la dirección solo aplica al precio)",
@@ -9184,7 +9253,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR04 Orden por precio ascendente",
@@ -9242,7 +9312,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR05 Orden por precio descendente",
@@ -9296,7 +9367,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR06 Orden por precio sin dirección (ascendente por defecto)",
@@ -9346,7 +9418,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR07 Relevancia sin q (equivale a fecha ascendente)",
@@ -9396,7 +9469,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR08 Relevancia con q=Alfa (participantes)",
@@ -9451,7 +9525,8 @@
               ]
             },
             "description": "Solo se comprueba el conjunto de resultados; el orden depende del puntaje de texto."
-          }
+          },
+          "response": []
         },
         {
           "name": "OR09 Relevancia con q=zorzal (descripción)",
@@ -9505,7 +9580,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR10 Relevancia con q=Rock (nombre)",
@@ -9559,7 +9635,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR11 Relevancia con q y filtro de ciudad",
@@ -9617,7 +9694,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR12 q sin ninguna coincidencia",
@@ -9671,7 +9749,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR13 Orden no soportado",
@@ -9722,7 +9801,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "OR14 Dirección no soportada",
@@ -9777,7 +9857,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 12.",
@@ -9855,7 +9936,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG02 Segunda página (size=2)",
@@ -9914,7 +9996,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG03 Página fuera de rango: lista vacía con 200",
@@ -9966,7 +10049,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG04 Tamaño por defecto (20)",
@@ -10010,7 +10094,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG05 Tamaño máximo (100)",
@@ -10058,7 +10143,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG06 size=101 (supera el máximo)",
@@ -10109,7 +10195,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG07 size=0",
@@ -10160,7 +10247,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG08 page negativa",
@@ -10211,7 +10299,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG09 size no numérico",
@@ -10262,7 +10351,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "PG10 page no numérica",
@@ -10313,7 +10403,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FE01 fechaDesde con formato inválido",
@@ -10364,7 +10455,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FE02 fechaDesde sin la Z final (no es UTC)",
@@ -10415,7 +10507,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FE03 fechaHasta con texto",
@@ -10466,7 +10559,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "FE04 fechaDesde posterior a fechaHasta",
@@ -10521,7 +10615,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 12.",
@@ -10550,12 +10645,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
-                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
-                  "  var j = pm.response.json();",
-                  "  pm.expect(j).to.have.property(\"status\");",
-                  "  pm.expect(j).to.have.property(\"mensaje\");",
-                  "});"
+                  "pm.test(\"Código 200\", () => pm.response.to.have.status(200));\n\npm.test(\"Respuesta paginada\", () => {\n  const body = pm.response.json();\n  pm.expect(body).to.have.property(\"contenido\").that.is.an(\"array\");\n  [\"pagina\", \"tamano\", \"totalElementos\", \"totalPaginas\"].forEach(p =>\n    pm.expect(body).to.have.property(p));\n});\n\npm.test(\"Solo eventos publicados o agotados\", () => {\n  pm.response.json().contenido.forEach(e => {\n    if (e.estado) pm.expect([\"publicado\", \"agotado\"]).to.include(e.estado);\n  });\n});"
                 ]
               }
             }
@@ -10578,7 +10668,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB02 Solo rol, sin X-User-Id",
@@ -10588,12 +10679,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
-                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
-                  "  var j = pm.response.json();",
-                  "  pm.expect(j).to.have.property(\"status\");",
-                  "  pm.expect(j).to.have.property(\"mensaje\");",
-                  "});"
+                  "pm.test(\"Código 200\", () => pm.response.to.have.status(200));\n\npm.test(\"Respuesta paginada\", () => {\n  const body = pm.response.json();\n  pm.expect(body).to.have.property(\"contenido\").that.is.an(\"array\");\n  [\"pagina\", \"tamano\", \"totalElementos\", \"totalPaginas\"].forEach(p =>\n    pm.expect(body).to.have.property(p));\n});\n\npm.test(\"Solo eventos publicados o agotados\", () => {\n  pm.response.json().contenido.forEach(e => {\n    if (e.estado) pm.expect([\"publicado\", \"agotado\"]).to.include(e.estado);\n  });\n});"
                 ]
               }
             }
@@ -10621,7 +10707,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB03 Rol desconocido",
@@ -10631,12 +10718,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
-                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
-                  "  var j = pm.response.json();",
-                  "  pm.expect(j).to.have.property(\"status\");",
-                  "  pm.expect(j).to.have.property(\"mensaje\");",
-                  "});"
+                  "pm.test(\"Código 200\", () => pm.response.to.have.status(200));\n\npm.test(\"Respuesta paginada\", () => {\n  const body = pm.response.json();\n  pm.expect(body).to.have.property(\"contenido\").that.is.an(\"array\");\n  [\"pagina\", \"tamano\", \"totalElementos\", \"totalPaginas\"].forEach(p =>\n    pm.expect(body).to.have.property(p));\n});\n\npm.test(\"Solo eventos publicados o agotados\", () => {\n  pm.response.json().contenido.forEach(e => {\n    if (e.estado) pm.expect([\"publicado\", \"agotado\"]).to.include(e.estado);\n  });\n});"
                 ]
               }
             }
@@ -10668,7 +10750,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB04 Rol cliente",
@@ -10714,7 +10797,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB05 Rol organizador",
@@ -10760,7 +10844,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB06 Rol ADMIN",
@@ -10806,7 +10891,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB07 Rol en minúsculas (no distingue mayúsculas)",
@@ -10852,7 +10938,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "RB08 Rol 'administrador' (el valor anterior)",
@@ -10895,7 +10982,8 @@
               ]
             },
             "description": "Informativo: indica si el valor anterior todavía se acepta como alias. Ambos resultados son válidos."
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 12.",
@@ -10997,7 +11085,8 @@
               ]
             },
             "description": "Requiere Reservas encendido (reservas-stub.js) y que la carpeta 12 haya publicado los eventos con ese mismo simulador. Se corre antes de ocupar lugares (DT15)."
-          }
+          },
+          "response": []
         },
         {
           "name": "DT02 Detalle como organizador dueño",
@@ -11034,7 +11123,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT03 Detalle como administrador",
@@ -11071,7 +11161,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT04 Detalle de un evento agotado",
@@ -11113,7 +11204,8 @@
                 "{{evBusq3}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT05 Detalle de un evento cancelado",
@@ -11155,7 +11247,8 @@
                 "{{evBusq6}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT06 Borrador visto por su organizador dueño",
@@ -11197,7 +11290,8 @@
                 "{{evBusq5}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT07 Borrador visto por un administrador",
@@ -11239,7 +11333,8 @@
                 "{{evBusq5}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT08 Borrador visto por otro organizador (404)",
@@ -11281,7 +11376,8 @@
                 "{{evBusq5}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT09 Borrador visto por un cliente (404)",
@@ -11323,7 +11419,8 @@
                 "{{evBusq5}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT10 Evento inexistente",
@@ -11365,7 +11462,8 @@
                 "000000000000000000000000"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT11 Id mal formado",
@@ -11408,7 +11506,8 @@
               ]
             },
             "description": "Se aceptan 400 o 404. Anotá cuál devuelve."
-          }
+          },
+          "response": []
         },
         {
           "name": "DT12 Detalle sin headers",
@@ -11418,12 +11517,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });",
-                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
-                  "  var j = pm.response.json();",
-                  "  pm.expect(j).to.have.property(\"status\");",
-                  "  pm.expect(j).to.have.property(\"mensaje\");",
-                  "});"
+                  "pm.test(\"Código 200\", () => pm.response.to.have.status(200));\n\npm.test(\"Devuelve el detalle del evento\", () => {\n  const body = pm.response.json();\n  pm.expect(body).to.have.property(\"estado\");\n  pm.expect([\"publicado\", \"agotado\"]).to.include(body.estado);\n  pm.expect(body).to.have.property(\"lugar\");\n});"
                 ]
               }
             }
@@ -11441,7 +11535,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT13 Detalle con rol desconocido",
@@ -11451,12 +11546,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });",
-                  "pm.test(\"Formato de error común (status y mensaje)\", function () {",
-                  "  var j = pm.response.json();",
-                  "  pm.expect(j).to.have.property(\"status\");",
-                  "  pm.expect(j).to.have.property(\"mensaje\");",
-                  "});"
+                  "pm.test(\"Código 200\", () => pm.response.to.have.status(200));\n\npm.test(\"Devuelve el detalle del evento\", () => {\n  const body = pm.response.json();\n  pm.expect(body).to.have.property(\"estado\");\n  pm.expect([\"publicado\", \"agotado\"]).to.include(body.estado);\n  pm.expect(body).to.have.property(\"lugar\");\n});"
                 ]
               }
             }
@@ -11483,7 +11573,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT14 El GET interno para Compras sigue funcionando",
@@ -11514,7 +11605,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT15 Ocupar el asiento 1-1 de la Platea en el simulador de Reservas",
@@ -11537,6 +11629,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"{{secNumTandilId}}\",\n  \"asientos\": [\n    {\n      \"fila\": 1,\n      \"numero\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{reservasUrl}}/_stub/ocupar/{{evBusq1}}",
               "host": [
@@ -11548,17 +11649,9 @@
                 "{{evBusq1}}"
               ]
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"sectorId\": \"{{secNumTandilId}}\",\n  \"asientos\": [\n    {\n      \"fila\": 1,\n      \"numero\": 1\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
             "description": "Ruta extra del simulador de Reservas (no existe en el servicio real)."
-          }
+          },
+          "response": []
         },
         {
           "name": "DT15b Ocupar 30 lugares del Campo en el simulador de Reservas",
@@ -11581,6 +11674,15 @@
                 "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectorId\": \"{{secNoNumTandilId}}\",\n  \"cantidad\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
               "raw": "{{reservasUrl}}/_stub/ocupar/{{evBusq1}}",
               "host": [
@@ -11591,17 +11693,9 @@
                 "ocupar",
                 "{{evBusq1}}"
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"sectorId\": \"{{secNoNumTandilId}}\",\n  \"cantidad\": 30\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT16 El detalle refleja la disponibilidad actual",
@@ -11652,7 +11746,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT17 Suspender la venta de un evento publicado",
@@ -11691,7 +11786,8 @@
                 "suspender"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT18 Con la venta suspendida igual se consulta a Reservas",
@@ -11733,7 +11829,8 @@
                 "{{evBusq4}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "DT19 Reactivar la venta",
@@ -11772,7 +11869,8 @@
                 "reactivar"
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 12 y el mismo reservas-stub.js encendido (guarda en memoria los eventos inicializados). DT15 ocupa lugares, así que corre una vez por cada corrida de la 12: para repetirla, volvé a correr la 12.",
@@ -11839,7 +11937,8 @@
                 "{{evBusq1}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AP02 Detalle agotado con Reservas apagado",
@@ -11887,7 +11986,8 @@
                 "{{evBusq3}}"
               ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "AP03 La búsqueda no depende de Reservas",
@@ -11933,7 +12033,8 @@
                 }
               ]
             }
-          }
+          },
+          "response": []
         }
       ],
       "description": "Requiere haber corrido la 12 con Reservas encendido y después APAGARLO (Ctrl+C en reservas-stub.js). También sirve reiniciar el simulador sin volver a publicar: Reservas responde 404 y el resultado es el mismo (disponibilidad null).",
@@ -11950,6 +12051,522 @@
           }
         }
       ]
+    },
+    {
+      "name": "19 Identidad: JWT, roles y titularidad",
+      "item": [
+        {
+          "name": "ID01 Público: búsqueda sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/eventos",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID02 Público: detalle de publicado sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.sendRequest({ url: \"http://localhost:8081/eventos?size=1\", method: \"GET\" }, (err, res) => {\r\n  const lista = res && res.json().contenido;\r\n  if (!err && lista && lista.length) pm.collectionVariables.set(\"eventoPublicadoId\", lista[0].id);\r\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{eventoPublicadoId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{eventoPublicadoId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID03 Crear borrador (titular)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 201\", function () { pm.response.to.have.status(201); });\r\npm.collectionVariables.set(\"borradorId\", pm.response.json().id)"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "org-1"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"nombre\": \"Festival Central Volúmen 2\",\r\n  \"descripcion\": \"Música en vivo\",\r\n  \"tipo\": \"MUSICA\",\r\n  \"participantes\": [\r\n    \"Artista B\"\r\n  ],\r\n  \"fechaHora\": \"2027-06-20T21:00:00Z\",\r\n  \"lugarId\": \"{{lugarId}}\",\r\n  \"limiteEntradasPorCliente\": 4\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8081/eventos",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID04 Borrador sin headers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID05 Borrador con el titular",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "org-1"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID06 Borrador con otro organizador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "org-2"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID07 Borrador con ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "admin-1"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID08 Multirol: editar evento propio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "org-1"
+              },
+              {
+                "key": "X-User-Roles",
+                "value": "CLIENTE,ORGANIZADOR"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"limiteEntradasPorCliente\": 6\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}/limite-entradas-por-cliente",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}",
+                "limite-entradas-por-cliente"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ID09 [LEGACY] solo X-User-Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8081/eventos/{{borradorId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "eventos",
+                "{{borradorId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "apikey"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Migración: X-User-Role (viejo) -> X-User-Roles (nuevo). Los requests \"[LEGACY]\" se dejan como están.\r",
+          "const h = pm.request.headers;\r",
+          "const esLegacy = pm.info.requestName.startsWith(\"[LEGACY]\");\r",
+          "if (!esLegacy && h.has(\"X-User-Role\") && !h.has(\"X-User-Roles\")) {\r",
+          "  h.upsert({ key: \"X-User-Roles\", value: h.get(\"X-User-Role\") });\r",
+          "  h.remove(\"X-User-Role\");\r",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "comprasUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "reservasUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "lugarId",
+      "value": ""
+    },
+    {
+      "key": "lugarOtroId",
+      "value": ""
+    },
+    {
+      "key": "sectorNumeradoId",
+      "value": ""
+    },
+    {
+      "key": "sectorNoNumeradoId",
+      "value": ""
+    },
+    {
+      "key": "sectorAjenoId",
+      "value": ""
+    },
+    {
+      "key": "eventoId",
+      "value": ""
+    },
+    {
+      "key": "eventoSinPreciosId",
+      "value": ""
+    },
+    {
+      "key": "eventoParcialId",
+      "value": ""
+    },
+    {
+      "key": "eventoPublicadoId",
+      "value": ""
+    },
+    {
+      "key": "eventoSinReservasId",
+      "value": ""
+    },
+    {
+      "key": "eventoCompraId",
+      "value": ""
+    },
+    {
+      "key": "eventoCancelaId",
+      "value": ""
+    },
+    {
+      "key": "eventoCancelaSinMotivoId",
+      "value": ""
+    },
+    {
+      "key": "eventoPendienteId",
+      "value": ""
+    },
+    {
+      "key": "orgBusq",
+      "value": ""
+    },
+    {
+      "key": "lugarTandilId",
+      "value": ""
+    },
+    {
+      "key": "secNumTandilId",
+      "value": ""
+    },
+    {
+      "key": "secNoNumTandilId",
+      "value": ""
+    },
+    {
+      "key": "lugarCordobaId",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "key": "secCordobaId",
+      "value": ""
+    },
+    {
+      "key": "evBusq1",
+      "value": ""
+    },
+    {
+      "key": "evBusq2",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "key": "evBusq3",
+      "value": ""
+    },
+    {
+      "key": "evBusq4",
+      "value": ""
+    },
+    {
+      "key": "evBusq5",
+      "value": ""
+    },
+    {
+      "key": "evBusq6",
+      "value": ""
+    },
+    {
+      "key": "borradorId",
+      "value": ""
+    },
+    {
+      "key": "orgTitular",
+      "value": ""
+    },
+    {
+      "key": "lugarCordobaId",
+      "value": ""
+    },
+    {
+      "key": "evBusq2",
+      "value": ""
     }
   ]
 }

@@ -9,24 +9,24 @@ Define la creación, preparación, publicación y administración del ciclo de v
 El servicio SHALL permitir que un organizador autenticado cree un evento asociado a sí mismo y a un lugar existente, con nombre, descripción, tipo, participantes y fecha/hora de inicio futura.
 
 #### Scenario: Crear evento válido
-- **GIVEN** un organizador autenticado y un lugar existente con sectores
+- **GIVEN** un organizador autenticado con `X-User-Roles` que incluye `ORGANIZADOR` y un lugar existente con sectores
 - **WHEN** crea un evento con los datos requeridos y fecha/hora de inicio futura
 - **THEN** queda asociado al organizador de `X-User-Id` en estado `borrador` y responde `201 Created`
 
 #### Scenario: Rechazar inicio pasado
-- **GIVEN** un organizador autenticado y un lugar existente
+- **GIVEN** un organizador autenticado con `X-User-Roles` que incluye `ORGANIZADOR` y un lugar existente
 - **WHEN** intenta crear el evento con fecha/hora de inicio pasada
 - **THEN** no se crea y responde `400 Bad Request`
 
 #### Scenario: Rechazar lugar inexistente
-- **GIVEN** un organizador autenticado
+- **GIVEN** un organizador autenticado con `X-User-Roles` que incluye `ORGANIZADOR`
 - **WHEN** intenta crear el evento con un lugar que no existe localmente
 - **THEN** no se crea y responde `404 Not Found`
 
 #### Scenario: Rechazar creación sin identidad o con rol no organizador
-- **GIVEN** una solicitud sin `X-User-Id` o `X-User-Role`, o con rol distinto de `ORGANIZADOR`
+- **GIVEN** una solicitud sin `X-User-Id` o `X-User-Roles`, o con `X-User-Roles` que no incluye `ORGANIZADOR`
 - **WHEN** solicita crear un evento
-- **THEN** responde `401 Unauthorized` si falta identidad o `403 Forbidden` si el rol no es organizador, y no crea el evento
+- **THEN** responde `401 Unauthorized` si falta identidad o roles, o `403 Forbidden` si no incluye el rol organizador, y no crea el evento
 
 ### Requirement: Definir límite de entradas por cliente
 El servicio SHALL permitir establecer un límite entero de entradas por cliente mayor o igual a uno al crear el evento o mientras esté en borrador, con valor por defecto cuatro.
@@ -101,7 +101,7 @@ El servicio SHALL permitir al organizador dueño asignar a cada sector del lugar
 
 #### Scenario: Asignar precio válido a un sector del lugar
 - **GIVEN** un evento en borrador cuyo lugar contiene el sector indicado
-- **WHEN** el organizador dueño asigna un precio mayor o igual a cero
+- **WHEN** el organizador dueño, autenticado con `X-User-Roles` que incluye `ORGANIZADOR`, asigna un precio mayor o igual a cero
 - **THEN** guarda el precio y una copia del nombre del sector en el evento y responde `200 OK`
 
 #### Scenario: Rechazar precio negativo
@@ -125,7 +125,7 @@ El servicio SHALL permitir al organizador dueño asignar a cada sector del lugar
 - **THEN** responde `403 Forbidden` y no modifica el evento
 
 #### Scenario: Rechazar modificación de precio sin identidad
-- **GIVEN** una solicitud para cambiar un precio sin `X-User-Id` o `X-User-Role`
+- **GIVEN** una solicitud para cambiar un precio sin `X-User-Id` o `X-User-Roles`
 - **WHEN** el servicio procesa la solicitud
 - **THEN** responde `401 Unauthorized` y no modifica el evento
 
@@ -133,7 +133,7 @@ El servicio SHALL permitir al organizador dueño asignar a cada sector del lugar
 El servicio SHALL publicar un evento solo cuando todos los sectores tengan precio y Reservas confirme la inicialización de disponibilidad.
 
 #### Scenario: Reservas confirma inicialización
-- **GIVEN** un evento en borrador con precio para cada sector y cuyo organizador autenticado es el dueño
+- **GIVEN** un evento en borrador con precio para cada sector y cuyo organizador autenticado, con `X-User-Roles` que incluye `ORGANIZADOR`, es el dueño
 - **WHEN** solicita publicarlo y Reservas responde `204 No Content` al PUT de inicialización
 - **THEN** el evento pasa a `publicado`, se calcula `precioMinimo` y responde `200 OK`
 
@@ -158,21 +158,21 @@ El servicio SHALL publicar un evento solo cuando todos los sectores tengan preci
 - **THEN** la inicialización no se duplica, el evento pasa a `publicado`, se calcula `precioMinimo` y responde `200 OK`
 
 #### Scenario: Rechazar publicación de evento ajeno o sin identidad
-- **GIVEN** un evento en borrador y una solicitud de otro organizador o sin identidad
+- **GIVEN** un evento en borrador y una solicitud de otro organizador o sin identidad o `X-User-Roles`
 - **WHEN** intenta publicarlo
-- **THEN** responde `403 Forbidden` si es otro organizador o `401 Unauthorized` si faltan encabezados, y el evento permanece en borrador
+- **THEN** responde `403 Forbidden` si es otro organizador o no incluye `ORGANIZADOR`, o `401 Unauthorized` si falta la identidad o la lista de roles, y el evento permanece en borrador
 
 ### Requirement: Administrar suspensión, reactivación y cancelación
-El servicio SHALL permitir solo a un administrador suspender o reactivar ventas y cancelar eventos elegibles, sin mezclar la suspensión con el estado formal.
+El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Roles` incluya `ADMIN` suspender o reactivar ventas y cancelar eventos elegibles, sin mezclar la suspensión con el estado formal.
 
 #### Scenario: Suspender venta tras confirmación de Reservas
 - **GIVEN** un evento `publicado` o `agotado`
-- **WHEN** un administrador suspende la venta y Reservas confirma con `204`
+- **WHEN** un administrador autenticado con `X-User-Roles` que incluye `ADMIN` suspende la venta y Reservas confirma con `204`
 - **THEN** `ventaSuspendida` queda en `true`, el estado formal no cambia y responde `200 OK`
 
 #### Scenario: Reactivar venta tras confirmación de Reservas
 - **GIVEN** un evento publicado o agotado con `ventaSuspendida` en `true`
-- **WHEN** un administrador reactiva la venta y Reservas confirma con `204`
+- **WHEN** un administrador autenticado con `X-User-Roles` que incluye `ADMIN` reactiva la venta y Reservas confirma con `204`
 - **THEN** `ventaSuspendida` queda en `false`, el estado formal no cambia y responde `200 OK`
 
 #### Scenario: No suspender ni reactivar si Reservas falla
@@ -182,12 +182,12 @@ El servicio SHALL permitir solo a un administrador suspender o reactivar ventas 
 
 #### Scenario: Cancelar tras confirmación de Reservas y notificar a Compras
 - **GIVEN** un evento `publicado` o `agotado`
-- **WHEN** un administrador lo cancela y Reservas confirma con `204`
+- **WHEN** un administrador autenticado con `X-User-Roles` que incluye `ADMIN` lo cancela y Reservas confirma con `204`
 - **THEN** pasa a `cancelado`, se registra el aviso con motivo y `canceladoEn` UTC, se intenta notificar a Compras y el administrador recibe `200 OK`
 
 #### Scenario: Cancelar con motivo omitido
 - **GIVEN** un evento `publicado` o `agotado`
-- **WHEN** un administrador cancela sin body o sin el campo `motivo` y Reservas confirma con `204`
+- **WHEN** un administrador autenticado con `X-User-Roles` que incluye `ADMIN` cancela sin body o sin el campo `motivo` y Reservas confirma con `204`
 - **THEN** se usa un motivo por defecto, se registra el instante UTC de cancelación, y el evento queda `cancelado` con respuesta `200 OK`
 
 #### Scenario: Compras acepta el aviso de cancelación
@@ -221,9 +221,9 @@ El servicio SHALL permitir solo a un administrador suspender o reactivar ventas 
 - **THEN** no cambia el evento ni duplica el aviso y responde `409 Conflict`
 
 #### Scenario: Rechazar acción administrativa a otro rol o sin identidad
-- **GIVEN** una solicitud sin identidad o con rol distinto de `ADMIN`
+- **GIVEN** una solicitud sin identidad o cuya lista `X-User-Roles` no incluye `ADMIN`
 - **WHEN** intenta suspender, reactivar o cancelar un evento
-- **THEN** responde `401 Unauthorized` si falta `X-User-Id` o `X-User-Role`, o `403 Forbidden` si el rol no es administrador, sin modificar el evento
+- **THEN** responde `401 Unauthorized` si falta `X-User-Id` o `X-User-Roles`, o `403 Forbidden` si la lista no incluye el rol administrador, sin modificar el evento
 
 ### Requirement: Reflejar automáticamente disponibilidad y finalización
 El servicio SHALL procesar de forma idempotente los avisos de disponibilidad y finalizar eventos al alcanzar su fecha/hora de inicio, coordinando con Reservas antes de cambiar el estado local.
@@ -305,29 +305,22 @@ El estado formal SHALL ser únicamente `borrador`, `publicado`, `agotado`, `canc
 - **THEN** ambos lo identifican mediante `(sectorId, fila, numero)`, dentro de los rangos configurados
 
 ### Requirement: Buscar eventos publicados y agotados
-El servicio SHALL ofrecer `GET /eventos` a clientes, organizadores y administradores autenticados. SHALL permitir filtrar por tipo, organizador, participante, ciudad y límites inclusivos de fecha/hora. SHALL combinar todos los filtros recibidos con AND y SHALL devolver solo estados `publicado` y `agotado`.
-
-La búsqueda reemplaza la respuesta actual `405 Method Not Allowed` de `GET /eventos`.
+El servicio SHALL ofrecer `GET /eventos` sin requerir token ni identidad. SHALL permitir filtrar por tipo, organizador, participante, ciudad y límites inclusivos de fecha/hora. SHALL combinar todos los filtros recibidos con AND y SHALL devolver solo estados `publicado` y `agotado`.
 
 #### Scenario: Reemplazar el método GET actualmente no soportado
 - **GIVEN** la ruta `GET /eventos`, que antes de este cambio responde `405 Method Not Allowed`
-- **WHEN** un usuario autenticado consulta la ruta con parámetros válidos
+- **WHEN** un consumidor sin token consulta la ruta con parámetros válidos
 - **THEN** el servicio procesa la búsqueda y responde `200 OK` en lugar de `405`
+
+#### Scenario: Buscar sin criterios
+- **GIVEN** hay eventos `borrador`, `cancelado`, `finalizado`, `publicado` y `agotado`
+- **WHEN** un consumidor sin token consulta `GET /eventos`
+- **THEN** responde `200 OK` únicamente con eventos `publicado` y `agotado`, ordenados por fecha ascendente y paginados
 
 #### Scenario: Buscar combinando criterios
 - **GIVEN** eventos publicados o agotados con distintos tipos, organizadores, participantes, ciudades y fechas
-- **WHEN** un cliente autenticado busca usando más de un criterio en `GET /eventos`
+- **WHEN** un consumidor sin token busca usando más de un criterio en `GET /eventos`
 - **THEN** la respuesta incluye solo eventos que cumplen todos los criterios y responde `200 OK`
-
-#### Scenario: Buscar sin criterios
-- **GIVEN** eventos en varios estados
-- **WHEN** un organizador autenticado consulta `GET /eventos` sin filtros
-- **THEN** recibe únicamente eventos `publicado` y `agotado`, ordenados por fecha ascendente y paginados, con `200 OK`
-
-#### Scenario: No mostrar borradores, cancelados ni finalizados en búsqueda
-- **GIVEN** hay eventos `borrador`, `cancelado`, `finalizado`, `publicado` y `agotado`
-- **WHEN** un administrador busca eventos
-- **THEN** los resultados no contienen los tres primeros estados y responden `200 OK`
 
 #### Scenario: Rango de fechas inclusivo
 - **GIVEN** eventos que comienzan exactamente en `fechaDesde`, exactamente en `fechaHasta` y fuera del rango
@@ -341,13 +334,28 @@ La búsqueda reemplaza la respuesta actual `405 Method Not Allowed` de `GET /eve
 
 #### Scenario: Devolver página vacía sin coincidencias
 - **GIVEN** no hay eventos visibles que cumplan los filtros
-- **WHEN** un organizador realiza la búsqueda
+- **WHEN** un consumidor realiza la búsqueda
 - **THEN** responde `200 OK` con `contenido` vacío y metadatos de paginación, sin error
+
+#### Scenario: No mostrar borradores, cancelados ni finalizados en búsqueda
+- **GIVEN** hay eventos `borrador`, `cancelado`, `finalizado`, `publicado` y `agotado`
+- **WHEN** un consumidor consulta la búsqueda sin token
+- **THEN** los resultados no contienen los tres primeros estados y responden `200 OK`
 
 #### Scenario: Devolver lista vacía si no hay eventos visibles
 - **GIVEN** no hay eventos `publicado` ni `agotado`
-- **WHEN** un cliente consulta `GET /eventos` sin filtros
+- **WHEN** un consumidor consulta `GET /eventos` sin filtros y sin token
 - **THEN** responde `200 OK` con `contenido: []`
+
+#### Scenario: No exigir autenticación para la búsqueda
+- **GIVEN** una solicitud sin `X-User-Id` ni `X-User-Roles` y parámetros válidos
+- **WHEN** consulta `GET /eventos`
+- **THEN** responde `200 OK` con los resultados públicos
+
+#### Scenario: Ignorar roles desconocidos en consultas públicas
+- **GIVEN** una solicitud a la búsqueda o al detalle de un evento publicado/agotado que incluye una identidad y `X-User-Roles` con roles desconocidos
+- **WHEN** consulta la ruta pública con parámetros válidos
+- **THEN** los roles desconocidos no se usan para autorizar y responde `200 OK`, como una solicitud anónima
 
 #### Scenario: Validar paginación
 - **GIVEN** una búsqueda con `page` negativo, `size` menor que uno o `size` mayor que cien
@@ -393,22 +401,27 @@ El servicio SHALL permitir `orden=fecha`, `orden=precio` o `orden=relevancia`; p
 - **THEN** se usa página `0` y tamaño `20`, y la respuesta incluye `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`
 
 ### Requirement: Consultar el detalle público de un evento
-El servicio SHALL ofrecer `GET /eventos/{eventoId}` a clientes, organizadores y administradores autenticados. SHALL devolver datos del evento, lugar y sectores con precio y disponibilidad. La ruta pública SHALL ser independiente de `GET /internal/eventos/{eventoId}`.
+`GET /eventos/{eventoId}` SHALL ser público sin token para eventos `publicado` o `agotado`. Un evento `borrador` SHALL requerir identidad completa del titular `ORGANIZADOR` o de un usuario `ADMIN` (`401` sin identidad, `404` sin autorización). Estados `cancelado` y `finalizado` responderán `200` sin consultar Reservas. La ruta pública SHALL ser independiente de `GET /internal/eventos/{eventoId}`.
 
 #### Scenario: Consultar evento público existente
-- **GIVEN** un evento `publicado`, `agotado`, `cancelado` o `finalizado`
-- **WHEN** cualquiera de los tres roles admitidos consulta su detalle
+- **GIVEN** un evento `publicado` o `agotado`
+- **WHEN** cualquiera consulta el detalle sin token
 - **THEN** responde `200 OK` con nombre, descripción, tipo, `organizadorId`, participantes, fecha y hora, lugar, sectores y precios
 
 #### Scenario: Consultar un borrador propio
-- **GIVEN** un evento `borrador` perteneciente al organizador identificado por `X-User-Id`
-- **WHEN** ese organizador consulta el detalle
+- **GIVEN** un evento `borrador` perteneciente al organizador identificado por `X-User-Id` y una lista de roles que contiene `ORGANIZADOR`
+- **WHEN** ese organizador autenticado consulta el detalle
 - **THEN** responde `200 OK` con los datos del evento y no consulta disponibilidad a Reservas
 
 #### Scenario: Administrador consulta un borrador
-- **GIVEN** un evento `borrador`
-- **WHEN** un administrador consulta el detalle
+- **GIVEN** un evento `borrador` y una solicitud autenticada cuya lista de roles contiene `ADMIN`
+- **WHEN** el administrador consulta el detalle
 - **THEN** responde `200 OK` con los datos del evento y no consulta disponibilidad a Reservas
+
+#### Scenario: Rechazar consulta de borrador sin token
+- **GIVEN** un evento `borrador`
+- **WHEN** consulta el detalle sin `X-User-Id` o sin `X-User-Roles`
+- **THEN** responde `401 Unauthorized`
 
 #### Scenario: Ocultar borrador a otros usuarios
 - **GIVEN** un evento `borrador` que pertenece a otro organizador
@@ -417,8 +430,13 @@ El servicio SHALL ofrecer `GET /eventos/{eventoId}` a clientes, organizadores y 
 
 #### Scenario: Evento inexistente
 - **GIVEN** un identificador de evento no registrado
-- **WHEN** un usuario autenticado consulta el detalle
+- **WHEN** se consulta el detalle
 - **THEN** responde `404 Not Found` con el formato de error estándar
+
+#### Scenario: Consultar evento cancelado o finalizado sin disponibilidad
+- **GIVEN** un evento `cancelado` o `finalizado`
+- **WHEN** un consumidor consulta su detalle sin token
+- **THEN** responde `200 OK` con los datos del evento y sin consultar disponibilidad a Reservas
 
 ### Requirement: Incluir disponibilidad de Reservas en el detalle público
 Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponibilidad/eventos/{eventoId}` en Reservas y combinar sus resultados con los sectores del evento mediante `sectorId`. Para cualquier otro estado no SHALL consultar a Reservas. Si Reservas no responde, falla o devuelve `404` o `500`, el detalle SHALL responder `200 OK` con disponibilidad `null` en los sectores afectados.
@@ -463,19 +481,6 @@ Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponib
 - **WHEN** el servicio valida el callback
 - **THEN** responde `400 Bad Request` con el formato JSON de error estándar
 
-### Requirement: Normalizar el rol administrativo del ciclo de vida
-Para suspender, reactivar o cancelar eventos, el servicio SHALL aceptar `ADMIN` y `administrador` como valores equivalentes de `X-User-Role`, sin distinguir mayúsculas y recortando espacios externos. Las consultas públicas de búsqueda y detalle solo aceptan los roles `CLIENTE`, `ORGANIZADOR` y `ADMIN`; en esas consultas `administrador` no es un alias válido.
-
-#### Scenario: Aceptar el alias administrativo normalizado en gestión
-- **GIVEN** una solicitud autenticada con `X-User-Role` igual a ` administrador ` en cualquier combinación de mayúsculas
-- **WHEN** suspende, reactiva o cancela un evento que admite esa acción
-- **THEN** el servicio aplica las mismas reglas de autorización que para `ADMIN`
-
-#### Scenario: Rechazar el alias en búsqueda y detalle públicos
-- **GIVEN** una solicitud de búsqueda o detalle con identidad y `X-User-Role: administrador`
-- **WHEN** se valida el rol
-- **THEN** responde `403 Forbidden`, porque esos endpoints solo admiten `CLIENTE`, `ORGANIZADOR` o `ADMIN`
-
 ### Requirement: Responder errores inesperados de forma segura
 Ante una excepción inesperada, el servicio SHALL responder `500 Internal Server Error` con el formato JSON estándar y un mensaje genérico, sin exponer stack traces ni mensajes internos de MongoDB.
 
@@ -483,3 +488,37 @@ Ante una excepción inesperada, el servicio SHALL responder `500 Internal Server
 - **GIVEN** una operación produce una excepción inesperada
 - **WHEN** el servicio construye la respuesta HTTP
 - **THEN** responde `500 Internal Server Error` con `timestamp`, `status`, `error` y `mensaje` genérico, omite `campos` si no aplica y no expone stack traces ni mensajes internos de MongoDB
+
+### Requirement: Interpretar identidad y roles del Gateway en eventos
+El servicio SHALL leer `X-User-Id` y `X-User-Roles`. SHALL separar los roles por comas, recortar sus espacios externos y evaluar la lista completa, sin precedencia. Para las rutas autenticadas, la falta de identidad o roles responderá `401`; no tener un rol permitido responderá `403`. El header singular `X-User-Role` deja de ser fuente de autorización.
+
+#### Scenario: Aceptar usuarios con varios roles
+- **GIVEN** un organizador titular autenticado con `X-User-Roles: CLIENTE, ORGANIZADOR`
+- **WHEN** administra su evento
+- **THEN** el servicio reconoce el rol `ORGANIZADOR` y comprueba además la titularidad
+
+### Requirement: Mantener titularidad y permisos administrativos de eventos
+Crear, configurar y publicar eventos SHALL requerir el rol `ORGANIZADOR`; administrar un evento existente también SHALL requerir que `X-User-Id` coincida con `organizadorId`. Las operaciones administrativas existentes, incluida la cancelación, SHALL requerir `ADMIN`, sin alias.
+
+#### Scenario: Rechazar administración de un evento ajeno
+- **GIVEN** una solicitud con rol `ORGANIZADOR` cuyo `X-User-Id` no coincide con el `organizadorId` del evento
+- **WHEN** intenta modificar o publicar ese evento
+- **THEN** el servicio responde `403 Forbidden` y no modifica el evento
+
+#### Scenario: Rechazar rol insuficiente
+- **GIVEN** una solicitud autenticada con `X-User-Roles: CLIENTE`
+- **WHEN** intenta crear, configurar o publicar un evento
+- **THEN** el servicio responde `403 Forbidden`
+
+#### Scenario: Permitir cancelación solo a ADMIN
+- **GIVEN** una solicitud autenticada sin el rol `ADMIN`
+- **WHEN** intenta cancelar un evento
+- **THEN** el servicio responde `403 Forbidden` y no cancela el evento
+
+### Requirement: Mantener rutas internas sin autenticación de usuario
+Las rutas `/internal/...` y los callbacks internos SHALL permanecer sin autenticación de usuario.
+
+#### Scenario: Mantener las rutas internas sin identidad de usuario
+- **GIVEN** una llamada de otro servicio a `/internal/eventos/{eventoId}` o un callback interno sin headers de usuario
+- **WHEN** el servicio procesa la llamada
+- **THEN** no exige `X-User-Id` ni `X-User-Roles`
