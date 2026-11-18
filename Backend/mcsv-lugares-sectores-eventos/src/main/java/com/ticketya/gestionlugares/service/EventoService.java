@@ -121,25 +121,11 @@ public class EventoService {
     public Evento cancelarLocal(String eventoId, String motivo, Instant canceladoEn) {
         Evento evento = buscarEvento(eventoId);
         evento.cancelar(motivo, canceladoEn);
-        evento.setAvisoCancelacionPendiente(false);
         return guardar(evento);
     }
 
     public Evento cancelarLocal(String eventoId) {
         return cancelarLocal(eventoId, "Cancelación del evento por el administrador", Instant.now());
-    }
-
-    public Evento marcarAvisoCancelacionEntregado(String eventoId) {
-        Evento evento = buscarEvento(eventoId);
-        if (evento.isAvisoCancelacionPendiente()) {
-            evento.marcarAvisoCancelacionEntregado();
-            return guardar(evento);
-        }
-        return evento;
-    }
-
-    public List<Evento> buscarAvisosCancelacionPendientes() {
-        return eventoRepository.findByAvisoCancelacionPendienteTrue();
     }
 
     public Evento finalizarLocal(String eventoId) {

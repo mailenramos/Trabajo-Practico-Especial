@@ -108,8 +108,6 @@ class DevSampleDataIntegrationTest {
                 "550e8400-e29b-41d4-a716-446655440004");
         assertEquals("Cancelado por motivos de producción.", cancelado.getMotivoCancelacion());
         assertNotNull(cancelado.getCanceladoEn());
-        assertTrue(eventosPorNombre.values().stream()
-                .noneMatch(Evento::isAvisoCancelacionPendiente));
     }
 
     @Test
@@ -123,8 +121,6 @@ class DevSampleDataIntegrationTest {
         assertEquals(5, eventoRepository.count());
         assertEquals("Nombre modificado externamente",
                 eventoRepository.findById("672a1f77bcf86cd799439001").orElseThrow().getNombre());
-        assertTrue(eventoRepository.findAll().stream()
-                .noneMatch(Evento::isAvisoCancelacionPendiente));
     }
 
     private void assertEvento(Evento evento, String estado, String lugarId, String ciudad,

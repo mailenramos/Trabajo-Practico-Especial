@@ -1,8 +1,6 @@
 package com.ticketya.gestionlugares.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,7 +20,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.ticketya.gestionlugares.compras.ComprasClient;
 import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
 import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
@@ -39,7 +36,6 @@ class ComprasCancellationFlowTest {
     private static final String EVENT_ID = "evento-1";
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
-    @Mock private ComprasClient comprasClient;
     @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
     @Mock private OutboxDispatcher outboxDispatcher;
 
@@ -49,7 +45,7 @@ class ComprasCancellationFlowTest {
 
     @BeforeEach
     void setUp() {
-        lifecycle = new EventoLifecycleService(eventoService, reservasClient, comprasClient,
+        lifecycle = new EventoLifecycleService(eventoService, reservasClient,
                 eventoCancelacionOutboxService, outboxDispatcher);
         evento = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4,
@@ -61,7 +57,6 @@ class ComprasCancellationFlowTest {
                 List.of(new EventoSector("sector", "Platea", TipoSector.NUMERADO, 1, 1, null, null)));
         cancelado.setId(EVENT_ID);
         cancelado.setEstado(EstadoEvento.CANCELADO);
-        cancelado.setAvisoCancelacionPendiente(true);
     }
 
     @Test
@@ -71,60 +66,38 @@ class ComprasCancellationFlowTest {
             String reason = invocation.getArgument(1);
             Instant canceledAt = invocation.getArgument(2);
             assertEquals("Cancelación del evento por el administrador", reason);
-            assertTrue(canceledAt.isBefore(Instant.now().plusSeconds(1)));
-            assertTrue(canceledAt.isAfter(Instant.now().minusSeconds(10)));
-            return cancelado(reason, canceledAt, false);
+            return cancelado(reason, canceledAt);
         });
         when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, null, "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        assertFalse(result.isAvisoCancelacionPendiente());
         ArgumentCaptor<Instant> sentAt = ArgumentCaptor.forClass(Instant.class);
         verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(eq(EVENT_ID),
                 eq("Cancelación del evento por el administrador"), sentAt.capture());
         verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
-        assertTrue(sentAt.getValue().isBefore(Instant.now().plusSeconds(1)));
         InOrder order = inOrder(reservasClient, eventoCancelacionOutboxService, outboxDispatcher);
         order.verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
         order.verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(
                 eq(EVENT_ID), eq("Cancelación del evento por el administrador"), any());
         order.verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
-        org.mockito.Mockito.verifyNoInteractions(comprasClient);
     }
 
     @Test
-    void laCancelacionNuevaUsaDispatcherYNoElClienteLegacyDeCompras() {
+    void laCancelacionNuevaIntentaEntregaInmediataPorDispatcher() {
         when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
         when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
             String reason = invocation.getArgument(1);
             Instant canceledAt = invocation.getArgument(2);
-            return cancelado(reason, canceledAt, false);
+            return cancelado(reason, canceledAt);
         });
         when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, "Cierre preventivo", "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        assertFalse(result.isAvisoCancelacionPendiente());
         verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
-        org.mockito.Mockito.verifyNoInteractions(comprasClient);
-    }
-
-    @Test
-    void procesoReenviaAvisosPendientesYMarcaElAceptado() {
-        Evento pending = cancelado("Cierre", Instant.parse("2026-11-06T18:00:00Z"), true);
-        when(eventoService.buscarAvisosCancelacionPendientes()).thenReturn(List.of(pending));
-        org.mockito.Mockito.doThrow(new RuntimeException("Compras caída")).doNothing()
-                .when(comprasClient).notificarCancelacion(EVENT_ID, "Cierre", Instant.parse("2026-11-06T18:00:00Z"));
-
-        lifecycle.reenviarAvisosCancelacionPendientes();
-        lifecycle.reenviarAvisosCancelacionPendientes();
-
-        verify(comprasClient, org.mockito.Mockito.times(2))
-                .notificarCancelacion(EVENT_ID, "Cierre", Instant.parse("2026-11-06T18:00:00Z"));
-        verify(eventoService).marcarAvisoCancelacionEntregado(EVENT_ID);
     }
 
     @Test
@@ -136,19 +109,17 @@ class ComprasCancellationFlowTest {
                 () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "ADMIN"));
 
         verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
-        verify(comprasClient, never()).notificarCancelacion(any(), any(), any());
         verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
         verify(outboxDispatcher, never()).procesarAviso(any());
     }
 
-    private static Evento cancelado(String motivo, Instant cuando, boolean pendiente) {
+    private static Evento cancelado(String motivo, Instant cuando) {
         Evento event = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
         event.setId(EVENT_ID);
         event.setEstado(EstadoEvento.CANCELADO);
         event.setMotivoCancelacion(motivo);
         event.setCanceladoEn(cuando);
-        event.setAvisoCancelacionPendiente(pendiente);
         return event;
     }
 }

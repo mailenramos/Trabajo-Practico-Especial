@@ -3,8 +3,6 @@ package com.ticketya.gestionlugares.service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Service;
 
@@ -18,7 +16,6 @@ import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
-import com.ticketya.gestionlugares.compras.ComprasClient;
 import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
 import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.security.UserRoles;
@@ -26,21 +23,17 @@ import com.ticketya.gestionlugares.security.UserRoles;
 @Service
 public class EventoLifecycleService {
 
-    private static final Logger log = LoggerFactory.getLogger(EventoLifecycleService.class);
     private static final String MOTIVO_CANCELACION_POR_DEFECTO = "Cancelación del evento por el administrador";
 
     private final EventoService eventoService;
     private final ReservasClient reservasClient;
-    private final ComprasClient comprasClient;
     private final EventoCancelacionOutboxService eventoCancelacionOutboxService;
     private final OutboxDispatcher outboxDispatcher;
 
     public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient,
-            ComprasClient comprasClient, EventoCancelacionOutboxService eventoCancelacionOutboxService,
-            OutboxDispatcher outboxDispatcher) {
+            EventoCancelacionOutboxService eventoCancelacionOutboxService, OutboxDispatcher outboxDispatcher) {
         this.eventoService = eventoService;
         this.reservasClient = reservasClient;
-        this.comprasClient = comprasClient;
         this.eventoCancelacionOutboxService = eventoCancelacionOutboxService;
         this.outboxDispatcher = outboxDispatcher;
     }
@@ -101,24 +94,6 @@ public class EventoLifecycleService {
             } catch (ServiceUnavailableException | ConflictException exception) {
                 // El siguiente ciclo reintenta sin alterar el estado local.
             }
-        }
-    }
-
-    public void reenviarAvisosCancelacionPendientes() {
-        for (Evento evento : eventoService.buscarAvisosCancelacionPendientes()) {
-            intentarAvisoCancelacion(evento);
-        }
-    }
-
-    private Evento intentarAvisoCancelacion(Evento evento) {
-        try {
-            comprasClient.notificarCancelacion(evento.getId(), evento.getMotivoCancelacion(), evento.getCanceladoEn());
-            Evento actualizado = eventoService.marcarAvisoCancelacionEntregado(evento.getId());
-            log.info("Aviso de cancelación entregado correctamente para el evento {}", evento.getId());
-            return actualizado;
-        } catch (RuntimeException exception) {
-            log.warn("No se pudo notificar a Compras la cancelación del evento {}; queda pendiente", evento.getId(), exception);
-            return evento;
         }
     }
 

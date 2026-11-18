@@ -28,7 +28,6 @@ import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
-import com.ticketya.gestionlugares.compras.ComprasClient;
 import com.ticketya.gestionlugares.compras.http.ComprasProperties;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.repository.EventoRepository;
@@ -45,7 +44,6 @@ class EventoLifecycleServiceTest {
 
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
-    @Mock private ComprasClient comprasClient;
     @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
     @Mock private OutboxDispatcher outboxDispatcher;
     @Mock private EventoRepository eventoRepository;
@@ -56,7 +54,7 @@ class EventoLifecycleServiceTest {
 
     @BeforeEach
     void setUp() {
-        lifecycleService = new EventoLifecycleService(eventoService, reservasClient, comprasClient,
+        lifecycleService = new EventoLifecycleService(eventoService, reservasClient,
                 eventoCancelacionOutboxService, outboxDispatcher);
     }
 
@@ -231,7 +229,7 @@ class EventoLifecycleServiceTest {
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 versionedEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
-                comprasClient, cancellationService, outboxDispatcher);
+                cancellationService, outboxDispatcher);
 
         assertThrows(ConflictException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
@@ -256,7 +254,7 @@ class EventoLifecycleServiceTest {
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 realEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,
-                comprasClient, cancellationService, outboxDispatcher);
+                cancellationService, outboxDispatcher);
         org.mockito.Mockito.doAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);
             return null;

@@ -21,6 +21,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.IndexInfo;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 import com.mongodb.client.MongoClient;
@@ -110,19 +113,23 @@ class EventoRepositoryMongoTest {
     }
 
     @Test
-    void persisteAvisoDeCancelacionPendienteYPermiteBuscarloParaReenvio() {
+    void leeDocumentosConCampoLegacyDeAvisoDeCancelacion() {
         Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", "Show", "Desc", "MUSICA",
                 List.of("A"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
-        evento.setEstado(EstadoEvento.PUBLICADO);
-        evento.cancelar("Cierre preventivo", Instant.parse("2026-11-06T18:00:00Z"));
+        evento.setEstado(EstadoEvento.CANCELADO);
+        evento.setMotivoCancelacion("Cierre preventivo");
+        evento.setCanceladoEn(Instant.parse("2026-11-06T18:00:00Z"));
         eventoRepository.save(evento);
+        mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(evento.getId())),
+                new Update().set("avisoCancelacionPendiente", true), Evento.class);
 
-        Evento recuperado = eventoRepository.findByAvisoCancelacionPendienteTrue().getFirst();
+        Evento recuperado = eventoRepository.findById(evento.getId()).orElseThrow();
 
         assertEquals(EstadoEvento.CANCELADO, recuperado.getEstado());
         assertEquals("Cierre preventivo", recuperado.getMotivoCancelacion());
         assertEquals(Instant.parse("2026-11-06T18:00:00Z"), recuperado.getCanceladoEn());
-        assertEquals(true, recuperado.isAvisoCancelacionPendiente());
+        assertTrue(mongoTemplate.exists(Query.query(Criteria.where("_id").is(evento.getId())
+                .and("avisoCancelacionPendiente").is(true)), Evento.class));
     }
 
     @Test

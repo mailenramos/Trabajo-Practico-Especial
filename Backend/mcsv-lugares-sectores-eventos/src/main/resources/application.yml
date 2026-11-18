@@ -21,15 +21,11 @@ reservas:
 
 compras:
   base-url: ${COMPRAS_BASE_URL:http://localhost:8083}
-  connect-timeout: ${COMPRAS_CONNECT_TIMEOUT:2s}
-  read-timeout: ${COMPRAS_READ_TIMEOUT:5s}
 
 eventos:
   finalizacion:
     interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}
-  cancelacion:
-    reenvio-interval: ${EVENTOS_CANCELACION_REENVIO_INTERVAL:60s}
 
 outbox:
   dispatcher:
-    interval: ${OUTBOX_DISPATCHER_INTERVAL:${eventos.cancelacion.reenvio-interval:60s}}
+    interval: ${OUTBOX_DISPATCHER_INTERVAL:60s}

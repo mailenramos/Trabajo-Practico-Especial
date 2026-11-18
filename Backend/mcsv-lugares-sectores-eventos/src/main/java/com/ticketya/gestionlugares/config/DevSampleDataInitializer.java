@@ -142,7 +142,6 @@ public class DevSampleDataInitializer implements ApplicationRunner {
                                 Map.of("Tribuna Norte", precio("20000"), "Campo de pie", precio("8000")));
                 evento.setMotivoCancelacion("Cancelado por motivos de producción.");
                 evento.setCanceladoEn(ahora);
-                evento.setAvisoCancelacionPendiente(false);
                 return evento;
         }
 

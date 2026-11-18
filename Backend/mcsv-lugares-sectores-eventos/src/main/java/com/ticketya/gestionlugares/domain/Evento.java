@@ -43,8 +43,6 @@ public class Evento {
     private BigDecimal precioMinimo;
     private String motivoCancelacion;
     private Instant canceladoEn;
-    @Indexed
-    private boolean avisoCancelacionPendiente;
     @Version
     private Long version;
 
@@ -118,11 +116,6 @@ public class Evento {
         cancelar();
         this.motivoCancelacion = motivo;
         this.canceladoEn = canceladoEn;
-        this.avisoCancelacionPendiente = true;
-    }
-
-    public void marcarAvisoCancelacionEntregado() {
-        this.avisoCancelacionPendiente = false;
     }
 
     public void finalizar() {
@@ -176,8 +169,6 @@ public class Evento {
     public void setMotivoCancelacion(String motivoCancelacion) { this.motivoCancelacion = motivoCancelacion; }
     public Instant getCanceladoEn() { return canceladoEn; }
     public void setCanceladoEn(Instant canceladoEn) { this.canceladoEn = canceladoEn; }
-    public boolean isAvisoCancelacionPendiente() { return avisoCancelacionPendiente; }
-    public void setAvisoCancelacionPendiente(boolean avisoCancelacionPendiente) { this.avisoCancelacionPendiente = avisoCancelacionPendiente; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
 }
