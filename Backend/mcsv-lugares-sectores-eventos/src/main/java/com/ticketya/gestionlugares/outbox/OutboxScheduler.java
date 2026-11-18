@@ -13,6 +13,7 @@ import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 @Component
 public class OutboxScheduler {
 
+    public static final int MAX_AVISOS_POR_PASADA = 100;
     private static final Logger LOGGER = LoggerFactory.getLogger(OutboxScheduler.class);
 
     private final OutboxAvisoRepository outboxRepository;
@@ -25,15 +26,16 @@ public class OutboxScheduler {
         this.clock = outboxClock;
     }
 
-    @Scheduled(fixedDelayString = "${eventos.cancelacion.reenvio-interval:60000}",
-            initialDelayString = "${eventos.cancelacion.reenvio-interval:60000}")
+    @Scheduled(fixedDelayString = "${outbox.dispatcher.interval:60000}",
+            initialDelayString = "${outbox.dispatcher.interval:60000}")
     public void procesarPendientes() {
         Instant ahora = clock.instant();
         long agotados = outboxRepository.marcarAvisosAgotados(ahora, OutboxDispatcher.MAX_INTENTOS);
         if (agotados > 0) {
             LOGGER.error("Se marcaron {} avisos outbox como ERROR_FINAL por intentos agotados", agotados);
         }
-        while (dispatcher.procesarSiguiente()) {
+        for (int procesados = 0; procesados < MAX_AVISOS_POR_PASADA; procesados++) {
+            if (!dispatcher.procesarSiguiente()) break;
         }
     }
 }

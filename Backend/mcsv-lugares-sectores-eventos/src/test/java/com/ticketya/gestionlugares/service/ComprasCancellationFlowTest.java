@@ -23,6 +23,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ticketya.gestionlugares.compras.ComprasClient;
+import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
@@ -38,6 +40,8 @@ class ComprasCancellationFlowTest {
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
     @Mock private ComprasClient comprasClient;
+    @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    @Mock private OutboxDispatcher outboxDispatcher;
 
     private EventoLifecycleService lifecycle;
     private Evento evento;
@@ -45,7 +49,8 @@ class ComprasCancellationFlowTest {
 
     @BeforeEach
     void setUp() {
-        lifecycle = new EventoLifecycleService(eventoService, reservasClient, comprasClient);
+        lifecycle = new EventoLifecycleService(eventoService, reservasClient, comprasClient,
+                eventoCancelacionOutboxService, outboxDispatcher);
         evento = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4,
                 List.of(new EventoSector("sector", "Platea", TipoSector.NUMERADO, 1, 1, null, null)));
@@ -62,50 +67,49 @@ class ComprasCancellationFlowTest {
     @Test
     void guardaCancelacionAntesDeAvisarYUsaMotivoPredeterminado() {
         when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
-        when(eventoService.cancelarLocal(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
+        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
             String reason = invocation.getArgument(1);
             Instant canceledAt = invocation.getArgument(2);
             assertEquals("Cancelación del evento por el administrador", reason);
             assertTrue(canceledAt.isBefore(Instant.now().plusSeconds(1)));
             assertTrue(canceledAt.isAfter(Instant.now().minusSeconds(10)));
-            return cancelado(reason, canceledAt, true);
+            return cancelado(reason, canceledAt, false);
         });
-        when(eventoService.marcarAvisoCancelacionEntregado(EVENT_ID))
-                .thenReturn(cancelado("Cancelación del evento por el administrador", Instant.now(), false));
+        when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, null, "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
         assertFalse(result.isAvisoCancelacionPendiente());
         ArgumentCaptor<Instant> sentAt = ArgumentCaptor.forClass(Instant.class);
-        verify(comprasClient).notificarCancelacion(eq(EVENT_ID),
+        verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(eq(EVENT_ID),
                 eq("Cancelación del evento por el administrador"), sentAt.capture());
         verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
         assertTrue(sentAt.getValue().isBefore(Instant.now().plusSeconds(1)));
-        InOrder order = inOrder(reservasClient, eventoService, comprasClient);
+        InOrder order = inOrder(reservasClient, eventoCancelacionOutboxService, outboxDispatcher);
         order.verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
-        order.verify(eventoService).cancelarLocal(eq(EVENT_ID), eq("Cancelación del evento por el administrador"), any());
-        order.verify(comprasClient).notificarCancelacion(eq(EVENT_ID),
-                eq("Cancelación del evento por el administrador"), any());
-        order.verify(eventoService).marcarAvisoCancelacionEntregado(EVENT_ID);
+        order.verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(
+                eq(EVENT_ID), eq("Cancelación del evento por el administrador"), any());
+        order.verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
+        org.mockito.Mockito.verifyNoInteractions(comprasClient);
     }
 
     @Test
-    void falloDeComprasNoRevierteCancelacionYDejaAvisoPendiente() {
+    void laCancelacionNuevaUsaDispatcherYNoElClienteLegacyDeCompras() {
         when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
-        when(eventoService.cancelarLocal(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
+        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
             String reason = invocation.getArgument(1);
             Instant canceledAt = invocation.getArgument(2);
-            return cancelado(reason, canceledAt, true);
+            return cancelado(reason, canceledAt, false);
         });
-        org.mockito.Mockito.doThrow(new RuntimeException("Compras caída"))
-                .when(comprasClient).notificarCancelacion(any(), any(), any());
+        when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, "Cierre preventivo", "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        assertTrue(result.isAvisoCancelacionPendiente());
-        verify(eventoService, never()).marcarAvisoCancelacionEntregado(any());
+        assertFalse(result.isAvisoCancelacionPendiente());
+        verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
+        org.mockito.Mockito.verifyNoInteractions(comprasClient);
     }
 
     @Test
@@ -133,7 +137,8 @@ class ComprasCancellationFlowTest {
 
         verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
         verify(comprasClient, never()).notificarCancelacion(any(), any(), any());
-        verify(eventoService, never()).cancelarLocal(any(), any(), any());
+        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
+        verify(outboxDispatcher, never()).procesarAviso(any());
     }
 
     private static Evento cancelado(String motivo, Instant cuando, boolean pendiente) {

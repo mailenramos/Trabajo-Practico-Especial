@@ -7,7 +7,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.time.Instant;
 
@@ -21,11 +20,12 @@ import com.ticketya.gestionlugares.compras.ComprasClientException;
 class HttpComprasClientTest {
 
     @Test
-    void mandaAvisoJsonYConsidera202Y200ComoExito() {
+    void mandaAvisoJsonYConsideraCualquier2xxComoExito() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://compras.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         HttpComprasClient client = new HttpComprasClient(builder.build());
-        for (int status : new int[] {202, 200}) {
+        int[] statuses = {200, 201, 202, 204};
+        for (int status : statuses) {
             server.expect(requestTo("http://compras.test/eventos-cancelados"))
                     .andExpect(method(HttpMethod.POST))
                     .andExpect(content().json("""
@@ -33,7 +33,7 @@ class HttpComprasClientTest {
                             """))
                     .andRespond(withStatus(org.springframework.http.HttpStatusCode.valueOf(status)));
         }
-        for (int ignored : new int[] {202, 200}) {
+        for (int ignored : statuses) {
             assertDoesNotThrow(() -> client.notificarCancelacion("evento-1", "Cierre preventivo",
                     Instant.parse("2026-11-06T18:00:00Z")));
         }
@@ -54,12 +54,12 @@ class HttpComprasClientTest {
     }
 
     @Test
-    void rechazaRespuestasQueNoSon200Ni202() {
+    void rechazaRedirecciones3xxComoErrorDefinitivo() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://compras.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         HttpComprasClient client = new HttpComprasClient(builder.build());
         server.expect(requestTo("http://compras.test/eventos-cancelados"))
-                .andRespond(withStatus(org.springframework.http.HttpStatus.CREATED));
+                .andRespond(withStatus(org.springframework.http.HttpStatus.FOUND));
 
         assertThrows(ComprasClientException.class,
                 () -> client.notificarCancelacion("evento-1", "motivo", Instant.now()));

@@ -121,6 +121,7 @@ public class EventoService {
     public Evento cancelarLocal(String eventoId, String motivo, Instant canceladoEn) {
         Evento evento = buscarEvento(eventoId);
         evento.cancelar(motivo, canceladoEn);
+        evento.setAvisoCancelacionPendiente(false);
         return guardar(evento);
     }
 

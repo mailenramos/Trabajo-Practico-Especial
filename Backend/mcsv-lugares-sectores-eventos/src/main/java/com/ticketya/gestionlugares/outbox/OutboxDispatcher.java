@@ -37,10 +37,18 @@ public class OutboxDispatcher {
         Instant ahora = clock.instant();
         Optional<AvisoOutbox> reclamado = outboxRepository.reclamarSiguiente(
                 ahora, ahora.plus(LEASE), MAX_INTENTOS);
-        if (reclamado.isEmpty()) {
-            return false;
-        }
+        return procesar(reclamado, ahora);
+    }
 
+    public boolean procesarAviso(String avisoId) {
+        Instant ahora = clock.instant();
+        Optional<AvisoOutbox> reclamado = outboxRepository.reclamarPorId(
+                avisoId, ahora, ahora.plus(LEASE), MAX_INTENTOS);
+        return procesar(reclamado, ahora);
+    }
+
+    private boolean procesar(Optional<AvisoOutbox> reclamado, Instant ahora) {
+        if (reclamado.isEmpty()) return false;
         AvisoOutbox aviso = reclamado.orElseThrow();
         try {
             procesarRespuesta(aviso, ahora, httpClient.enviar(aviso));

@@ -19,6 +19,8 @@ import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
 import com.ticketya.gestionlugares.compras.ComprasClient;
+import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.security.UserRoles;
 
 @Service
@@ -30,12 +32,17 @@ public class EventoLifecycleService {
     private final EventoService eventoService;
     private final ReservasClient reservasClient;
     private final ComprasClient comprasClient;
+    private final EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    private final OutboxDispatcher outboxDispatcher;
 
     public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient,
-            ComprasClient comprasClient) {
+            ComprasClient comprasClient, EventoCancelacionOutboxService eventoCancelacionOutboxService,
+            OutboxDispatcher outboxDispatcher) {
         this.eventoService = eventoService;
         this.reservasClient = reservasClient;
         this.comprasClient = comprasClient;
+        this.eventoCancelacionOutboxService = eventoCancelacionOutboxService;
+        this.outboxDispatcher = outboxDispatcher;
     }
 
     public Evento publicar(String eventoId, String userId, String userRolesHeader) {
@@ -75,8 +82,10 @@ public class EventoLifecycleService {
                 eventoId, EstadoVentaReservas.CANCELADA));
         String motivoEfectivo = motivo == null || motivo.isBlank()
                 ? MOTIVO_CANCELACION_POR_DEFECTO : motivo.trim();
-        Evento cancelado = eventoService.cancelarLocal(evento.getId(), motivoEfectivo, Instant.now());
-        return intentarAvisoCancelacion(cancelado);
+        Evento cancelado = eventoCancelacionOutboxService.cancelarConAvisoOutbox(
+                evento.getId(), motivoEfectivo, Instant.now());
+        outboxDispatcher.procesarAviso("cancelacion-" + cancelado.getId());
+        return cancelado;
     }
 
     public Evento aplicarDisponibilidad(String eventoId, boolean agotado) {

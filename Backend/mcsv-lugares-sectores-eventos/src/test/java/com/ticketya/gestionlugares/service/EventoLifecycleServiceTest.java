@@ -29,9 +29,13 @@ import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.compras.ComprasClient;
+import com.ticketya.gestionlugares.compras.http.ComprasProperties;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
+import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 
 @ExtendWith(MockitoExtension.class)
 class EventoLifecycleServiceTest {
@@ -42,14 +46,18 @@ class EventoLifecycleServiceTest {
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
     @Mock private ComprasClient comprasClient;
+    @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    @Mock private OutboxDispatcher outboxDispatcher;
     @Mock private EventoRepository eventoRepository;
     @Mock private LugarRepository lugarRepository;
+    @Mock private OutboxAvisoRepository outboxAvisoRepository;
 
     private EventoLifecycleService lifecycleService;
 
     @BeforeEach
     void setUp() {
-        lifecycleService = new EventoLifecycleService(eventoService, reservasClient, comprasClient);
+        lifecycleService = new EventoLifecycleService(eventoService, reservasClient, comprasClient,
+                eventoCancelacionOutboxService, outboxDispatcher);
     }
 
     @Test
@@ -156,10 +164,11 @@ class EventoLifecycleServiceTest {
         lifecycleService.reactivarVenta(EVENTO_ID, "admin-1", "ADMIN");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
 
-        when(eventoService.cancelarLocal(org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
-        when(eventoService.marcarAvisoCancelacionEntregado(EVENTO_ID)).thenReturn(evento);
+        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(
+                org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
         lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
+        verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENTO_ID);
     }
 
     @Test
@@ -186,7 +195,7 @@ class EventoLifecycleServiceTest {
 
         assertThrows(ServiceUnavailableException.class,
                 () -> lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
-        verify(eventoService, never()).cancelarLocal(any());
+        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
         assertEquals(EstadoEvento.PUBLICADO, published.getEstado());
     }
 
@@ -219,7 +228,10 @@ class EventoLifecycleServiceTest {
         when(eventoRepository.save(any(Evento.class)))
                 .thenThrow(new OptimisticLockingFailureException("version desactualizada"));
         EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository);
-        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient, comprasClient);
+        EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
+                versionedEventService, outboxAvisoRepository, new ComprasProperties());
+        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
+                comprasClient, cancellationService, outboxDispatcher);
 
         assertThrows(ConflictException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
@@ -241,7 +253,10 @@ class EventoLifecycleServiceTest {
                 java.util.Optional.of(leidoPorCallback));
         when(eventoRepository.save(any(Evento.class))).thenAnswer(invocation -> invocation.getArgument(0));
         EventoService realEventService = new EventoService(eventoRepository, lugarRepository);
-        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient, comprasClient);
+        EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
+                realEventService, outboxAvisoRepository, new ComprasProperties());
+        EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,
+                comprasClient, cancellationService, outboxDispatcher);
         org.mockito.Mockito.doAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);
             return null;
@@ -250,7 +265,7 @@ class EventoLifecycleServiceTest {
         Evento result = concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        verify(eventoRepository, org.mockito.Mockito.times(3)).save(any(Evento.class));
+        verify(eventoRepository, org.mockito.Mockito.times(2)).save(any(Evento.class));
     }
 
     private static Evento draft() {

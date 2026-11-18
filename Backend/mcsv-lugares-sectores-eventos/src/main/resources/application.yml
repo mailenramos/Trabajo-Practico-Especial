@@ -29,3 +29,7 @@ eventos:
     interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}
   cancelacion:
     reenvio-interval: ${EVENTOS_CANCELACION_REENVIO_INTERVAL:60s}
+
+outbox:
+  dispatcher:
+    interval: ${OUTBOX_DISPATCHER_INTERVAL:${eventos.cancelacion.reenvio-interval:60s}}

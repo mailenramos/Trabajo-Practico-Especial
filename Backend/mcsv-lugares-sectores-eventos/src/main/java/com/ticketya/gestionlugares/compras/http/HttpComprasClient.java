@@ -34,9 +34,8 @@ public class HttpComprasClient implements ComprasClient {
                                 + " al recibir el aviso de cancelación");
                     })
                     .toBodilessEntity();
-            int status = response.getStatusCode().value();
-            if (status != 200 && status != 202) {
-                throw new ComprasClientException("Compras debe responder 200 o 202 al aviso; respondió "
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new ComprasClientException("Compras debe responder con 2xx al aviso; respondió "
                         + response.getStatusCode());
             }
         } catch (ComprasClientException exception) {

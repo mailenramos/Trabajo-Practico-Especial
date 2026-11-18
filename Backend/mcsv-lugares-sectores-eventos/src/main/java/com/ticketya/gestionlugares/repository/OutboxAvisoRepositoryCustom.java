@@ -9,5 +9,7 @@ public interface OutboxAvisoRepositoryCustom {
 
     Optional<AvisoOutbox> reclamarSiguiente(Instant ahora, Instant leaseHasta, int maxIntentos);
 
+    Optional<AvisoOutbox> reclamarPorId(String avisoId, Instant ahora, Instant leaseHasta, int maxIntentos);
+
     long marcarAvisosAgotados(Instant ahora, int maxIntentos);
 }
