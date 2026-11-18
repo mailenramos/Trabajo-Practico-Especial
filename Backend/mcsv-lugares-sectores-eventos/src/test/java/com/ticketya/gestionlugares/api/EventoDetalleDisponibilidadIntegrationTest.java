@@ -71,8 +71,7 @@ class EventoDetalleDisponibilidadIntegrationTest {
                         new SectorDisponibilidadResponse("sector-a", TipoSector.NUMERADO, 2, 1,
                                 List.of(new AsientoDisponibleResponse(1, 2))))));
 
-        mockMvc.perform(get("/eventos/" + evento.getId())
-                        .header("X-User-Id", "cliente-1").header("X-User-Role", "CLIENTE"))
+        mockMvc.perform(get("/eventos/" + evento.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sectores[0].sectorId").value("sector-a"))
                 .andExpect(jsonPath("$.sectores[0].precio").value(12000))
@@ -91,8 +90,7 @@ class EventoDetalleDisponibilidadIntegrationTest {
         when(reservasClient.consultarDisponibilidad(evento.getId()))
                 .thenThrow(new ReservasClientException("Reservas no responde"));
 
-        mockMvc.perform(get("/eventos/" + evento.getId())
-                        .header("X-User-Id", "cliente-1").header("X-User-Role", "CLIENTE"))
+        mockMvc.perform(get("/eventos/" + evento.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombre").value("Festival de prueba"))
                 .andExpect(jsonPath("$.sectores[0].disponibilidad").value(org.hamcrest.Matchers.nullValue()))
@@ -100,26 +98,48 @@ class EventoDetalleDisponibilidadIntegrationTest {
     }
 
     @Test
-    void estadosQueNoConsultanReservasDevuelvenDisponibilidadNula() throws Exception {
+    void borradoresRequierenAutorizacionYEstadosNoVendiblesNoConsultanReservas() throws Exception {
         Lugar lugar = crearLugar();
         Evento borrador = crearEvento(lugar, EstadoEvento.BORRADOR);
+        mockMvc.perform(get("/eventos/" + borrador.getId()))
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/eventos/" + borrador.getId())
-                        .header("X-User-Id", "org-1").header("X-User-Role", "ORGANIZADOR"))
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "CLIENTE, ORGANIZADOR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sectores[0].disponibilidad").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get("/eventos/" + borrador.getId())
+                        .header("X-User-Id", "org-2").header("X-User-Roles", "ORGANIZADOR"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/eventos/" + borrador.getId())
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "CLIENTE"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/eventos/" + borrador.getId())
+                        .header("X-User-Id", "admin-1").header("X-User-Roles", "CLIENTE, ADMIN"))
+                .andExpect(status().isOk());
 
         Evento cancelado = crearEvento(lugar, EstadoEvento.CANCELADO);
-        mockMvc.perform(get("/eventos/" + cancelado.getId())
-                        .header("X-User-Id", "cliente-1").header("X-User-Role", "CLIENTE"))
+        mockMvc.perform(get("/eventos/" + cancelado.getId()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("cancelado"))
                 .andExpect(jsonPath("$.sectores[0].disponibilidad").value(org.hamcrest.Matchers.nullValue()));
 
         Evento finalizado = crearEvento(lugar, EstadoEvento.FINALIZADO);
-        mockMvc.perform(get("/eventos/" + finalizado.getId())
-                        .header("X-User-Id", "admin-1").header("X-User-Role", "ADMIN"))
+        mockMvc.perform(get("/eventos/" + finalizado.getId()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("finalizado"))
                 .andExpect(jsonPath("$.sectores[0].disponibilidad").value(org.hamcrest.Matchers.nullValue()));
         verifyNoInteractions(reservasClient);
+    }
+
+    @Test
+    void detallePublicoIgnoraRolesDesconocidosComoSolicitudAnonima() throws Exception {
+        Evento evento = guardarEventoPublicado();
+
+        mockMvc.perform(get("/eventos/" + evento.getId())
+                        .header("X-User-Id", "user-1")
+                        .header("X-User-Roles", "VISITANTE_DESCONOCIDO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("publicado"));
     }
 
     private Evento guardarEventoPublicado() {

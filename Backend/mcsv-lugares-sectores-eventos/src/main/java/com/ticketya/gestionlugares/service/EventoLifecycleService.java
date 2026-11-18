@@ -19,6 +19,7 @@ import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
 import com.ticketya.gestionlugares.compras.ComprasClient;
+import com.ticketya.gestionlugares.security.UserRoles;
 
 @Service
 public class EventoLifecycleService {
@@ -37,36 +38,36 @@ public class EventoLifecycleService {
         this.comprasClient = comprasClient;
     }
 
-    public Evento publicar(String eventoId, String userId, String userRole) {
-        Evento evento = eventoService.validarPublicacion(eventoId, userId, userRole);
+    public Evento publicar(String eventoId, String userId, String userRolesHeader) {
+        Evento evento = eventoService.validarPublicacion(eventoId, userId, userRolesHeader);
         InicializarDisponibilidadRequest request = construirInicializacion(evento);
         invocarReservas("No se pudo inicializar la disponibilidad; el evento permanece en borrador",
                 () -> reservasClient.inicializarDisponibilidad(eventoId, request));
         invocarReservas("No se pudo activar la venta en Reservas; el evento permanece en borrador",
                 () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA));
-        return eventoService.confirmarPublicacion(eventoId, userId, userRole);
+        return eventoService.confirmarPublicacion(eventoId, userId, userRolesHeader);
     }
 
-    public Evento suspenderVenta(String eventoId, String userId, String userRole) {
-        Evento evento = validarAdministracionVenta(eventoId, userId, userRole);
+    public Evento suspenderVenta(String eventoId, String userId, String userRolesHeader) {
+        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
         invocarReservas("No se pudo suspender la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.SUSPENDIDA));
         return eventoService.suspenderVentaLocal(evento.getId());
     }
 
-    public Evento reactivarVenta(String eventoId, String userId, String userRole) {
-        Evento evento = validarAdministracionVenta(eventoId, userId, userRole);
+    public Evento reactivarVenta(String eventoId, String userId, String userRolesHeader) {
+        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
         invocarReservas("No se pudo reactivar la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.ACTIVA));
         return eventoService.reactivarVentaLocal(evento.getId());
     }
 
-    public Evento cancelar(String eventoId, String userId, String userRole) {
-        return cancelar(eventoId, null, userId, userRole);
+    public Evento cancelar(String eventoId, String userId, String userRolesHeader) {
+        return cancelar(eventoId, null, userId, userRolesHeader);
     }
 
-    public Evento cancelar(String eventoId, String motivo, String userId, String userRole) {
-        Evento evento = validarAdministracionVenta(eventoId, userId, userRole);
+    public Evento cancelar(String eventoId, String motivo, String userId, String userRolesHeader) {
+        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
         if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
             throw new ConflictException("Solo se cancela un evento publicado o agotado");
         }
@@ -112,8 +113,8 @@ public class EventoLifecycleService {
         }
     }
 
-    private Evento validarAdministracionVenta(String eventoId, String userId, String userRole) {
-        validarAdministrador(userId, userRole);
+    private Evento validarAdministracionVenta(String eventoId, String userId, String userRolesHeader) {
+        validarAdministrador(userId, UserRoles.fromHeader(userRolesHeader));
         Evento evento = eventoService.buscarEvento(eventoId);
         if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
             throw new ConflictException("Solo se puede modificar la venta de un evento publicado o agotado");
@@ -121,12 +122,11 @@ public class EventoLifecycleService {
         return evento;
     }
 
-    private static void validarAdministrador(String userId, String userRole) {
-        if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
-            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
+    private static void validarAdministrador(String userId, UserRoles roles) {
+        if (userId == null || userId.isBlank() || roles.isEmpty()) {
+            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Roles");
         }
-        String rol = userRole.trim();
-        if (!"ADMIN".equalsIgnoreCase(rol) && !"administrador".equalsIgnoreCase(rol)) {
+        if (!roles.contains("ADMIN")) {
             throw new ForbiddenException("Solo un administrador puede gestionar la venta de eventos");
         }
     }

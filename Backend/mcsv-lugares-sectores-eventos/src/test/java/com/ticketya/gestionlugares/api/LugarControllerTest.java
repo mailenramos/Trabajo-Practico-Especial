@@ -43,7 +43,7 @@ class LugarControllerTest {
 
         mockMvc.perform(post("/lugares")
                         .header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Teatro","direccion":"Calle 1","latitud":-34.0,"longitud":-58.0}
@@ -61,15 +61,46 @@ class LugarControllerTest {
         mockMvc.perform(post("/lugares").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/lugares").header("X-User-Id", "cliente-1")
-                        .header("X-User-Role", "cliente")
+                        .header("X-User-Roles", "cliente")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
     }
 
     @Test
+    void admiteADMINCuandoLaListaContieneVariosRoles() throws Exception {
+        when(lugarService.crearLugar(any())).thenReturn(new Lugar("507f1f77bcf86cd799439011",
+                "Teatro", "Calle 1", null, -34.0, -58.0, null));
+
+        mockMvc.perform(post("/lugares")
+                        .header("X-User-Id", "admin-1")
+                        .header("X-User-Roles", "CLIENTE, ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nombre":"Teatro","direccion":"Calle 1","latitud":-34.0,"longitud":-58.0}
+                                """))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void rechazaAliasLegadoYHeaderSingular() throws Exception {
+        String body = """
+                {"nombre":"Teatro","direccion":"Calle 1","latitud":-34.0,"longitud":-58.0}
+                """;
+
+        mockMvc.perform(post("/lugares").header("X-User-Id", "admin-1")
+                        .header("X-User-Roles", "administrador")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/lugares").header("X-User-Id", "admin-1")
+                        .header("X-User-Role", "ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void rechazaCoordenadasInvalidas() throws Exception {
         mockMvc.perform(post("/lugares").header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Teatro","direccion":"Calle 1","latitud":91,"longitud":0}
@@ -87,7 +118,7 @@ class LugarControllerTest {
 
         mockMvc.perform(post("/lugares")
                         .header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Polo Sur","direccion":"Calle 1","latitud":90,"longitud":180}
@@ -103,7 +134,7 @@ class LugarControllerTest {
 
         mockMvc.perform(post("/lugares/507f1f77bcf86cd799439011/sectores")
                         .header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":2,"asientosPorFila":5}
@@ -119,7 +150,7 @@ class LugarControllerTest {
 
         mockMvc.perform(get("/lugares/507f1f77bcf86cd799439011")
                         .header("X-User-Id", "organizador-1")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("No existe el lugar"))
                 .andExpect(jsonPath("$.campos").doesNotExist());
@@ -132,7 +163,7 @@ class LugarControllerTest {
 
         mockMvc.perform(post("/lugares/507f1f77bcf86cd799439011/sectores")
                         .header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":2,"asientosPorFila":5}
@@ -154,7 +185,7 @@ class LugarControllerTest {
                 "/lugares/507f1f77bcf86cd799439011/sectores")) {
             mockMvc.perform(get(ruta)
                             .header("X-User-Id", "cliente-1")
-                            .header("X-User-Role", "cliente"))
+                            .header("X-User-Roles", "cliente"))
                     .andExpect(status().isForbidden());
         }
     }
@@ -167,14 +198,19 @@ class LugarControllerTest {
                 -34.0, -58.0, List.of()));
         when(lugarService.listarSectores(id)).thenReturn(List.of());
 
-        for (String rol : List.of("organizador", "administrador")) {
+        for (String rol : List.of("organizador", "ADMIN")) {
             for (String ruta : List.of("/lugares", "/lugares/" + id, "/lugares/" + id + "/sectores")) {
                 mockMvc.perform(get(ruta)
                                 .header("X-User-Id", rol + "-1")
-                                .header("X-User-Role", rol))
+                                .header("X-User-Roles", rol))
                         .andExpect(status().isOk());
             }
+
         }
+        mockMvc.perform(get("/lugares")
+                        .header("X-User-Id", "organizador-1")
+                        .header("X-User-Roles", "CLIENTE, ORGANIZADOR"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -183,7 +219,7 @@ class LugarControllerTest {
 
         mockMvc.perform(get("/lugares")
                         .header("X-User-Id", "organizador-1")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
     }
@@ -196,7 +232,7 @@ class LugarControllerTest {
 
         mockMvc.perform(post("/lugares/" + id + "/sectores")
                         .header("X-User-Id", "admin-1")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":2,"asientosPorFila":5}

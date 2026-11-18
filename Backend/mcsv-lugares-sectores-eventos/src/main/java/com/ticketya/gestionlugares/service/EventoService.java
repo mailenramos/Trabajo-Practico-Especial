@@ -15,6 +15,7 @@ import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.domain.Sector;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.security.UserRoles;
 
 @Service
 public class EventoService {
@@ -29,8 +30,8 @@ public class EventoService {
         this.lugarRepository = lugarRepository;
     }
 
-    public Evento crearEvento(CreateEventoRequest request, String organizadorId, String rol) {
-        validarIdentidadOrganizador(organizadorId, rol);
+    public Evento crearEvento(CreateEventoRequest request, String organizadorId, String userRolesHeader) {
+        validarIdentidadOrganizador(organizadorId, UserRoles.fromHeader(userRolesHeader));
         if (request.fechaHora() == null || !request.fechaHora().isAfter(Instant.now())) {
             throw new IllegalArgumentException("La fecha y hora de inicio debe ser futura");
         }
@@ -48,9 +49,10 @@ public class EventoService {
         return eventoRepository.save(evento);
     }
 
-    public Evento asignarPrecio(String eventoId, String sectorId, BigDecimal precio, String userId, String userRole) {
+    public Evento asignarPrecio(String eventoId, String sectorId, BigDecimal precio, String userId,
+            String userRolesHeader) {
         Evento evento = buscarEvento(eventoId);
-        validarDuenoOrganizador(evento, userId, userRole);
+        validarDuenoOrganizador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
             throw new ConflictException("Los precios no se pueden modificar después de publicar");
         }
@@ -66,9 +68,9 @@ public class EventoService {
         return guardar(evento);
     }
 
-    public Evento actualizarLimiteEntradas(String eventoId, int limite, String userId, String userRole) {
+    public Evento actualizarLimiteEntradas(String eventoId, int limite, String userId, String userRolesHeader) {
         Evento evento = buscarEvento(eventoId);
-        validarDuenoOrganizador(evento, userId, userRole);
+        validarDuenoOrganizador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
             throw new ConflictException("El límite no se puede modificar después de publicar");
         }
@@ -83,9 +85,9 @@ public class EventoService {
     }
 
     /** Invocado por la orquestación de publicación después de que Reservas confirme la inicialización. */
-    public Evento validarPublicacion(String eventoId, String userId, String userRole) {
+    public Evento validarPublicacion(String eventoId, String userId, String userRolesHeader) {
         Evento evento = buscarEvento(eventoId);
-        validarDuenoOrganizador(evento, userId, userRole);
+        validarDuenoOrganizador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
             throw new ConflictException("Solo se puede publicar un evento en borrador");
         }
@@ -96,9 +98,9 @@ public class EventoService {
         return evento;
     }
 
-    public Evento confirmarPublicacion(String eventoId, String userId, String userRole) {
+    public Evento confirmarPublicacion(String eventoId, String userId, String userRolesHeader) {
         Evento evento = buscarEvento(eventoId);
-        validarDuenoOrganizador(evento, userId, userRole);
+        validarDuenoOrganizador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         evento.definirPrecioMinimoYPublicar();
         return guardar(evento);
     }
@@ -169,17 +171,17 @@ public class EventoService {
                 sector.asientosPorFila(), sector.capacidad(), null);
     }
 
-    private static void validarIdentidadOrganizador(String userId, String userRole) {
-        if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
-            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
+    private static void validarIdentidadOrganizador(String userId, UserRoles roles) {
+        if (userId == null || userId.isBlank() || roles.isEmpty()) {
+            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Roles");
         }
-        if (!"ORGANIZADOR".equalsIgnoreCase(userRole.trim())) {
+        if (!roles.contains("ORGANIZADOR")) {
             throw new ForbiddenException("Solo un organizador puede gestionar sus eventos");
         }
     }
 
-    private static void validarDuenoOrganizador(Evento evento, String userId, String userRole) {
-        validarIdentidadOrganizador(userId, userRole);
+    private static void validarDuenoOrganizador(Evento evento, String userId, UserRoles roles) {
+        validarIdentidadOrganizador(userId, roles);
         if (!evento.getOrganizadorId().equals(userId)) {
             throw new ForbiddenException("El evento pertenece a otro organizador");
         }

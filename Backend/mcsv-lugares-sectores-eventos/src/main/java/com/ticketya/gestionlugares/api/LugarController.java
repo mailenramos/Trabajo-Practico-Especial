@@ -28,6 +28,7 @@ import com.ticketya.gestionlugares.domain.Sector;
 import com.ticketya.gestionlugares.service.ForbiddenException;
 import com.ticketya.gestionlugares.service.LugarService;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
+import com.ticketya.gestionlugares.security.UserRoles;
 
 @RestController
 @RequestMapping("/lugares")
@@ -43,7 +44,7 @@ public class LugarController {
     }
 
     @PostMapping
-    @Operation(summary = "Registrar un lugar", description = "Crea un lugar con dirección y coordenadas geográficas. Requiere X-User-Role: ADMIN.")
+    @Operation(summary = "Registrar un lugar", description = "Crea un lugar con dirección y coordenadas geográficas. Requiere X-User-Roles que incluya ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Lugar creado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Lugar.class),
@@ -55,10 +56,10 @@ public class LugarController {
                             examples = @ExampleObject(name = "Coordenada inválida", value = """
                                     {"timestamp":"2026-11-07T12:00:00Z","status":400,"error":"Bad Request","mensaje":"latitud: must be less than or equal to 90.0"}
                                     """))),
-            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
+            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
-                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN",
+                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Roles\"}"))),
+            @ApiResponse(responseCode = "403", description = "Se requiere el rol ADMIN en X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un administrador puede gestionar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "409", description = "Conflicto de persistencia",
@@ -69,10 +70,10 @@ public class LugarController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
                     description = "Identificador no vacío del usuario que realiza la solicitud.", example = "admin-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Enviar ADMIN (sin distinguir mayúsculas; se recortan espacios).",
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ADMIN.",
                     example = "ADMIN", schema = @Schema(allowableValues = {"ADMIN"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Datos del lugar. La latitud debe estar entre -90 y 90, y la longitud entre -180 y 180.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = CreateLugarRequest.class),
@@ -80,20 +81,20 @@ public class LugarController {
                                     {"nombre":"Teatro Central","direccion":"Av. Corrientes 1234","ciudad":"Buenos Aires","latitud":-34.6037,"longitud":-58.3816}
                                     """)))
             @Valid @RequestBody CreateLugarRequest request) {
-        validarAdministrador(userId, userRole);
+        validarAdministrador(userId, userRolesHeader);
         return ResponseEntity.status(HttpStatus.CREATED).body(lugarService.crearLugar(request));
     }
 
     @GetMapping
-    @Operation(summary = "Listar lugares", description = "Devuelve todos los lugares. Requiere X-User-Role: ORGANIZADOR o ADMIN.")
+    @Operation(summary = "Listar lugares", description = "Devuelve todos los lugares. Requiere X-User-Roles que incluya ORGANIZADOR o ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Colección de lugares, posiblemente vacía",
                     content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = Lugar.class)),
                             examples = @ExampleObject(name = "Lista vacía", value = "[]"))),
-            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
+            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
-                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ORGANIZADOR o ADMIN",
+                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Roles\"}"))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ORGANIZADOR o ADMIN en X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}")))
     })
@@ -101,26 +102,26 @@ public class LugarController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ORGANIZADOR o ADMIN.",
                     example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        validarLector(userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        validarLector(userId, userRolesHeader);
         return lugarService.listarLugares();
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar lugar", description = "Devuelve un lugar con sus sectores. Requiere X-User-Role: ORGANIZADOR o ADMIN.")
+    @Operation(summary = "Consultar lugar", description = "Devuelve un lugar con sus sectores. Requiere X-User-Roles que incluya ORGANIZADOR o ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lugar encontrado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Lugar.class),
                             examples = @ExampleObject(name = "Lugar con sectores", value = """
                                     {"id":"507f1f77bcf86cd799439011","nombre":"Teatro Central","direccion":"Av. Corrientes 1234","ciudad":"Buenos Aires","latitud":-34.6037,"longitud":-58.3816,"sectores":[{"id":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","tipo":"NUMERADO","filas":20,"asientosPorFila":30,"capacidad":null}],"version":0}
                                     """))),
-            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
+            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
-                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ORGANIZADOR o ADMIN",
+                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Roles\"}"))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ORGANIZADOR o ADMIN en X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
@@ -135,26 +136,26 @@ public class LugarController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ORGANIZADOR o ADMIN.",
                     example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        validarLector(userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        validarLector(userId, userRolesHeader);
         return lugarService.buscarLugar(id);
     }
 
     @GetMapping("/{id}/sectores")
-    @Operation(summary = "Listar sectores de un lugar", description = "Devuelve los sectores y sus configuraciones. Requiere X-User-Role: ORGANIZADOR o ADMIN.")
+    @Operation(summary = "Listar sectores de un lugar", description = "Devuelve los sectores y sus configuraciones. Requiere X-User-Roles que incluya ORGANIZADOR o ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Sectores del lugar, posiblemente una lista vacía",
                     content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = Sector.class)),
                             examples = @ExampleObject(name = "Sectores", value = """
                                     [{"id":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","tipo":"NUMERADO","filas":20,"asientosPorFila":30,"capacidad":null}]
                                     """))),
-            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
+            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
-                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ORGANIZADOR o ADMIN",
+                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Roles\"}"))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ORGANIZADOR o ADMIN en X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un organizador o administrador puede consultar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
@@ -169,16 +170,16 @@ public class LugarController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
                     description = "Identificador no vacío del usuario.", example = "organizador-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Admite ORGANIZADOR o ADMIN, sin distinguir mayúsculas y recortando espacios.",
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ORGANIZADOR o ADMIN.",
                     example = "ORGANIZADOR", schema = @Schema(allowableValues = {"ORGANIZADOR", "ADMIN"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        validarLector(userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        validarLector(userId, userRolesHeader);
         return lugarService.listarSectores(id);
     }
 
     @PostMapping("/{id}/sectores")
-    @Operation(summary = "Agregar sector", description = "Agrega un sector numerado o no numerado a un lugar existente. Requiere X-User-Role: ADMIN.")
+    @Operation(summary = "Agregar sector", description = "Agrega un sector numerado o no numerado a un lugar existente. Requiere X-User-Roles que incluya ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Sector creado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Sector.class),
@@ -193,10 +194,10 @@ public class LugarController {
             @ApiResponse(responseCode = "400", description = "Configuración inválida para el tipo de sector",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":400,\"error\":\"Bad Request\",\"mensaje\":\"Un sector numerado requiere filas y asientosPorFila positivos, sin capacidad\"}"))),
-            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Role",
+            @ApiResponse(responseCode = "401", description = "Falta X-User-Id o X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
-                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Role\"}"))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN",
+                            examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":401,\"error\":\"Unauthorized\",\"mensaje\":\"Se requieren X-User-Id y X-User-Roles\"}"))),
+            @ApiResponse(responseCode = "403", description = "Se requiere el rol ADMIN en X-User-Roles",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class),
                             examples = @ExampleObject(value = "{\"timestamp\":\"2026-11-07T12:00:00Z\",\"status\":403,\"error\":\"Forbidden\",\"mensaje\":\"Solo un administrador puede gestionar lugares y sectores\"}"))),
             @ApiResponse(responseCode = "404", description = "No existe un lugar con ese ID",
@@ -214,10 +215,10 @@ public class LugarController {
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
                     description = "Identificador no vacío del usuario que realiza la solicitud.", example = "admin-1")
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-                    description = "Enviar ADMIN (sin distinguir mayúsculas; se recortan espacios).",
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ADMIN.",
                     example = "ADMIN", schema = @Schema(allowableValues = {"ADMIN"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Sector numerado: completar filas y asientosPorFila, sin capacidad. Sector no numerado: completar capacidad, sin filas ni asientosPorFila.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = CreateSectorRequest.class),
@@ -230,33 +231,29 @@ public class LugarController {
                                             """)
                             }))
             @Valid @RequestBody CreateSectorRequest request) {
-        validarAdministrador(userId, userRole);
+        validarAdministrador(userId, userRolesHeader);
         return ResponseEntity.status(HttpStatus.CREATED).body(lugarService.agregarSector(id, request));
     }
 
-    private void validarAdministrador(String userId, String userRole) {
-        validarIdentidad(userId, userRole);
-        if (!esAdministrador(userRole)) {
+    private void validarAdministrador(String userId, String userRolesHeader) {
+        UserRoles roles = validarIdentidad(userId, userRolesHeader);
+        if (!roles.contains("ADMIN")) {
             throw new ForbiddenException("Solo un administrador puede gestionar lugares y sectores");
         }
     }
 
-    private void validarLector(String userId, String userRole) {
-        validarIdentidad(userId, userRole);
-        String rol = userRole.trim();
-        if (!esAdministrador(rol) && !"ORGANIZADOR".equalsIgnoreCase(rol)) {
+    private void validarLector(String userId, String userRolesHeader) {
+        UserRoles roles = validarIdentidad(userId, userRolesHeader);
+        if (!roles.containsAny("ADMIN", "ORGANIZADOR")) {
             throw new ForbiddenException("Solo un organizador o administrador puede consultar lugares y sectores");
         }
     }
 
-    private void validarIdentidad(String userId, String userRole) {
-        if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
-            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
+    private UserRoles validarIdentidad(String userId, String userRolesHeader) {
+        UserRoles roles = UserRoles.fromHeader(userRolesHeader);
+        if (userId == null || userId.isBlank() || roles.isEmpty()) {
+            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Roles");
         }
-    }
-
-    private boolean esAdministrador(String userRole) {
-        String rol = userRole.trim();
-        return "ADMIN".equalsIgnoreCase(rol) || "administrador".equalsIgnoreCase(rol);
+        return roles;
     }
 }

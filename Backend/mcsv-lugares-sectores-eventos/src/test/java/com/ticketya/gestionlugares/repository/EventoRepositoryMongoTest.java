@@ -3,6 +3,7 @@ package com.ticketya.gestionlugares.repository;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -31,6 +32,8 @@ import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.api.EventoDetalleResponse;
 import com.ticketya.gestionlugares.config.MongoDecimalConfiguration;
 import com.ticketya.gestionlugares.service.EventoConsultaService;
+import com.ticketya.gestionlugares.service.ResourceNotFoundException;
+import com.ticketya.gestionlugares.service.UnauthorizedException;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
@@ -150,24 +153,22 @@ class EventoRepositoryMongoTest {
 
         var respuesta = consultaService.buscar("MUSICA", "org-1", "Artista A", "CABA",
                 "2027-05-16T00:00:00Z", "2027-05-16T00:00:00Z", "fecha", "desc",
-                null, "0", "20", "cliente-1", "CLIENTE");
+                null, "0", "20");
 
         assertEquals(1, respuesta.totalElementos());
         assertEquals(1, respuesta.contenido().size());
         assertEquals("Festival Uno", respuesta.contenido().getFirst().nombre());
         var vacia = consultaService.buscar("MUSICA", "no-existe", null, null, null, null,
-                null, null, null, null, null, "cliente-1", "CLIENTE");
+                null, null, null, null, null);
         assertEquals(0, vacia.totalElementos());
         assertEquals(0, vacia.totalPaginas());
         var paginada = consultaService.buscar(null, null, null, null, null, null,
-                null, null, null, "0", "1", "cliente-1", "CLIENTE");
+                null, null, null, "0", "1");
         assertEquals(2, paginada.totalElementos());
         assertEquals(2, paginada.totalPaginas());
         assertEquals("Festival Uno", paginada.contenido().getFirst().nombre());
-        for (String rol : List.of("CLIENTE", "ORGANIZADOR", "ADMIN")) {
-            assertEquals(2, consultaService.buscar(null, null, null, null, null, null,
-                    null, null, null, null, null, "user-1", rol).totalElementos());
-        }
+        assertEquals(2, consultaService.buscar(null, null, null, null, null, null,
+                null, null, null, null, null).totalElementos());
     }
 
     @Test
@@ -178,52 +179,61 @@ class EventoRepositoryMongoTest {
                 "2027-05-16T00:00:00Z", EstadoEvento.PUBLICADO, "10000");
 
         var asc = consultaService.buscar(null, null, null, null, null, null,
-                "precio", "asc", null, null, null, "cliente-1", "CLIENTE");
+                "precio", "asc", null, null, null);
         assertEquals("Rock Central", asc.contenido().getFirst().nombre());
         var desc = consultaService.buscar(null, null, null, null, null, null,
-                "precio", "desc", null, null, null, "cliente-1", "CLIENTE");
+                "precio", "desc", null, null, null);
         assertEquals("Rock Rock Rock", desc.contenido().getFirst().nombre());
         var relevance = consultaService.buscar(null, null, null, null, null, null,
-                "relevancia", "asc", "Rock", null, null, "cliente-1", "CLIENTE");
+                "relevancia", "asc", "Rock", null, null);
         assertEquals(2, relevance.totalElementos());
         assertEquals("Rock Rock Rock", relevance.contenido().getFirst().nombre());
         var relevanceSinTexto = consultaService.buscar(null, null, null, null, null, null,
-                "relevancia", "desc", null, null, null, "cliente-1", "CLIENTE");
+                "relevancia", "desc", null, null, null);
         assertEquals("Rock Central", relevanceSinTexto.contenido().getFirst().nombre());
     }
 
     @Test
-    void devuelveDetalleLocalYOcultaBorradorDeOtroOrganizador() {
+    void borradorSinIdentidadORolAutorizadoNoEsVisible() {
         Lugar lugar = lugarRepository.save(new Lugar(null, "Estadio", "Av. Central", "CABA", -34.0, -58.0, List.of()));
         Evento borrador = Evento.borrador("org-1", lugar.getId(), lugar.getCiudad(), "Borrador", "Desc",
-                "MUSICA", List.of("Artista"), Instant.parse("2027-05-16T00:00:00Z"), 4,
-                List.of(new EventoSector("sector-1", "Platea", TipoSector.NUMERADO, 1, 2, null, null)));
+                "MUSICA", List.of("Artista"), Instant.parse("2027-05-16T00:00:00Z"), 4, List.of());
         eventoRepository.save(borrador);
 
-        var propio = consultaService.detalle(borrador.getId(), "org-1", "ORGANIZADOR");
-        assertEquals("CABA", propio.lugar().ciudad());
-        assertEquals(null, propio.sectores().getFirst().disponibilidad());
+        assertThrows(UnauthorizedException.class, () -> consultaService.detalle(borrador.getId(), null, null));
+        assertThrows(ResourceNotFoundException.class,
+                () -> consultaService.detalle(borrador.getId(), "org-1", "CLIENTE"));
         verifyNoInteractions(reservasClient);
-        org.junit.jupiter.api.Assertions.assertThrows(com.ticketya.gestionlugares.service.ResourceNotFoundException.class,
-                () -> consultaService.detalle(borrador.getId(), "org-2", "CLIENTE"));
-        assertEquals("borrador", consultaService.detalle(borrador.getId(), "admin-1", "ADMIN").estado());
     }
 
     @Test
-    void detalleVisibleParaLosTresRolesEnTodosLosEstadosNoBorrador() {
+    void soloBorradoresSeOcultanEnElDetalle() {
         Lugar lugar = lugarRepository.save(new Lugar(null, "Estadio", "Av. Central", "CABA", -34.0, -58.0, List.of()));
-        for (EstadoEvento estado : List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO,
-                EstadoEvento.CANCELADO, EstadoEvento.FINALIZADO)) {
+        for (EstadoEvento estado : List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO)) {
             Evento evento = Evento.borrador("org-1", lugar.getId(), lugar.getCiudad(), estado.name(), "Desc",
                     "MUSICA", List.of("Artista"), Instant.parse("2027-05-16T00:00:00Z"), 4, List.of());
             evento.setEstado(estado);
             eventoRepository.save(evento);
-            for (String[] identidad : List.of(new String[]{"c1", "CLIENTE"},
-                    new String[]{"o1", "ORGANIZADOR"}, new String[]{"a1", "ADMIN"})) {
-                assertEquals(estado.getValor(), consultaService.detalle(evento.getId(), identidad[0], identidad[1]).estado());
-            }
+            var detalle = consultaService.detalle(evento.getId(), null, null);
+            assertEquals(estado.getValor(), detalle.estado());
+            verify(reservasClient).consultarDisponibilidad(evento.getId());
         }
-        verify(reservasClient, times(6)).consultarDisponibilidad(anyString());
+        for (EstadoEvento estado : List.of(EstadoEvento.CANCELADO, EstadoEvento.FINALIZADO)) {
+            Evento evento = Evento.borrador("org-1", lugar.getId(), lugar.getCiudad(), estado.name(), "Desc",
+                    "MUSICA", List.of("Artista"), Instant.parse("2027-05-16T00:00:00Z"), 4, List.of());
+            evento.setEstado(estado);
+            eventoRepository.save(evento);
+            assertEquals(estado.getValor(), consultaService.detalle(evento.getId(), null, null).estado());
+        }
+        Evento borrador = Evento.borrador("org-1", lugar.getId(), lugar.getCiudad(), "Borrador", "Desc",
+                "MUSICA", List.of("Artista"), Instant.parse("2027-05-16T00:00:00Z"), 4, List.of());
+        eventoRepository.save(borrador);
+        assertThrows(ResourceNotFoundException.class,
+                () -> consultaService.detalle(borrador.getId(), "org-2", "ORGANIZADOR"));
+        assertEquals("borrador", consultaService.detalle(borrador.getId(), "org-1", "ORGANIZADOR").estado());
+        assertEquals("borrador", consultaService.detalle(borrador.getId(), "admin-1", "ADMIN").estado());
+
+        verify(reservasClient, times(2)).consultarDisponibilidad(anyString());
     }
 
     @Test
@@ -244,7 +254,7 @@ class EventoRepositoryMongoTest {
                         new SectorDisponibilidadResponse("sector-a", TipoSector.NUMERADO, 2, 1,
                                 List.of(new AsientoDisponibleResponse(1, 2))))));
 
-        var detalle = consultaService.detalle(evento.getId(), "cliente-1", "CLIENTE");
+        var detalle = consultaService.detalle(evento.getId(), null, null);
 
         assertEquals("sector-a", detalle.sectores().get(0).sectorId());
         assertEquals(1, detalle.sectores().get(0).disponibilidad().cantidadDisponible());
@@ -266,7 +276,7 @@ class EventoRepositoryMongoTest {
         when(reservasClient.consultarDisponibilidad(evento.getId()))
                 .thenThrow(new ReservasClientException("timeout"));
 
-        var detalle = consultaService.detalle(evento.getId(), "cliente-1", "CLIENTE");
+        var detalle = consultaService.detalle(evento.getId(), null, null);
 
         assertEquals("agotado", detalle.estado());
         assertEquals(null, detalle.sectores().getFirst().disponibilidad());
@@ -279,7 +289,7 @@ class EventoRepositoryMongoTest {
         guardarEvento("org-1", "CABA", "Cancelado", "Desc", "MUSICA", "Artista",
                 "2027-05-16T00:00:00Z", EstadoEvento.CANCELADO, "1000");
         var respuesta = consultaService.buscar(null, null, null, null, null, null,
-                null, null, null, null, null, "cliente-1", "CLIENTE");
+                null, null, null, null, null);
         assertEquals(0, respuesta.totalElementos());
         assertTrue(respuesta.contenido().isEmpty());
         assertEquals(20, respuesta.tamano());

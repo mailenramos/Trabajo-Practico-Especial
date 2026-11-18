@@ -349,11 +349,6 @@ La búsqueda reemplaza la respuesta actual `405 Method Not Allowed` de `GET /eve
 - **WHEN** un cliente consulta `GET /eventos` sin filtros
 - **THEN** responde `200 OK` con `contenido: []`
 
-#### Scenario: Validar identidad y rol para búsqueda
-- **GIVEN** una solicitud sin `X-User-Id` o `X-User-Role`, o con rol distinto de `CLIENTE`, `ORGANIZADOR` y `ADMIN`
-- **WHEN** consulta `GET /eventos`
-- **THEN** responde `401 Unauthorized` si falta identidad o `403 Forbidden` si el rol no es admitido
-
 #### Scenario: Validar paginación
 - **GIVEN** una búsqueda con `page` negativo, `size` menor que uno o `size` mayor que cien
 - **WHEN** se procesa la solicitud
@@ -424,11 +419,6 @@ El servicio SHALL ofrecer `GET /eventos/{eventoId}` a clientes, organizadores y 
 - **GIVEN** un identificador de evento no registrado
 - **WHEN** un usuario autenticado consulta el detalle
 - **THEN** responde `404 Not Found` con el formato de error estándar
-
-#### Scenario: Validar identidad y rol para detalle
-- **GIVEN** una solicitud sin `X-User-Id` o `X-User-Role`, o con rol distinto de `CLIENTE`, `ORGANIZADOR` y `ADMIN`
-- **WHEN** consulta `GET /eventos/{eventoId}`
-- **THEN** responde `401 Unauthorized` si falta identidad o `403 Forbidden` si el rol no es admitido
 
 ### Requirement: Incluir disponibilidad de Reservas en el detalle público
 Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponibilidad/eventos/{eventoId}` en Reservas y combinar sus resultados con los sectores del evento mediante `sectorId`. Para cualquier otro estado no SHALL consultar a Reservas. Si Reservas no responde, falla o devuelve `404` o `500`, el detalle SHALL responder `200 OK` con disponibilidad `null` en los sectores afectados.

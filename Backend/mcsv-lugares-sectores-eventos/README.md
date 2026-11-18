@@ -32,7 +32,7 @@ Ejecutá estos pasos desde `mcsv-lugares-sectores-eventos`.
 3. Consultá lugares con headers de identidad:
 
    ```sh
-   curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Role: ORGANIZADOR" http://localhost:8081/lugares
+   curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://localhost:8081/lugares
    ```
 
 4. La documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
@@ -45,9 +45,9 @@ docker compose down
 
 ## Endpoints
 
-El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas requieren `X-User-Id` junto con el rol indicado; los endpoints internos de callback y consulta entre servicios no exigen headers de usuario. El Gateway debe enviar `X-User-Role: CLIENTE`, `ORGANIZADOR` o `ADMIN`. El servicio compara sin distinguir mayúsculas y recorta espacios externos.
+El servicio local usa `http://localhost:8081` por defecto. Las operaciones protegidas requieren `X-User-Id` y `X-User-Roles`; el Gateway deriva el ID del claim `sub` del JWT y envía la lista de roles separada por comas. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. La búsqueda y el detalle de eventos publicados o agotados son públicos. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
 
-| Método | Ruta | Rol requerido | Descripción |
+| Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
 | POST | `/lugares` | `ADMIN` | Registra un lugar. |
 | GET | `/lugares` | `ORGANIZADOR` o `ADMIN` | Lista lugares. |
@@ -55,8 +55,8 @@ El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas r
 | GET | `/lugares/{id}/sectores` | `ORGANIZADOR` o `ADMIN` | Lista los sectores de un lugar. |
 | POST | `/lugares/{id}/sectores` | `ADMIN` | Agrega un sector numerado o no numerado. |
 | POST | `/eventos` | `ORGANIZADOR` | Crea un evento en borrador. |
-| GET | `/eventos` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
-| GET | `/eventos/{eventoId}` | `CLIENTE`, `ORGANIZADOR` o `ADMIN` | Devuelve el detalle público; solo el organizador dueño o ADMIN ve un borrador. |
+| GET | `/eventos` | Público, sin token | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
+| GET | `/eventos/{eventoId}` | Público para `publicado`/`agotado`; borrador requiere autenticación | Solo el organizador titular o `ADMIN` puede consultar un borrador; otros usuarios reciben `404`. |
 | PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | `ORGANIZADOR` dueño | Define el precio de un sector del evento en borrador. |
 | PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | `ORGANIZADOR` dueño | Actualiza el límite por cliente durante el borrador. |
 | PUT | `/eventos/{eventoId}/publicar` | `ORGANIZADOR` dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
@@ -68,17 +68,17 @@ El servicio local usa `http://localhost:8081` por defecto. Las rutas públicas r
 
 ## Identidad y usuarios de prueba
 
-Los valores canónicos de `X-User-Role` son `CLIENTE`, `ORGANIZADOR` y `ADMIN`; la comparación no distingue mayúsculas y recorta espacios externos. En las operaciones de gestión de lugares y en las acciones administrativas del ciclo de vida, el código también acepta `administrador` como alias de `ADMIN`. Búsqueda y detalle públicos solo aceptan los valores canónicos. Ejemplos de headers: `X-User-Id: cliente-123` con `X-User-Role: CLIENTE`; `X-User-Id: organizador-42` con `X-User-Role: ORGANIZADOR`; `X-User-Id: admin-1` con `X-User-Role: ADMIN`.
+`X-User-Id` contiene el identificador del usuario autenticado (el claim `sub` del JWT en el Gateway). `X-User-Roles` contiene los roles `CLIENTE`, `ORGANIZADOR` y/o `ADMIN`, separados por comas. El servicio evalúa la lista completa: por ejemplo, `CLIENTE, ORGANIZADOR` permite operar como organizador cuando también es titular; no existe precedencia entre roles. La comparación no distingue mayúsculas y recorta espacios; no se admite el alias legado `administrador`.
 
-`X-User-Id` debe identificar al usuario. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar y consultar detalles de eventos; solo el dueño `ORGANIZADOR` puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y administra suspensiones, reactivaciones y cancelaciones. Los callbacks y consultas internas no reciben headers de usuario.
+Solo las rutas protegidas requieren identidad. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar eventos sin token; el detalle de eventos `publicado` y `agotado` también es público. Para consultar un borrador se requiere `X-User-Id` y que `X-User-Roles` incluya `ORGANIZADOR` (con el mismo ID titular) o `ADMIN`; sin identidad responde `401` y un borrador ajeno o sin rol válido queda oculto con `404`. Solo el organizador titular puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y suspende, reactiva o cancela eventos. Los callbacks y consultas internas no reciben headers de usuario.
 
 Usuarios de ejemplo y sus headers:
 
 | Usuario | Headers |
 |---|---|
-| Cliente | `X-User-Id: cliente-123`, `X-User-Role: CLIENTE` |
-| Organizador | `X-User-Id: organizador-42`, `X-User-Role: ORGANIZADOR` |
-| Administrador | `X-User-Id: admin-1`, `X-User-Role: ADMIN` |
+| Cliente | `X-User-Id: cliente-123`, `X-User-Roles: CLIENTE` |
+| Organizador | `X-User-Id: organizador-42`, `X-User-Roles: ORGANIZADOR` |
+| Administrador | `X-User-Id: admin-1`, `X-User-Roles: ADMIN` |
 
 El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires (Platea numerada y Pullman no numerado) y Estadio del Parque en Córdoba (Tribuna Norte numerada y Campo de pie no numerado), además de estos eventos:
 
@@ -112,7 +112,7 @@ Las rutas de gestión de eventos y lugares devuelven errores controlados con `ti
 | `page` | entero | `0` o mayor. |
 | `size` | entero | `20`; rango de `1` a `100`. |
 
-Solo se listan eventos `publicado` y `agotado`; sin coincidencias la respuesta es `200` con contenido vacío. El orden por fecha es ascendente y por precio usa `precioMinimo` en la dirección solicitada (con fecha e ID como desempate). Con `orden=relevancia` y `q`, se ordena por puntaje de texto descendente y luego fecha ascendente; sin `q`, equivale a fecha ascendente. La respuesta usa `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`.
+`GET /eventos` es público y no requiere token ni headers de identidad. Solo lista eventos `publicado` y `agotado`; borradores, cancelados y finalizados no aparecen. Sin coincidencias la respuesta es `200` con contenido vacío. El orden por fecha es ascendente y por precio usa `precioMinimo` en la dirección solicitada (con fecha e ID como desempate). Con `orden=relevancia` y `q`, se ordena por puntaje de texto descendente y luego fecha ascendente; sin `q`, equivale a fecha ascendente. La respuesta usa `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`.
 
 Ejemplo de respuesta paginada:
 
@@ -120,7 +120,7 @@ Ejemplo de respuesta paginada:
 {"contenido":[{"id":"672a1f77bcf86cd799439011","nombre":"Festival Central","tipo":"MUSICA","participantes":["Artista A"],"fechaHora":"2027-05-16T00:00:00Z","ciudad":"Buenos Aires","estado":"publicado","ventaSuspendida":false,"precioMinimo":15000.00}],"pagina":0,"tamano":20,"totalElementos":1,"totalPaginas":1}
 ```
 
-En `GET /eventos/{eventoId}`, un borrador solo es visible para el `ORGANIZADOR` dueño (mismo `X-User-Id`) y `ADMIN`; para otros roles responde `404`. Los demás estados se pueden consultar con cualquiera de los tres roles. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
+`GET /eventos/{eventoId}` no requiere token para eventos `publicado` o `agotado`; los roles desconocidos se ignoran como en una solicitud anónima. Un borrador solo es visible para el `ORGANIZADOR` titular (mismo `X-User-Id`) o `ADMIN`; sin identidad responde `401` y para otros roles/usuarios responde `404`. Los eventos `cancelado` y `finalizado` también responden `200` y no consultan disponibilidad. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
 
 Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 

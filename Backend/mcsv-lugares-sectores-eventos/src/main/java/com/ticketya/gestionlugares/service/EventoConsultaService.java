@@ -34,6 +34,7 @@ import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadResponse;
+import com.ticketya.gestionlugares.security.UserRoles;
 
 @Service
 public class EventoConsultaService {
@@ -55,8 +56,7 @@ public class EventoConsultaService {
 
     public EventoBusquedaResponse buscar(String tipo, String organizadorId, String participante,
             String ciudad, String fechaDesde, String fechaHasta, String orden, String direccion,
-            String q, String pageParam, String sizeParam, String userId, String userRole) {
-        validarRol(userId, userRole);
+            String q, String pageParam, String sizeParam) {
         int page = parsearEntero(pageParam, 0, "page");
         int size = parsearEntero(sizeParam, 20, "size");
         if (page < 0) throw new IllegalArgumentException("page debe ser mayor o igual a 0");
@@ -123,15 +123,12 @@ public class EventoConsultaService {
         return new EventoBusquedaResponse(contenido, page, size, total, totalPaginas);
     }
 
-    public EventoDetalleResponse detalle(String eventoId, String userId, String userRole) {
-        validarRol(userId, userRole);
+    public EventoDetalleResponse detalle(String eventoId, String userId, String userRolesHeader) {
         if (!ObjectId.isValid(eventoId)) throw new ResourceNotFoundException("No existe el evento " + eventoId);
         Evento evento = eventoRepository.findById(eventoId)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento " + eventoId));
-        boolean esAdmin = "ADMIN".equalsIgnoreCase(userRole.trim());
-        if (evento.getEstado() == EstadoEvento.BORRADOR
-                && !esAdmin && !evento.getOrganizadorId().equals(userId)) {
-            throw new ResourceNotFoundException("No existe el evento " + eventoId);
+        if (evento.getEstado() == EstadoEvento.BORRADOR) {
+            validarAccesoBorrador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         }
         Lugar lugar = lugarRepository.findById(evento.getLugarId())
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el lugar del evento"));
@@ -155,14 +152,15 @@ public class EventoConsultaService {
         }
     }
 
-    private static void validarRol(String userId, String userRole) {
-        if (userId == null || userId.isBlank() || userRole == null || userRole.isBlank()) {
-            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Role");
+    private static void validarAccesoBorrador(Evento evento, String userId, UserRoles roles) {
+        if (userId == null || userId.isBlank() || roles.isEmpty()) {
+            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Roles para consultar un borrador");
         }
-        String rol = userRole.trim();
-        if (!"CLIENTE".equalsIgnoreCase(rol) && !"ORGANIZADOR".equalsIgnoreCase(rol)
-                && !"ADMIN".equalsIgnoreCase(rol)) {
-            throw new ForbiddenException("X-User-Role debe ser CLIENTE, ORGANIZADOR o ADMIN");
+        boolean esAdmin = roles.contains("ADMIN");
+        boolean esOrganizadorDueno = roles.contains("ORGANIZADOR")
+                && userId.equals(evento.getOrganizadorId());
+        if (!esAdmin && !esOrganizadorDueno) {
+            throw new ResourceNotFoundException("No existe el evento " + evento.getId());
         }
     }
 

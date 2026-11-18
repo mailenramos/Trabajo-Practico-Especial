@@ -66,7 +66,7 @@ class DevSampleDataIntegrationTest {
     void dosLugaresDeEjemploConAmbosTiposDeSectorSeConsultanPorLaApi() throws Exception {
         MvcResult result = mockMvc.perform(get("/lugares")
                         .header("X-User-Id", "organizador-prueba")
-                        .header("X-User-Role", "organizador"))
+                                .header("X-User-Roles", "organizador"))
                 .andExpect(status().isOk())
                 .andReturn();
 

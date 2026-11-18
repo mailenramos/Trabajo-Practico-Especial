@@ -73,7 +73,7 @@ class ComprasCancellationFlowTest {
         when(eventoService.marcarAvisoCancelacionEntregado(EVENT_ID))
                 .thenReturn(cancelado("Cancelación del evento por el administrador", Instant.now(), false));
 
-        Evento result = lifecycle.cancelar(EVENT_ID, null, "admin", "administrador");
+        Evento result = lifecycle.cancelar(EVENT_ID, null, "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
         assertFalse(result.isAvisoCancelacionPendiente());
@@ -101,7 +101,7 @@ class ComprasCancellationFlowTest {
         org.mockito.Mockito.doThrow(new RuntimeException("Compras caída"))
                 .when(comprasClient).notificarCancelacion(any(), any(), any());
 
-        Evento result = lifecycle.cancelar(EVENT_ID, "Cierre preventivo", "admin", "administrador");
+        Evento result = lifecycle.cancelar(EVENT_ID, "Cierre preventivo", "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
         assertTrue(result.isAvisoCancelacionPendiente());
@@ -129,7 +129,7 @@ class ComprasCancellationFlowTest {
         when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
 
         assertThrows(ConflictException.class,
-                () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "administrador"));
+                () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "ADMIN"));
 
         verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
         verify(comprasClient, never()).notificarCancelacion(any(), any(), any());

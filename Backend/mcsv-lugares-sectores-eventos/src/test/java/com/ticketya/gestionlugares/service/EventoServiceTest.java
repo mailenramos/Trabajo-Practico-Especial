@@ -75,6 +75,16 @@ class EventoServiceTest {
     }
 
     @Test
+    void creaEventoSiOrganizadorEstaEntreVariosRoles() {
+        when(lugarRepository.findById(LUGAR_ID)).thenReturn(Optional.of(lugar()));
+
+        Evento creado = service.crearEvento(request(null), ORGANIZADOR, "CLIENTE, ORGANIZADOR");
+
+        assertEquals(ORGANIZADOR, creado.getOrganizadorId());
+        assertEquals(EstadoEvento.BORRADOR, creado.getEstado());
+    }
+
+    @Test
     void rechazaLugarInexistenteFechaPasadaYRolNoOrganizador() {
         when(lugarRepository.findById(LUGAR_ID)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class,

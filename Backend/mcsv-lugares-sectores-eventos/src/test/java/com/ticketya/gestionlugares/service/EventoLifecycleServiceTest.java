@@ -133,7 +133,7 @@ class EventoLifecycleServiceTest {
         published.setEstado(EstadoEvento.PUBLICADO);
         when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(published);
         when(eventoService.suspenderVentaLocal(EVENTO_ID)).thenReturn(published);
-        lifecycleService.suspenderVenta(EVENTO_ID, "admin-1", "administrador");
+        lifecycleService.suspenderVenta(EVENTO_ID, "admin-1", "ADMIN");
         InOrder successOrder = inOrder(reservasClient, eventoService);
         successOrder.verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.SUSPENDIDA);
         successOrder.verify(eventoService).suspenderVentaLocal(EVENTO_ID);
@@ -142,7 +142,7 @@ class EventoLifecycleServiceTest {
         org.mockito.Mockito.doThrow(new ReservasClientException("timeout"))
                 .when(reservasClient).cambiarEstadoVenta("evento-2", EstadoVentaReservas.SUSPENDIDA);
         assertThrows(ServiceUnavailableException.class,
-                () -> lifecycleService.suspenderVenta("evento-2", "admin-1", "administrador"));
+                () -> lifecycleService.suspenderVenta("evento-2", "admin-1", "ADMIN"));
         verify(eventoService, never()).suspenderVentaLocal("evento-2");
         assertEquals(EstadoEvento.PUBLICADO, published.getEstado());
     }
@@ -153,13 +153,27 @@ class EventoLifecycleServiceTest {
         evento.setEstado(EstadoEvento.PUBLICADO);
         when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(evento);
         when(eventoService.reactivarVentaLocal(EVENTO_ID)).thenReturn(evento);
-        lifecycleService.reactivarVenta(EVENTO_ID, "admin-1", "administrador");
+        lifecycleService.reactivarVenta(EVENTO_ID, "admin-1", "ADMIN");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
 
         when(eventoService.cancelarLocal(org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
         when(eventoService.marcarAvisoCancelacionEntregado(EVENTO_ID)).thenReturn(evento);
-        lifecycleService.cancelar(EVENTO_ID, "admin-1", "administrador");
+        lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN");
         verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
+    }
+
+    @Test
+    void admiteAdminEntreVariosRolesYRechazaAliasLegado() {
+        Evento published = draft();
+        published.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(published);
+        when(eventoService.suspenderVentaLocal(EVENTO_ID)).thenReturn(published);
+
+        lifecycleService.suspenderVenta(EVENTO_ID, "admin-1", "CLIENTE, ADMIN");
+
+        verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.SUSPENDIDA);
+        assertThrows(ForbiddenException.class,
+                () -> lifecycleService.cancelar(EVENTO_ID, "admin-1", "administrador"));
     }
 
     @Test
@@ -171,7 +185,7 @@ class EventoLifecycleServiceTest {
                 .when(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
 
         assertThrows(ServiceUnavailableException.class,
-                () -> lifecycleService.cancelar(EVENTO_ID, "admin-1", "administrador"));
+                () -> lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
         verify(eventoService, never()).cancelarLocal(any());
         assertEquals(EstadoEvento.PUBLICADO, published.getEstado());
     }
@@ -208,7 +222,7 @@ class EventoLifecycleServiceTest {
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient, comprasClient);
 
         assertThrows(ConflictException.class,
-                () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "administrador"));
+                () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
         InOrder order = inOrder(reservasClient, eventoRepository);
         order.verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
         order.verify(eventoRepository).save(any(Evento.class));
@@ -233,7 +247,7 @@ class EventoLifecycleServiceTest {
             return null;
         }).when(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
 
-        Evento result = concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "administrador");
+        Evento result = concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
         verify(eventoRepository, org.mockito.Mockito.times(3)).save(any(Evento.class));

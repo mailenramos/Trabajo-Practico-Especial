@@ -1,5 +1,25 @@
 schema: spec-driven
 
+context: |
+  Contexto Entrega 2 de TicketYa. Este servicio es MS1 "Gestión de lugares, sectores y eventos"
+  (Spring Boot + MongoDB, puerto local 8081, paquete com.ticketya.gestionlugares).
+  Servicios con los que se integra (puertos locales a confirmar por el grupo):
+  - MS2 Disponibilidad y reservas (8080)
+  - MS3 Compras y devoluciones (8083)
+  - MS5 Gestión de entradas (8085)
+  - MS6 Usuarios y autenticación (8087)
+  - MS7 Fila virtual (8088)
+  - MS8 Preferencias y recomendaciones (8089)
+  - MS9 Notificaciones (8090)
+  - API Gateway (8086), que valida el JWT y envía X-User-Id y X-User-Roles
+    (roles separados por coma: CLIENTE, ORGANIZADOR, ADMIN, PERSONAL_ACCESO).
+  Reglas transversales:
+  - Los endpoints /internal/... no se exponen en el gateway y no llevan JWT entre servicios.
+  - Errores JSON con el formato de la Entrega 1: timestamp, status, error, mensaje y campos.
+  - Timeouts HTTP base: 2 s de conexión y 5 s de lectura.
+  - Las operaciones entre servicios deben ser idempotentes.
+  - Si algo no está definido, listarlo en preguntas abiertas en vez de inventarlo.
+
 # Project context (optional)
 # Add only constraints that should guide OpenSpec artifacts and workflows.
 # Include constraints an agent cannot infer by reading the code.

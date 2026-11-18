@@ -10,7 +10,7 @@ Este microservicio administra:
 - El ciclo de vida del evento: borrador, publicación, suspensión/reactivación de venta, cancelación, agotamiento y finalización.
 - Búsqueda paginada y ordenada de eventos publicados o agotados, y consulta de detalle.
 
-No es responsable de administrar inventario/disponibilidad ni reservas, procesar compras o devoluciones, ni autenticar usuarios. La disponibilidad se consulta en Reservas y la disponibilidad agotada se refleja localmente a partir de su callback. Compras consulta la información interna del evento y recibe avisos de cancelación. La identidad y el rol llegan en headers; el servicio aplica autorización por rol/propiedad, pero no valida credenciales ni tokens.
+No es responsable de administrar inventario/disponibilidad ni reservas, procesar compras o devoluciones, ni autenticar usuarios. La disponibilidad se consulta en Reservas y la disponibilidad agotada se refleja localmente a partir de su callback. Compras consulta la información interna del evento y recibe avisos de cancelación. En las rutas protegidas, el Gateway valida el JWT y propaga `X-User-Id` con el claim `sub` y `X-User-Roles` como lista separada por comas; el servicio aplica autorización por rol/propiedad, pero no valida credenciales ni tokens. La búsqueda y el detalle de eventos publicados o agotados no requieren token.
 
 La API pública ofrece operaciones de lugares/sectores y de creación, configuración, publicación, administración, búsqueda y detalle de eventos. Los roles requeridos y el resumen de rutas están en el [README](../README.md#endpoints). La especificación interactiva está en [Swagger UI](http://localhost:8081/swagger-ui/index.html) cuando el servicio local está iniciado. El callback de Reservas y la consulta de Compras son rutas internas y no forman parte de la API publicada por el Gateway.
 
@@ -26,7 +26,7 @@ flowchart LR
     C["Compras<br/>:8083"]
 
     U -->|"HTTPS/HTTP público; identidad propagada en headers"| GW
-    GW -->|"REST/JSON rutas públicas; reenvía X-User-Id y X-User-Role"| GL
+    GW -->|"REST/JSON; reenvía X-User-Id y X-User-Roles en rutas protegidas"| GL
     GL -->|"Spring Data MongoDB"| DB
     GL -->|"PUT inicializar disponibilidad / PUT estado de venta / GET disponibilidad"| R
     R -->|"PUT callback agotado o recuperación<br/>/eventos/{eventoId}/disponibilidad"| GL
@@ -49,7 +49,7 @@ sequenceDiagram
     participant R as Reservas
 
     Organizador->>GW: PUT /eventos/{id}/publicar
-    GW->>GL: Reenvía solicitud + X-User-Id / X-User-Role
+    GW->>GL: Reenvía solicitud + X-User-Id / X-User-Roles
     GL->>DB: Lee evento y valida dueño, estado y precios
     DB-->>GL: Evento en borrador
     GL->>GL: Construye estructura inicial de sectores/asientos
@@ -125,8 +125,8 @@ sequenceDiagram
     participant DB as MongoDB
     participant R as Reservas
 
-    Consumidor->>GW: GET /eventos/{id}
-    GW->>GL: Reenvía solicitud + headers de identidad
+    Consumidor->>GW: GET /eventos/{id} (sin token para publicado/agotado)
+    GW->>GL: Reenvía solicitud; headers opcionales para borradores
     GL->>DB: Lee evento y lugar
     DB-->>GL: Datos persistidos
     alt Estado PUBLICADO o AGOTADO
@@ -139,9 +139,12 @@ sequenceDiagram
             R--xGL: Error / timeout / sin disponibilidad
             GL-->>GW: 200 OK#59; disponibilidad=null
         end
-    else Otro estado
-        Note over GL,R: No consulta a Reservas
-        GL-->>GW: 200 OK#59; disponibilidad=null
+    else Borrador
+        Note over GL,R: Requiere X-User-Id y ORGANIZADOR titular o ADMIN
+        GL-->>GW: 200 OK solo para propietario autorizado; de lo contrario 401/404
+    else Estado distinto de PUBLICADO/AGOTADO
+        Note over GL,R: El borrador exige titular ORGANIZADOR o ADMIN; cancelado/finalizado son visibles sin disponibilidad
+        GL-->>GW: 200 OK para borrador autorizado, cancelado o finalizado; 401/404 si el borrador no está autorizado
     end
     GW-->>Consumidor: Detalle del evento
 ```
@@ -154,7 +157,7 @@ sequenceDiagram
 | Confirmar primero en Reservas antes de cambiar el estado local | Evita publicar, suspender, reactivar, cancelar o finalizar localmente si Reservas no confirma la operación correspondiente. En publicación, un fallo remoto devuelve `503` y conserva `BORRADOR`; en cancelación, el fallo evita tanto el cambio local como el aviso a Compras. La secuencia está implementada en `EventoLifecycleService`. |
 | Aviso a Compras de mejor esfuerzo, persistido y reenviado | Primero persiste la cancelación y marca `avisoCancelacionPendiente`; después intenta notificar a Compras. Un fallo no revierte el estado local. El scheduler busca los pendientes y reintenta, y al recibir aceptación se borra la marca. Esto evita perder el aviso al reiniciar el proceso. |
 | Control optimista de concurrencia por versión | `Lugar` y `Evento` declaran `@Version`. Las escrituras concurrentes con una versión obsoleta no pisan silenciosamente el documento; se traducen a conflicto de actualización. |
-| Roles en headers, sin autenticación local | El servicio autoriza usando `X-User-Id` y `X-User-Role`, pero no implementa autenticación ni validación JWT. Según la consigna indicada para el proyecto, JWT corresponde a la Entrega 2. Esa asignación de entrega no aparece en `openspec/specs`; en el código actual solo se verifica el uso de headers y la ausencia de una configuración de seguridad/JWT. |
+| Identidad propagada por el Gateway, sin autenticación local | El Gateway valida el JWT y envía el claim `sub` como `X-User-Id` y la lista de roles como `X-User-Roles`. El microservicio evalúa todos los roles sin precedencia arbitraria y aplica además la titularidad; no valida el token directamente. |
 | Comunicación directa entre servicios, fuera del Gateway y sin autenticación entre servicios | Las llamadas REST a Reservas y Compras y las rutas internas se dirigen directamente a los servicios correspondientes. El contrato del Gateway excluye el callback de disponibilidad, la consulta interna de Compras y las llamadas salientes. Esta es la configuración documentada para la Entrega 1; los clientes HTTP no propagan credenciales de servicio. |
 | Copiar datos entre colecciones/servicios cuando se necesita una instantánea | Al crear un evento se copian la ciudad y los datos de sectores del lugar; los precios se asignan al evento. Al publicar se envían a Reservas las dimensiones/capacidad y los asientos derivados. Compras recibe una respuesta interna con los nombres y precios actuales del evento y sector. La copia de ciudad y sectores está verificada en `EventoService`; las persistencias de Reservas y Compras quedan fuera del código de este repositorio. Ver también [modelo de datos](./modelo-de-datos.md). |
 

@@ -27,7 +27,7 @@ public class EventoInternoController {
     }
 
     @GetMapping("/{eventoId}")
-    @Operation(summary = "Consultar evento para Compras", description = "Endpoint interno invocado directamente por Compras. Devuelve cualquier estado, no requiere X-User-Id ni X-User-Role y no se expone por el API Gateway. Los precios aún no definidos se devuelven como null.")
+    @Operation(summary = "Consultar evento para Compras", description = "Endpoint interno invocado directamente por Compras. Devuelve cualquier estado, no requiere X-User-Id ni X-User-Roles y no se expone por el API Gateway. Los precios aún no definidos se devuelven como null.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento encontrado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = EventoInternoResponse.class),

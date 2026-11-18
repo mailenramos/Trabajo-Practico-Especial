@@ -38,7 +38,7 @@ public class EventoController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear evento en borrador", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR.")
+    @Operation(summary = "Crear evento en borrador", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Evento creado en borrador",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -53,9 +53,10 @@ public class EventoController {
     public ResponseEntity<Evento> crear(
             @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true)
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles separados por comas; debe incluir ORGANIZADOR.",
                     schema = @Schema(allowableValues = {"ORGANIZADOR"}))
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Datos del evento; limiteEntradasPorCliente es opcional y vale 4 si se omite.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = CreateEventoRequest.class),
@@ -64,11 +65,11 @@ public class EventoController {
                                     """)))
             @Valid @RequestBody CreateEventoRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(eventoService.crearEvento(request, userId, userRole));
+                .body(eventoService.crearEvento(request, userId, userRolesHeader));
     }
 
     @PutMapping("/{eventoId}/sectores/{sectorId}/precio")
-    @Operation(summary = "Definir el precio de un sector del evento", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
+    @Operation(summary = "Definir el precio de un sector del evento", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Precio asignado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -84,17 +85,17 @@ public class EventoController {
             @PathVariable String eventoId,
             @PathVariable String sectorId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Precio decimal mayor o igual a cero.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ActualizarPrecioRequest.class),
                             examples = @ExampleObject(name = "Precio", value = "{\"precio\":15000.00}")))
             @Valid @RequestBody ActualizarPrecioRequest request) {
-        return eventoService.asignarPrecio(eventoId, sectorId, request.precio(), userId, userRole);
+        return eventoService.asignarPrecio(eventoId, sectorId, request.precio(), userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/limite-entradas-por-cliente")
-    @Operation(summary = "Actualizar límite de entradas por cliente durante el borrador", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
+    @Operation(summary = "Actualizar límite de entradas por cliente durante el borrador", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Límite actualizado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -109,18 +110,18 @@ public class EventoController {
     public Evento actualizarLimite(
             @PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
                     description = "Límite entero mayor o igual a uno; no se acepta null.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ActualizarLimiteEntradasRequest.class),
                             examples = @ExampleObject(name = "Límite", value = "{\"limiteEntradasPorCliente\":8}")))
             @Valid @RequestBody ActualizarLimiteEntradasRequest request) {
         return eventoService.actualizarLimiteEntradas(eventoId,
-                request.limiteEntradasPorCliente(), userId, userRole);
+                request.limiteEntradasPorCliente(), userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/publicar")
-    @Operation(summary = "Publicar evento e inicializar su disponibilidad y venta en Reservas", description = "Requiere X-User-Id y X-User-Role: ORGANIZADOR; el usuario debe ser dueño del evento.")
+    @Operation(summary = "Publicar evento e inicializar su disponibilidad y venta en Reservas", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento publicado",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
@@ -136,16 +137,16 @@ public class EventoController {
     public Evento publicar(
             @PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        return eventoLifecycleService.publicar(eventoId, userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        return eventoLifecycleService.publicar(eventoId, userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/venta/suspender")
-    @Operation(summary = "Suspender la venta del evento", description = "Requiere X-User-Id y X-User-Role: ADMIN.")
+    @Operation(summary = "Suspender la venta del evento", description = "Requiere X-User-Id y X-User-Roles con ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta suspendida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta suspendida", value = ApiExamples.EVENTO_VENTA_SUSPENDIDA))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ADMIN en X-User-Roles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cambiar el estado de venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -153,16 +154,16 @@ public class EventoController {
     })
     public Evento suspenderVenta(@PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        return eventoLifecycleService.suspenderVenta(eventoId, userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        return eventoLifecycleService.suspenderVenta(eventoId, userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/venta/reactivar")
-    @Operation(summary = "Reactivar la venta del evento", description = "Requiere X-User-Id y X-User-Role: ADMIN.")
+    @Operation(summary = "Reactivar la venta del evento", description = "Requiere X-User-Id y X-User-Roles con ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta reactivada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta activa", value = ApiExamples.EVENTO_PUBLICADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ADMIN en X-User-Roles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cambiar el estado de venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -170,16 +171,16 @@ public class EventoController {
     })
     public Evento reactivarVenta(@PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        return eventoLifecycleService.reactivarVenta(eventoId, userId, userRole);
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader) {
+        return eventoLifecycleService.reactivarVenta(eventoId, userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/cancelar")
-    @Operation(summary = "Cancelar evento y detener su venta", description = "Requiere X-User-Id y X-User-Role: ADMIN. El body y el motivo son opcionales; si se omiten, se aplica el motivo predeterminado.")
+    @Operation(summary = "Cancelar evento y detener su venta", description = "Requiere X-User-Id y X-User-Roles con ADMIN. El body y el motivo son opcionales; si se omiten, se aplica el motivo predeterminado.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento cancelado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "403", description = "Se requiere X-User-Role: ADMIN", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Se requiere ADMIN en X-User-Roles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "503", description = "Reservas no pudo cancelar la venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
@@ -187,18 +188,19 @@ public class EventoController {
     })
     public Evento cancelar(@PathVariable String eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(required = false,
                     description = "Motivo opcional de cancelación; si se omite, se usa el motivo predeterminado.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = CancelarEventoRequest.class),
                             examples = @ExampleObject(name = "Motivo", value = "{\"motivo\":\"Cancelación por condiciones climáticas\"}")))
             @RequestBody(required = false) CancelarEventoRequest request) {
-        return eventoLifecycleService.cancelar(eventoId, request == null ? null : request.motivo(), userId, userRole);
+        return eventoLifecycleService.cancelar(eventoId, request == null ? null : request.motivo(),
+                userId, userRolesHeader);
     }
 
     @PutMapping("/{eventoId}/disponibilidad")
     @Operation(summary = "Callback interno de disponibilidad desde Reservas",
-            description = "Ruta interna invocada directamente por Reservas. No exige X-User-Id ni X-User-Role y no se expone por el API Gateway.")
+            description = "Ruta interna invocada directamente por Reservas. No exige X-User-Id ni X-User-Roles y no se expone por el API Gateway.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Aviso aplicado, duplicado o tardío"),
             @ApiResponse(responseCode = "400", description = "Body inválido", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),

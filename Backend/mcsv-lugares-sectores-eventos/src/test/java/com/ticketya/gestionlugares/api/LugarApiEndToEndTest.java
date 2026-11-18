@@ -63,13 +63,13 @@ class LugarApiEndToEndTest {
     void creaLugarYSectoresYLuegoLosConsultaPorLaApi() throws Exception {
         mockMvc.perform(get("/lugares")
                         .header("X-User-Id", "organizador-e2e")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
 
         MvcResult altaLugar = mockMvc.perform(post("/lugares")
                         .header("X-User-Id", "admin-e2e")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Teatro E2E","direccion":"Calle de prueba 100","ciudad":"Córdoba","latitud":-31.42,"longitud":-64.19}
@@ -81,7 +81,7 @@ class LugarApiEndToEndTest {
 
         mockMvc.perform(post("/lugares/" + id + "/sectores")
                         .header("X-User-Id", "admin-e2e")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":3,"asientosPorFila":8}
@@ -91,7 +91,7 @@ class LugarApiEndToEndTest {
 
         mockMvc.perform(post("/lugares/" + id + "/sectores")
                         .header("X-User-Id", "admin-e2e")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Campo","tipo":"NO_NUMERADO","capacidad":75}
@@ -101,7 +101,7 @@ class LugarApiEndToEndTest {
 
         MvcResult lista = mockMvc.perform(get("/lugares")
                         .header("X-User-Id", "organizador-e2e")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode lugares = objectMapper.readTree(lista.getResponse().getContentAsString());
@@ -110,13 +110,13 @@ class LugarApiEndToEndTest {
 
         mockMvc.perform(get("/lugares/" + id)
                         .header("X-User-Id", "admin-e2e")
-                        .header("X-User-Role", "administrador"))
+                        .header("X-User-Roles", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sectores[1].nombre").value("Campo"));
 
         MvcResult consultaSectores = mockMvc.perform(get("/lugares/" + id + "/sectores")
                         .header("X-User-Id", "organizador-e2e")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode sectores = objectMapper.readTree(consultaSectores.getResponse().getContentAsString());
@@ -132,17 +132,17 @@ class LugarApiEndToEndTest {
 
         mockMvc.perform(get("/lugares/" + idInexistente)
                         .header("X-User-Id", "organizador-e2e")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/lugares/" + idInexistente + "/sectores")
                         .header("X-User-Id", "organizador-e2e")
-                        .header("X-User-Role", "organizador"))
+                        .header("X-User-Roles", "organizador"))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(post("/lugares/" + idInexistente + "/sectores")
                         .header("X-User-Id", "admin-e2e")
-                        .header("X-User-Role", "administrador")
+                        .header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Platea","tipo":"NUMERADO","filas":3,"asientosPorFila":8}

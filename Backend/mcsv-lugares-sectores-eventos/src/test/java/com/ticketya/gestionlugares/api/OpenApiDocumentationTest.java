@@ -51,7 +51,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/sectores/{sectorId}/precio'].put").exists())
                 .andExpect(jsonPath("$.paths['/eventos/{eventoId}/limite-entradas-por-cliente'].put").exists())
                 .andExpect(jsonPath("$.paths['/internal/eventos/{eventoId}'].get").exists())
-                .andExpect(jsonPath("$.paths['/lugares'].get.parameters[?(@.name == 'X-User-Role')].schema.enum").exists())
+                .andExpect(jsonPath("$.paths['/lugares'].get.parameters[?(@.name == 'X-User-Roles')].schema.enum").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].get.responses['401']").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].get.responses['403']").exists())
                 .andExpect(jsonPath("$.paths['/lugares'].post.requestBody.content['application/json'].examples.Lugar").exists())
@@ -83,15 +83,27 @@ class OpenApiDocumentationTest {
         JsonNode searchOperation = paths.path("/eventos").path("get");
         JsonNode searchParameters = searchOperation.path("parameters");
         for (String parameter : List.of("tipo", "organizadorId", "participante", "ciudad", "fechaDesde",
-                "fechaHasta", "orden", "direccion", "q", "page", "size", "X-User-Id", "X-User-Role")) {
+                "fechaHasta", "orden", "direccion", "q", "page", "size")) {
             assertTrue(java.util.stream.StreamSupport.stream(searchParameters.spliterator(), false)
                     .anyMatch(item -> item.path("name").asText().equals(parameter)),
                     "Falta parámetro OpenAPI " + parameter);
         }
-        assertEventErrors(searchOperation.path("responses"), "200", "400", "401", "403", "500");
+        assertTrue(java.util.stream.StreamSupport.stream(searchParameters.spliterator(), false)
+                .noneMatch(item -> item.path("name").asText().startsWith("X-User-")),
+                "La búsqueda pública no debe requerir headers de identidad");
+        assertEventErrors(searchOperation.path("responses"), "200", "400", "500");
+        assertTrue(searchOperation.path("responses").path("401").isMissingNode());
+        assertTrue(searchOperation.path("responses").path("403").isMissingNode());
         JsonNode detailOperation = paths.path("/eventos/{eventoId}").path("get");
-        assertEventErrors(detailOperation.path("responses"), "200", "401", "403", "404", "500");
-        assertTrue(detailOperation.path("description").asText().contains("combina la respuesta por sectorId"));
+        assertEventErrors(detailOperation.path("responses"), "200", "401", "404", "500");
+        JsonNode detailParameters = detailOperation.path("parameters");
+        for (String identityHeader : List.of("X-User-Id", "X-User-Roles")) {
+            assertTrue(java.util.stream.StreamSupport.stream(detailParameters.spliterator(), false)
+                    .anyMatch(item -> item.path("name").asText().equals(identityHeader)
+                            && !item.path("required").asBoolean(true)),
+                    "El header " + identityHeader + " debe ser opcional para el detalle público");
+        }
+        assertTrue(detailOperation.path("description").asText().contains("combina por sectorId"));
         assertTrue(detailOperation.path("description").asText().contains("si Reservas falla, la disponibilidad queda en null"));
         assertEventErrors(paths.path("/lugares").path("post").path("responses"), "400", "401", "403", "409", "500");
         assertEventErrors(paths.path("/lugares").path("get").path("responses"), "401", "403", "500");
@@ -119,14 +131,14 @@ class OpenApiDocumentationTest {
                 .path("examples").has("Evento cancelado"));
 
         JsonNode callback = paths.path("/eventos/{eventoId}/disponibilidad").path("put");
-        assertTrue(callback.path("description").asText().contains("No exige X-User-Id ni X-User-Role"));
+        assertTrue(callback.path("description").asText().contains("No exige X-User-Id ni X-User-Roles"));
         assertTrue(callback.path("description").asText().contains("no se expone por el API Gateway"));
         assertTrue(callback.path("requestBody").path("content").path("application/json")
                 .path("examples").has("Agotado"));
         assertEventErrors(callback.path("responses"), "400", "404", "409", "500");
 
         JsonNode internalEvent = paths.path("/internal/eventos/{eventoId}").path("get");
-        assertTrue(internalEvent.path("description").asText().contains("no requiere X-User-Id ni X-User-Role"));
+        assertTrue(internalEvent.path("description").asText().contains("no requiere X-User-Id ni X-User-Roles"));
         assertTrue(internalEvent.path("description").asText().contains("no se expone por el API Gateway"));
         JsonNode internalParameters = internalEvent.path("parameters");
         assertTrue(internalParameters.isMissingNode()

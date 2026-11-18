@@ -34,6 +34,7 @@ import com.ticketya.gestionlugares.service.EventoService;
 import com.ticketya.gestionlugares.service.EventoLifecycleService;
 import com.ticketya.gestionlugares.service.ServiceUnavailableException;
 import com.ticketya.gestionlugares.service.ConflictException;
+import com.ticketya.gestionlugares.service.ForbiddenException;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 
@@ -52,7 +53,7 @@ class EventoControllerTest {
         when(eventoService.crearEvento(any(), any(), any())).thenReturn(evento);
 
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Festival","descripcion":"Descripción","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1"}
@@ -67,13 +68,47 @@ class EventoControllerTest {
     }
 
     @Test
+    void creaEventoConUnRolOrganizadorDentroDeUnaLista() throws Exception {
+        Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", "Festival", "Descripción",
+                "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
+        when(eventoService.crearEvento(any(), eq("org-1"), eq("CLIENTE, ORGANIZADOR"))).thenReturn(evento);
+
+        mockMvc.perform(post("/eventos")
+                        .header("X-User-Id", "org-1")
+                        .header("X-User-Roles", "CLIENTE, ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nombre":"Festival","descripcion":"Descripción","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1"}
+                                """))
+                .andExpect(status().isCreated());
+
+        verify(eventoService).crearEvento(any(), eq("org-1"), eq("CLIENTE, ORGANIZADOR"));
+    }
+
+    @Test
+    void rolInsuficienteParaCrearEventoResponde403() throws Exception {
+        when(eventoService.crearEvento(any(), eq("client-1"), eq("CLIENTE")))
+                .thenThrow(new ForbiddenException("Solo un organizador puede gestionar sus eventos"));
+
+        mockMvc.perform(post("/eventos")
+                        .header("X-User-Id", "client-1")
+                        .header("X-User-Roles", "CLIENTE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nombre":"Festival","descripcion":"Descripción","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
     void altaConLimiteNullExplicitoUsaValorPorDefecto() throws Exception {
         Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", "Festival", "Descripción",
                 "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
         when(eventoService.crearEvento(any(), any(), any())).thenReturn(evento);
 
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Festival","descripcion":"Descripción","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1","limiteEntradasPorCliente":null}
@@ -89,7 +124,7 @@ class EventoControllerTest {
     @Test
     void errorDeValidacionUsaFormatoComunConListaDeCampos() throws Exception {
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"","descripcion":"Desc","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1","limiteEntradasPorCliente":0}
@@ -108,7 +143,7 @@ class EventoControllerTest {
         when(eventoService.crearEvento(any(), any(), any()))
                 .thenThrow(new ResourceNotFoundException("No existe el lugar"));
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Festival","descripcion":"Desc","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1"}
@@ -124,7 +159,7 @@ class EventoControllerTest {
                 "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 8, List.of());
         when(eventoService.actualizarLimiteEntradas(any(), anyInt(), any(), any())).thenReturn(evento);
         mockMvc.perform(put("/eventos/evento-1/limite-entradas-por-cliente")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"limiteEntradasPorCliente\":8}"))
                 .andExpect(status().isOk())
@@ -139,7 +174,7 @@ class EventoControllerTest {
                 """.formatted(limite);
 
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.timestamp").exists())
@@ -152,7 +187,7 @@ class EventoControllerTest {
     @Test
     void actualizacionSinLimiteRechazaCampoOmitido() throws Exception {
         mockMvc.perform(put("/eventos/evento-1/limite-entradas-por-cliente")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.timestamp").exists())
@@ -165,7 +200,7 @@ class EventoControllerTest {
     @Test
     void actualizacionSinCampoBodyRechazaSolicitudVacia() throws Exception {
         mockMvc.perform(put("/eventos/evento-1/limite-entradas-por-cliente")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON).content(""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.timestamp").exists())
@@ -179,7 +214,7 @@ class EventoControllerTest {
     @ValueSource(strings = {"0", "-1", "2.5", "\"2\"", "null"})
     void actualizacionRechazaLimiteCeroNegativoDecimalTextoONullExplicito(String limite) throws Exception {
         mockMvc.perform(put("/eventos/evento-1/limite-entradas-por-cliente")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"limiteEntradasPorCliente\":" + limite + "}"))
                 .andExpect(status().isBadRequest())
@@ -196,7 +231,7 @@ class EventoControllerTest {
                 "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
         when(eventoService.asignarPrecio(any(), any(), any(), any(), any())).thenReturn(evento);
         mockMvc.perform(put("/eventos/evento-1/sectores/sector-1/precio")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"precio\":0}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("borrador"));
@@ -209,7 +244,7 @@ class EventoControllerTest {
                         "El sector sector-ajeno no pertenece al lugar del evento"));
 
         mockMvc.perform(put("/eventos/evento-1/sectores/sector-ajeno/precio")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"precio\":15000}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.timestamp").exists())
@@ -225,7 +260,7 @@ class EventoControllerTest {
         when(eventoLifecycleService.publicar(any(), any(), any()))
                 .thenThrow(new ServiceUnavailableException("Reservas no disponible", new RuntimeException()));
         mockMvc.perform(put("/eventos/evento-1/publicar")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador"))
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.status").value(503))
@@ -291,20 +326,20 @@ class EventoControllerTest {
         Evento cancelado = Evento.borrador("org-1", "lugar-1", "CABA", "Festival", "Descripción",
                 "MUSICA", List.of("Artista"), Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
         cancelado.setEstado(EstadoEvento.CANCELADO);
-        when(eventoLifecycleService.cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("administrador")))
+        when(eventoLifecycleService.cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("ADMIN")))
                 .thenReturn(cancelado);
 
         mockMvc.perform(put("/eventos/evento-1/cancelar")
-                        .header("X-User-Id", "admin-1").header("X-User-Role", "administrador"))
+                        .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("cancelado"));
 
         mockMvc.perform(put("/eventos/evento-1/cancelar")
-                        .header("X-User-Id", "admin-1").header("X-User-Role", "administrador")
+                        .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk());
         verify(eventoLifecycleService, org.mockito.Mockito.times(2))
-                .cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("administrador"));
+                .cancelar(eq("evento-1"), isNull(), eq("admin-1"), eq("ADMIN"));
     }
 
     @Test
@@ -312,14 +347,14 @@ class EventoControllerTest {
         when(eventoService.crearEvento(any(), any(), any()))
                 .thenThrow(new ResourceNotFoundException("No existe el lugar"));
         mockMvc.perform(post("/eventos")
-                        .header("X-User-Id", "org-1").header("X-User-Role", "organizador")
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "organizador")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Festival","descripcion":"Desc","tipo":"MUSICA","participantes":["Artista"],"fechaHora":"2027-01-01T00:00:00Z","lugarId":"lugar-1"}
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.campos").doesNotExist());
-        doThrow(new UnauthorizedException("Se requieren X-User-Id y X-User-Role"))
+        doThrow(new UnauthorizedException("Se requieren X-User-Id y X-User-Roles"))
                 .when(eventoService).crearEvento(any(), isNull(), isNull());
         mockMvc.perform(post("/eventos")
                         .contentType(MediaType.APPLICATION_JSON)
