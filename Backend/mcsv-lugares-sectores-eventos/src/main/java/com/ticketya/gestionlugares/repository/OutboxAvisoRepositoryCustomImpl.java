@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -43,6 +44,7 @@ public class OutboxAvisoRepositoryCustomImpl implements OutboxAvisoRepositoryCus
                 Criteria.where("leaseHasta").lte(ahora),
                 Criteria.where("intentos").lt(maxIntentos));
         Query query = new Query(new Criteria().orOperator(pendienteVencido, procesamientoVencido));
+        query.with(Sort.by(Sort.Direction.ASC, "proximoIntento"));
         Update update = new Update()
                 .set("estado", EstadoAvisoOutbox.PROCESANDO)
                 .set("leaseHasta", leaseHasta)
@@ -52,5 +54,29 @@ public class OutboxAvisoRepositoryCustomImpl implements OutboxAvisoRepositoryCus
         AvisoOutbox aviso = mongoTemplate.findAndModify(query, update,
                 FindAndModifyOptions.options().returnNew(true), AvisoOutbox.class);
         return Optional.ofNullable(aviso);
+    }
+
+    @Override
+    public long marcarAvisosAgotados(Instant ahora, int maxIntentos) {
+        Objects.requireNonNull(ahora, "ahora no puede ser null");
+        if (maxIntentos < 1) {
+            throw new IllegalArgumentException("maxIntentos debe ser mayor que cero");
+        }
+
+        Criteria pendienteAgotado = new Criteria().andOperator(
+                Criteria.where("estado").is(EstadoAvisoOutbox.PENDIENTE),
+                Criteria.where("intentos").gte(maxIntentos));
+        Criteria procesamientoAgotado = new Criteria().andOperator(
+                Criteria.where("estado").is(EstadoAvisoOutbox.PROCESANDO),
+                Criteria.where("leaseHasta").lte(ahora),
+                Criteria.where("intentos").gte(maxIntentos));
+        Query query = new Query(new Criteria().orOperator(pendienteAgotado, procesamientoAgotado));
+        Update update = new Update()
+                .set("estado", EstadoAvisoOutbox.ERROR_FINAL)
+                .set("ultimoError", "intentos agotados")
+                .set("actualizadoEn", ahora)
+                .unset("leaseHasta");
+
+        return mongoTemplate.updateMulti(query, update, AvisoOutbox.class).getModifiedCount();
     }
 }

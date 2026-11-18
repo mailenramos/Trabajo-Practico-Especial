@@ -134,6 +134,19 @@ class OutboxAvisoRepositoryMongoTest {
     }
 
     @Test
+    void reclamaElAvisoConProximoIntentoMasAntiguoPrimero() {
+        outboxRepository.insert(aviso("cancelacion-evento-posterior", AHORA.minusSeconds(1), 0,
+                EstadoAvisoOutbox.PENDIENTE, null));
+        outboxRepository.insert(aviso("cancelacion-evento-anterior", AHORA.minusSeconds(5), 0,
+                EstadoAvisoOutbox.PENDIENTE, null));
+
+        AvisoOutbox reclamado = outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), 8)
+                .orElseThrow();
+
+        assertEquals("cancelacion-evento-anterior", reclamado.getId());
+    }
+
+    @Test
     void workersConcurrentesReclamanUnAvisoUnaSolaVez() throws Exception {
         outboxRepository.insert(aviso("cancelacion-evento-concurrente", AHORA.minusSeconds(1), 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
@@ -174,6 +187,39 @@ class OutboxAvisoRepositoryMongoTest {
                 EstadoAvisoOutbox.PENDIENTE, null));
 
         assertTrue(outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), 8).isEmpty());
+    }
+
+    @Test
+    void marcaPendienteConIntentosAgotadosComoErrorFinal() {
+        outboxRepository.insert(aviso("cancelacion-evento-pendiente-agotado", AHORA.minusSeconds(1), 8,
+                EstadoAvisoOutbox.PENDIENTE, null));
+
+        long marcados = outboxRepository.marcarAvisosAgotados(AHORA, 8);
+
+        assertEquals(1, marcados);
+        AvisoOutbox aviso = outboxRepository.findById("cancelacion-evento-pendiente-agotado").orElseThrow();
+        assertEquals(EstadoAvisoOutbox.ERROR_FINAL, aviso.getEstado());
+        assertEquals("intentos agotados", aviso.getUltimoError());
+        assertEquals(null, aviso.getLeaseHasta());
+    }
+
+    @Test
+    void marcaErrorFinalUnaCaidaTrasReclamarElUltimoIntentoCuandoVenceElLease() {
+        outboxRepository.insert(aviso("cancelacion-evento-caido", AHORA.minusSeconds(1), 7,
+                EstadoAvisoOutbox.PENDIENTE, null));
+        AvisoOutbox ultimoIntento = outboxRepository.reclamarSiguiente(
+                AHORA, AHORA.plusSeconds(60), 8).orElseThrow();
+        assertEquals(8, ultimoIntento.getIntentos());
+        assertEquals(0, outboxRepository.marcarAvisosAgotados(AHORA.plusSeconds(59), 8));
+
+        long marcados = outboxRepository.marcarAvisosAgotados(AHORA.plusSeconds(60), 8);
+
+        assertEquals(1, marcados);
+        AvisoOutbox agotado = outboxRepository.findById("cancelacion-evento-caido").orElseThrow();
+        assertEquals(EstadoAvisoOutbox.ERROR_FINAL, agotado.getEstado());
+        assertEquals("intentos agotados", agotado.getUltimoError());
+        assertEquals(8, agotado.getIntentos());
+        assertEquals(null, agotado.getLeaseHasta());
     }
 
     private AvisoOutbox aviso(String id, Instant proximoIntento, int intentos,
