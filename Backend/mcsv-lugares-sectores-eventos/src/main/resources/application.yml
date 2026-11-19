@@ -27,6 +27,9 @@ reservas:
 compras:
   base-url: ${COMPRAS_BASE_URL:http://localhost:8083}
 
+preferencias:
+  base-url: ${PREFERENCIAS_BASE_URL:http://localhost:8089}
+
 eventos:
   finalizacion:
     interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}

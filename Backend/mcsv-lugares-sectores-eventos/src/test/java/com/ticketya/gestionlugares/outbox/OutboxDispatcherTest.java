@@ -159,11 +159,11 @@ class OutboxDispatcherTest {
 
     private AvisoOutbox aviso(int intentos) {
         AvisoOutbox aviso = new AvisoOutbox();
-        aviso.setId("cancelacion-evento-1");
-        aviso.setTipo("CANCELACION");
+        aviso.setId("aviso-evento-1");
+        aviso.setTipo("PRUEBA");
         aviso.setEventoId("evento-1");
-        aviso.setDestino("http://compras.test/eventos-cancelados");
-        aviso.setPayload(Map.of("eventoId", "evento-1", "motivo", "Cierre preventivo"));
+        aviso.setDestino("http://destino.test/avisos");
+        aviso.setPayload(Map.of("eventoId", "evento-1", "detalle", "notificacion"));
         aviso.setEstado(EstadoAvisoOutbox.PROCESANDO);
         aviso.setIntentos(intentos);
         aviso.setProximoIntento(AHORA);

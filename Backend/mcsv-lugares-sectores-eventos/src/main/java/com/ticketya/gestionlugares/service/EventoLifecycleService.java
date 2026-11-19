@@ -17,6 +17,7 @@ import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
 import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.EventoPublicacionOutboxService;
 import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.security.UserRoles;
 
@@ -28,13 +29,16 @@ public class EventoLifecycleService {
     private final EventoService eventoService;
     private final ReservasClient reservasClient;
     private final EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    private final EventoPublicacionOutboxService eventoPublicacionOutboxService;
     private final OutboxDispatcher outboxDispatcher;
 
     public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient,
-            EventoCancelacionOutboxService eventoCancelacionOutboxService, OutboxDispatcher outboxDispatcher) {
+            EventoCancelacionOutboxService eventoCancelacionOutboxService,
+            EventoPublicacionOutboxService eventoPublicacionOutboxService, OutboxDispatcher outboxDispatcher) {
         this.eventoService = eventoService;
         this.reservasClient = reservasClient;
         this.eventoCancelacionOutboxService = eventoCancelacionOutboxService;
+        this.eventoPublicacionOutboxService = eventoPublicacionOutboxService;
         this.outboxDispatcher = outboxDispatcher;
     }
 
@@ -45,7 +49,10 @@ public class EventoLifecycleService {
                 () -> reservasClient.inicializarDisponibilidad(eventoId, request));
         invocarReservas("No se pudo activar la venta en Reservas; el evento permanece en borrador",
                 () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA));
-        return eventoService.confirmarPublicacion(eventoId, userId, userRolesHeader);
+        Evento publicado = eventoPublicacionOutboxService.publicarConAvisoOutbox(
+                eventoId, userId, userRolesHeader);
+        outboxDispatcher.procesarAviso("publicacion-" + publicado.getId());
+        return publicado;
     }
 
     public Evento suspenderVenta(String eventoId, String userId, String userRolesHeader) {

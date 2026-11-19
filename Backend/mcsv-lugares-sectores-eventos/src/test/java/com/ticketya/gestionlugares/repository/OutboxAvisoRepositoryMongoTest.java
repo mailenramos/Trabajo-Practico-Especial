@@ -71,10 +71,10 @@ class OutboxAvisoRepositoryMongoTest {
     @Test
     void configuraTransaccionesMongoYRevierteAmbosDocumentosSiFallaLaInsercionDelAviso() {
         assertNotNull(transactionManager);
-        outboxRepository.insert(aviso("cancelacion-evento-existente", AHORA, 0,
+        outboxRepository.insert(aviso("aviso-evento-existente", AHORA, 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
         Evento evento = evento("evento-rollback");
-        AvisoOutbox avisoDuplicado = aviso("cancelacion-evento-existente", AHORA, 0,
+        AvisoOutbox avisoDuplicado = aviso("aviso-evento-existente", AHORA, 0,
                 EstadoAvisoOutbox.PENDIENTE, null);
 
         assertThrows(DuplicateKeyException.class,
@@ -95,16 +95,16 @@ class OutboxAvisoRepositoryMongoTest {
         assertTrue(indices.stream().anyMatch(index -> index.getName().equals("idx_outbox_estado_lease")),
                 indices.toString());
 
-        outboxRepository.insert(aviso("cancelacion-evento-unico", AHORA, 0,
+        outboxRepository.insert(aviso("aviso-evento-unico", AHORA, 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
         assertThrows(DuplicateKeyException.class,
-                () -> outboxRepository.insert(aviso("cancelacion-evento-unico", AHORA, 0,
+                () -> outboxRepository.insert(aviso("aviso-evento-unico", AHORA, 0,
                         EstadoAvisoOutbox.PENDIENTE, null)));
     }
 
     @Test
     void reclamaAvisoPendienteAtomicaYLoPasaAProcesando() {
-        AvisoOutbox pendiente = aviso("cancelacion-evento-pendiente", AHORA.minusSeconds(1), 0,
+        AvisoOutbox pendiente = aviso("aviso-evento-pendiente", AHORA.minusSeconds(1), 0,
                 EstadoAvisoOutbox.PENDIENTE, null);
         outboxRepository.insert(pendiente);
 
@@ -120,7 +120,7 @@ class OutboxAvisoRepositoryMongoTest {
 
     @Test
     void recuperaAvisoProcesandoConLeaseVencidoYCuentaNuevoIntento() {
-        AvisoOutbox expirado = aviso("cancelacion-evento-expirado", AHORA.minusSeconds(5), 2,
+        AvisoOutbox expirado = aviso("aviso-evento-expirado", AHORA.minusSeconds(5), 2,
                 EstadoAvisoOutbox.PROCESANDO, AHORA.minusSeconds(1));
         outboxRepository.insert(expirado);
 
@@ -135,20 +135,20 @@ class OutboxAvisoRepositoryMongoTest {
 
     @Test
     void reclamaElAvisoConProximoIntentoMasAntiguoPrimero() {
-        outboxRepository.insert(aviso("cancelacion-evento-posterior", AHORA.minusSeconds(1), 0,
+        outboxRepository.insert(aviso("aviso-evento-posterior", AHORA.minusSeconds(1), 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
-        outboxRepository.insert(aviso("cancelacion-evento-anterior", AHORA.minusSeconds(5), 0,
+        outboxRepository.insert(aviso("aviso-evento-anterior", AHORA.minusSeconds(5), 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
 
         AvisoOutbox reclamado = outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), 8)
                 .orElseThrow();
 
-        assertEquals("cancelacion-evento-anterior", reclamado.getId());
+        assertEquals("aviso-evento-anterior", reclamado.getId());
     }
 
     @Test
     void workersConcurrentesReclamanUnAvisoUnaSolaVez() throws Exception {
-        outboxRepository.insert(aviso("cancelacion-evento-concurrente", AHORA.minusSeconds(1), 0,
+        outboxRepository.insert(aviso("aviso-evento-concurrente", AHORA.minusSeconds(1), 0,
                 EstadoAvisoOutbox.PENDIENTE, null));
         int cantidadWorkers = 8;
         ExecutorService workers = Executors.newFixedThreadPool(cantidadWorkers);
@@ -172,7 +172,7 @@ class OutboxAvisoRepositoryMongoTest {
             }
 
             assertEquals(1, avisosReclamados);
-            AvisoOutbox persistido = outboxRepository.findById("cancelacion-evento-concurrente").orElseThrow();
+            AvisoOutbox persistido = outboxRepository.findById("aviso-evento-concurrente").orElseThrow();
             assertEquals(EstadoAvisoOutbox.PROCESANDO, persistido.getEstado());
             assertEquals(1, persistido.getIntentos());
         } finally {
@@ -183,7 +183,7 @@ class OutboxAvisoRepositoryMongoTest {
 
     @Test
     void noReclamaUnAvisoQueYaAlcanzoElMaximoDeIntentos() {
-        outboxRepository.insert(aviso("cancelacion-evento-agotado", AHORA.minusSeconds(1), 8,
+        outboxRepository.insert(aviso("aviso-evento-agotado", AHORA.minusSeconds(1), 8,
                 EstadoAvisoOutbox.PENDIENTE, null));
 
         assertTrue(outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), 8).isEmpty());
@@ -191,13 +191,13 @@ class OutboxAvisoRepositoryMongoTest {
 
     @Test
     void marcaPendienteConIntentosAgotadosComoErrorFinal() {
-        outboxRepository.insert(aviso("cancelacion-evento-pendiente-agotado", AHORA.minusSeconds(1), 8,
+        outboxRepository.insert(aviso("aviso-evento-pendiente-agotado", AHORA.minusSeconds(1), 8,
                 EstadoAvisoOutbox.PENDIENTE, null));
 
         long marcados = outboxRepository.marcarAvisosAgotados(AHORA, 8);
 
         assertEquals(1, marcados);
-        AvisoOutbox aviso = outboxRepository.findById("cancelacion-evento-pendiente-agotado").orElseThrow();
+        AvisoOutbox aviso = outboxRepository.findById("aviso-evento-pendiente-agotado").orElseThrow();
         assertEquals(EstadoAvisoOutbox.ERROR_FINAL, aviso.getEstado());
         assertEquals("intentos agotados", aviso.getUltimoError());
         assertEquals(null, aviso.getLeaseHasta());
@@ -205,7 +205,7 @@ class OutboxAvisoRepositoryMongoTest {
 
     @Test
     void marcaErrorFinalUnaCaidaTrasReclamarElUltimoIntentoCuandoVenceElLease() {
-        outboxRepository.insert(aviso("cancelacion-evento-caido", AHORA.minusSeconds(1), 7,
+        outboxRepository.insert(aviso("aviso-evento-caido", AHORA.minusSeconds(1), 7,
                 EstadoAvisoOutbox.PENDIENTE, null));
         AvisoOutbox ultimoIntento = outboxRepository.reclamarSiguiente(
                 AHORA, AHORA.plusSeconds(60), 8).orElseThrow();
@@ -215,7 +215,7 @@ class OutboxAvisoRepositoryMongoTest {
         long marcados = outboxRepository.marcarAvisosAgotados(AHORA.plusSeconds(60), 8);
 
         assertEquals(1, marcados);
-        AvisoOutbox agotado = outboxRepository.findById("cancelacion-evento-caido").orElseThrow();
+        AvisoOutbox agotado = outboxRepository.findById("aviso-evento-caido").orElseThrow();
         assertEquals(EstadoAvisoOutbox.ERROR_FINAL, agotado.getEstado());
         assertEquals("intentos agotados", agotado.getUltimoError());
         assertEquals(8, agotado.getIntentos());
@@ -226,9 +226,9 @@ class OutboxAvisoRepositoryMongoTest {
             EstadoAvisoOutbox estado, Instant leaseHasta) {
         AvisoOutbox aviso = new AvisoOutbox();
         aviso.setId(id);
-        aviso.setTipo("CANCELACION");
+        aviso.setTipo("PRUEBA");
         aviso.setEventoId(id);
-        aviso.setDestino("compras:/eventos-cancelados");
+        aviso.setDestino("http://destino.test/avisos");
         aviso.setPayload(Map.of("eventoId", id));
         aviso.setEstado(estado);
         aviso.setIntentos(intentos);

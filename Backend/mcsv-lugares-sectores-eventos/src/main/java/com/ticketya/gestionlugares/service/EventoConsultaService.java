@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory;
 import com.ticketya.gestionlugares.api.EventoBusquedaItem;
 import com.ticketya.gestionlugares.api.EventoBusquedaResponse;
 import com.ticketya.gestionlugares.api.EventoDetalleResponse;
+import com.ticketya.gestionlugares.api.EventoPublicadoItem;
+import com.ticketya.gestionlugares.api.EventoPublicadosResponse;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.Lugar;
@@ -40,6 +42,8 @@ import com.ticketya.gestionlugares.security.UserRoles;
 public class EventoConsultaService {
     private static final Logger log = LoggerFactory.getLogger(EventoConsultaService.class);
     private static final List<EstadoEvento> VISIBLES_EN_BUSQUEDA = List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO);
+    private static final int TAMANO_PAGINA_PUBLICADOS = 100;
+    private static final int TAMANO_PAGINA_PUBLICADOS_MAXIMO = 200;
 
     private final MongoTemplate mongoTemplate;
     private final EventoRepository eventoRepository;
@@ -121,6 +125,25 @@ public class EventoConsultaService {
                 .map(EventoBusquedaItem::from).toList();
         int totalPaginas = total == 0 ? 0 : (int) ((total + size - 1) / size);
         return new EventoBusquedaResponse(contenido, page, size, total, totalPaginas);
+    }
+
+    public EventoPublicadosResponse eventosPublicados(String pageParam, String sizeParam) {
+        int page = parsearEntero(pageParam, 0, "page");
+        int size = parsearEntero(sizeParam, TAMANO_PAGINA_PUBLICADOS, "size");
+        if (page < 0) throw new IllegalArgumentException("page debe ser mayor o igual a 0");
+        if (size < 1 || size > TAMANO_PAGINA_PUBLICADOS_MAXIMO) {
+            throw new IllegalArgumentException("size debe estar entre 1 y 200");
+        }
+
+        Criteria filtro = Criteria.where("estado").in(VISIBLES_EN_BUSQUEDA);
+        Query countQuery = Query.query(filtro);
+        Query query = Query.query(filtro).with(PageRequest.of(page, size,
+                Sort.by(Sort.Order.asc("fechaHora"), Sort.Order.asc("_id"))));
+        long total = mongoTemplate.count(countQuery, Evento.class);
+        List<EventoPublicadoItem> contenido = mongoTemplate.find(query, Evento.class).stream()
+                .map(EventoPublicadoItem::from).toList();
+        int totalPaginas = total == 0 ? 0 : (int) ((total + size - 1) / size);
+        return new EventoPublicadosResponse(contenido, page, size, total, totalPaginas);
     }
 
     public EventoDetalleResponse detalle(String eventoId, String userId, String userRolesHeader) {

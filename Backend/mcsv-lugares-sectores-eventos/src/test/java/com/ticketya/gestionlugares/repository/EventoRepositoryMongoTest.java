@@ -179,6 +179,55 @@ class EventoRepositoryMongoTest {
     }
 
     @Test
+    void consultaInternaDePublicadosFiltraProyectaOrdenaYPaginaEstablemente() {
+        guardarEventoConId("000000000000000000000003", "Fecha anterior", "2027-05-15T00:00:00Z",
+                EstadoEvento.PUBLICADO);
+        guardarEventoConId("000000000000000000000002", "Mismo instante B", "2027-05-16T00:00:00Z",
+                EstadoEvento.AGOTADO);
+        guardarEventoConId("000000000000000000000001", "Mismo instante A", "2027-05-16T00:00:00Z",
+                EstadoEvento.PUBLICADO);
+        guardarEventoConId("000000000000000000000004", "Borrador", "2027-05-14T00:00:00Z",
+                EstadoEvento.BORRADOR);
+        guardarEventoConId("000000000000000000000005", "Cancelado", "2027-05-13T00:00:00Z",
+                EstadoEvento.CANCELADO);
+        guardarEventoConId("000000000000000000000006", "Finalizado", "2027-05-12T00:00:00Z",
+                EstadoEvento.FINALIZADO);
+
+        var primeraPagina = consultaService.eventosPublicados(null, null);
+
+        assertEquals(3, primeraPagina.totalElementos());
+        assertEquals(0, primeraPagina.pagina());
+        assertEquals(100, primeraPagina.tamano());
+        assertEquals(1, primeraPagina.totalPaginas());
+        assertEquals(List.of("000000000000000000000003", "000000000000000000000001",
+                "000000000000000000000002"),
+                primeraPagina.contenido().stream().map(item -> item.eventoId()).toList());
+        assertEquals("CABA", primeraPagina.contenido().get(0).ciudad());
+        assertEquals("MUSICA", primeraPagina.contenido().get(0).tipo());
+        assertEquals(List.of("Artista"), primeraPagina.contenido().get(0).participantes());
+        assertEquals(Instant.parse("2027-05-15T00:00:00Z"), primeraPagina.contenido().get(0).fechaHora());
+        assertEquals("publicado", primeraPagina.contenido().get(0).estado());
+
+        var segundaPagina = consultaService.eventosPublicados("1", "2");
+        assertEquals(2, segundaPagina.totalPaginas());
+        assertEquals(List.of("000000000000000000000002"),
+                segundaPagina.contenido().stream().map(item -> item.eventoId()).toList());
+
+        var maximoPermitido = consultaService.eventosPublicados("0", "200");
+        assertEquals(200, maximoPermitido.tamano());
+    }
+
+    @Test
+    void consultaInternaDePublicadosSinResultadosDevuelvePaginaVacia() {
+        var respuesta = consultaService.eventosPublicados(null, null);
+
+        assertTrue(respuesta.contenido().isEmpty());
+        assertEquals(0, respuesta.totalElementos());
+        assertEquals(0, respuesta.totalPaginas());
+        assertEquals(100, respuesta.tamano());
+    }
+
+    @Test
     void ordenaPorPrecioYRelevanciaTextual() {
         guardarEvento("org-1", "CABA", "Rock Rock Rock", "Rock en vivo", "MUSICA", "Banda A",
                 "2027-06-16T00:00:00Z", EstadoEvento.PUBLICADO, "20000");
@@ -308,6 +357,14 @@ class EventoRepositoryMongoTest {
                 List.of(participante), Instant.parse(fecha), 4, List.of());
         evento.setEstado(estado);
         if (precio != null) evento.setPrecioMinimo(new BigDecimal(precio));
+        return eventoRepository.save(evento);
+    }
+
+    private Evento guardarEventoConId(String id, String nombre, String fecha, EstadoEvento estado) {
+        Evento evento = Evento.borrador("org-1", "lugar-1", "CABA", nombre, "Descripción",
+                "MUSICA", List.of("Artista"), Instant.parse(fecha), 4, List.of());
+        evento.setId(id);
+        evento.setEstado(estado);
         return eventoRepository.save(evento);
     }
 }

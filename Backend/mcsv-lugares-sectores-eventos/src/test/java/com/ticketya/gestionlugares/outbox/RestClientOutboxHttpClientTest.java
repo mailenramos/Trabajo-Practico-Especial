@@ -25,16 +25,16 @@ class RestClientOutboxHttpClientTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build());
         AvisoOutbox aviso = new AvisoOutbox();
-        aviso.setId("cancelacion-evento-1");
-        aviso.setDestino("http://compras.test/eventos-cancelados");
-        aviso.setPayload(Map.of("eventoId", "evento-1", "motivo", "Cierre preventivo"));
+        aviso.setId("aviso-evento-1");
+        aviso.setDestino("http://destino.test/avisos");
+        aviso.setPayload(Map.of("eventoId", "evento-1", "detalle", "notificacion"));
 
         for (int intento = 0; intento < 2; intento++) {
-            server.expect(requestTo("http://compras.test/eventos-cancelados"))
+            server.expect(requestTo("http://destino.test/avisos"))
                     .andExpect(method(HttpMethod.POST))
-                    .andExpect(header("X-Aviso-Id", "cancelacion-evento-1"))
+                    .andExpect(header("X-Aviso-Id", "aviso-evento-1"))
                     .andExpect(content().json("""
-                            {"eventoId":"evento-1","motivo":"Cierre preventivo"}
+                            {"eventoId":"evento-1","detalle":"notificacion"}
                             """))
                     .andRespond(withStatus(HttpStatus.ACCEPTED));
         }

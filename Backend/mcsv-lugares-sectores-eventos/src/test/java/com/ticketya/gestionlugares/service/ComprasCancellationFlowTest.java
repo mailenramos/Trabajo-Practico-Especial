@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.EventoPublicacionOutboxService;
 import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
@@ -37,6 +38,7 @@ class ComprasCancellationFlowTest {
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
     @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    @Mock private EventoPublicacionOutboxService eventoPublicacionOutboxService;
     @Mock private OutboxDispatcher outboxDispatcher;
 
     private EventoLifecycleService lifecycle;
@@ -46,7 +48,7 @@ class ComprasCancellationFlowTest {
     @BeforeEach
     void setUp() {
         lifecycle = new EventoLifecycleService(eventoService, reservasClient,
-                eventoCancelacionOutboxService, outboxDispatcher);
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher);
         evento = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4,
                 List.of(new EventoSector("sector", "Platea", TipoSector.NUMERADO, 1, 1, null, null)));

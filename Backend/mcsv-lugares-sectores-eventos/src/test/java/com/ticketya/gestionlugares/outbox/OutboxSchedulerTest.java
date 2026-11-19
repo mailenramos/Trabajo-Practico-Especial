@@ -54,7 +54,7 @@ class OutboxSchedulerTest {
 
     @Test
     void reclamaYEntregaAvisoPendienteConProximoIntentoVencido() {
-        AvisoOutbox aviso = aviso("cancelacion-evento-vencido", AHORA.minusSeconds(1), 0);
+        AvisoOutbox aviso = aviso("aviso-evento-vencido", AHORA.minusSeconds(1), 0);
         outboxRepository.insert(aviso);
         when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
 
@@ -68,7 +68,7 @@ class OutboxSchedulerTest {
 
     @Test
     void cadaPasadaMarcaIntentosAgotadosAntesDeDespachar() {
-        AvisoOutbox agotado = aviso("cancelacion-agotado",
+        AvisoOutbox agotado = aviso("aviso-agotado",
                 Instant.now().minusSeconds(1), OutboxDispatcher.MAX_INTENTOS);
         outboxRepository.insert(agotado);
 
@@ -84,7 +84,7 @@ class OutboxSchedulerTest {
     void limitaCadaPasadaACienAvisos() {
         List<AvisoOutbox> avisos = java.util.stream.IntStream.range(0,
                 OutboxScheduler.MAX_AVISOS_POR_PASADA + 1)
-                .mapToObj(index -> aviso("cancelacion-" + index, Instant.now().minusSeconds(1), 0))
+                .mapToObj(index -> aviso("aviso-" + index, Instant.now().minusSeconds(1), 0))
                 .toList();
         outboxRepository.insert(avisos);
         when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
@@ -103,9 +103,9 @@ class OutboxSchedulerTest {
     private AvisoOutbox aviso(String id, Instant proximoIntento, int intentos) {
         AvisoOutbox aviso = new AvisoOutbox();
         aviso.setId(id);
-        aviso.setTipo("CANCELACION");
+        aviso.setTipo("PRUEBA");
         aviso.setEventoId(id);
-        aviso.setDestino("http://compras.test/eventos-cancelados");
+        aviso.setDestino("http://destino.test/avisos");
         aviso.setPayload(Map.of("eventoId", id));
         aviso.setEstado(EstadoAvisoOutbox.PENDIENTE);
         aviso.setIntentos(intentos);

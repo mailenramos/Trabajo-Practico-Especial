@@ -229,11 +229,12 @@ Defaults aplicados por el Compose de Docker:
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
+| `PREFERENCIAS_BASE_URL` | `preferencias.base-url` | `http://preferencias:8089` |
 | `EVENTOS_FINALIZACION_INTERVAL` | `eventos.finalizacion.interval` | `60s` |
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
 
-El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Las URLs predeterminadas de Reservas y Compras usan DNS de Docker; son configurables con `RESERVAS_BASE_URL` y `COMPRAS_BASE_URL`.
+El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Las URLs predeterminadas de Reservas, Compras y Preferencias usan DNS de Docker; son configurables con `RESERVAS_BASE_URL`, `COMPRAS_BASE_URL` y `PREFERENCIAS_BASE_URL`. Para ejecutar MS1 desde el host, `PREFERENCIAS_BASE_URL` usa `http://localhost:8089`.
 
 Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5s`). También son fijos el máximo de intentos, backoff y lease descritos arriba; no hay variables de entorno para esos valores.
 

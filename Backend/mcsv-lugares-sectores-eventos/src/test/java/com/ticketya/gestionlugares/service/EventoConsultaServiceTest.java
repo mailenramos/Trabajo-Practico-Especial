@@ -93,6 +93,14 @@ class EventoConsultaServiceTest {
     }
 
     @Test
+    void rechazaPaginacionInternaInvalida() {
+        assertThrows(IllegalArgumentException.class, () -> service.eventosPublicados("-1", null));
+        assertThrows(IllegalArgumentException.class, () -> service.eventosPublicados(null, "0"));
+        assertThrows(IllegalArgumentException.class, () -> service.eventosPublicados(null, "201"));
+        assertThrows(IllegalArgumentException.class, () -> service.eventosPublicados("one", null));
+    }
+
+    @Test
     void rechazaFechaNoUtcYRangoInvertido() {
         assertThrows(IllegalArgumentException.class, () -> service.buscar(null, null, null, null,
                 "2027-01-01T00:00:00+00:00", null, null, null, null, null, null));

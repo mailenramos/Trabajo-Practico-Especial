@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
+import com.ticketya.gestionlugares.service.EventoConsultaService;
 import com.ticketya.gestionlugares.service.EventoService;
 import com.ticketya.gestionlugares.service.EventoLifecycleService;
 import com.ticketya.gestionlugares.service.ServiceUnavailableException;
@@ -38,13 +39,14 @@ import com.ticketya.gestionlugares.service.ForbiddenException;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 
-@WebMvcTest({EventoController.class, EventoInternoController.class})
+@WebMvcTest({EventoController.class, EventoInternoController.class, EventoPublicadosInternoController.class})
 @Import(ApiExceptionHandler.class)
 class EventoControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private EventoService eventoService;
     @MockBean private EventoLifecycleService eventoLifecycleService;
+    @MockBean private EventoConsultaService eventoConsultaService;
 
     @Test
     void creaEventoUsandoLimitePorDefectoYErrorComun() throws Exception {
@@ -319,6 +321,41 @@ class EventoControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.mensaje").value("No existe el evento missing"));
+    }
+
+    @Test
+    void consultaInternaDePublicadosNoExigeHeadersYDevuelveLaProyeccionPaginada() throws Exception {
+        when(eventoConsultaService.eventosPublicados(null, null)).thenReturn(
+                new EventoPublicadosResponse(List.of(new EventoPublicadoItem("evento-1", "Festival",
+                        "MUSICA", List.of("Artista"), "CABA", Instant.parse("2027-05-16T00:00:00Z"),
+                        "publicado")), 0, 100, 1, 1));
+
+        mockMvc.perform(get("/internal/eventos-publicados"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[0].eventoId").value("evento-1"))
+                .andExpect(jsonPath("$.contenido[0].nombre").value("Festival"))
+                .andExpect(jsonPath("$.contenido[0].tipo").value("MUSICA"))
+                .andExpect(jsonPath("$.contenido[0].participantes[0]").value("Artista"))
+                .andExpect(jsonPath("$.contenido[0].ciudad").value("CABA"))
+                .andExpect(jsonPath("$.contenido[0].fechaHora").value("2027-05-16T00:00:00Z"))
+                .andExpect(jsonPath("$.contenido[0].estado").value("publicado"))
+                .andExpect(jsonPath("$.contenido[0].precioMinimo").doesNotExist())
+                .andExpect(jsonPath("$.pagina").value(0))
+                .andExpect(jsonPath("$.tamano").value(100));
+
+        verify(eventoConsultaService).eventosPublicados(null, null);
+    }
+
+    @Test
+    void consultaInternaDePublicadosDevuelve400ConElFormatoComunAntePaginacionInvalida() throws Exception {
+        when(eventoConsultaService.eventosPublicados("-1", null))
+                .thenThrow(new IllegalArgumentException("page debe ser mayor o igual a 0"));
+
+        mockMvc.perform(get("/internal/eventos-publicados").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.mensaje").value("page debe ser mayor o igual a 0"));
     }
 
     @Test

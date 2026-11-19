@@ -34,6 +34,7 @@ import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxService;
+import com.ticketya.gestionlugares.outbox.EventoPublicacionOutboxService;
 import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +46,7 @@ class EventoLifecycleServiceTest {
     @Mock private EventoService eventoService;
     @Mock private ReservasClient reservasClient;
     @Mock private EventoCancelacionOutboxService eventoCancelacionOutboxService;
+    @Mock private EventoPublicacionOutboxService eventoPublicacionOutboxService;
     @Mock private OutboxDispatcher outboxDispatcher;
     @Mock private EventoRepository eventoRepository;
     @Mock private LugarRepository lugarRepository;
@@ -55,7 +57,7 @@ class EventoLifecycleServiceTest {
     @BeforeEach
     void setUp() {
         lifecycleService = new EventoLifecycleService(eventoService, reservasClient,
-                eventoCancelacionOutboxService, outboxDispatcher);
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher);
     }
 
     @Test
@@ -64,7 +66,8 @@ class EventoLifecycleServiceTest {
         Evento published = draft();
         published.setEstado(EstadoEvento.PUBLICADO);
         when(eventoService.validarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(draft);
-        when(eventoService.confirmarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(published);
+        when(eventoPublicacionOutboxService.publicarConAvisoOutbox(
+                EVENTO_ID, USER_ID, "organizador")).thenReturn(published);
 
         Evento result = lifecycleService.publicar(EVENTO_ID, USER_ID, "organizador");
 
@@ -78,10 +81,12 @@ class EventoLifecycleServiceTest {
                 new com.ticketya.gestionlugares.reservas.dto.AsientoReservas(1, 2)),
                 request.getValue().sectores().get(0).asientos());
         assertEquals(List.of(), request.getValue().sectores().get(1).asientos());
-        InOrder order = inOrder(reservasClient, eventoService);
+        InOrder order = inOrder(reservasClient, eventoPublicacionOutboxService, outboxDispatcher);
         order.verify(reservasClient).inicializarDisponibilidad(any(), any());
         order.verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.ACTIVA);
-        order.verify(eventoService).confirmarPublicacion(EVENTO_ID, USER_ID, "organizador");
+        order.verify(eventoPublicacionOutboxService)
+                .publicarConAvisoOutbox(EVENTO_ID, USER_ID, "organizador");
+        order.verify(outboxDispatcher).procesarAviso("publicacion-" + EVENTO_ID);
     }
 
     @Test
@@ -94,7 +99,7 @@ class EventoLifecycleServiceTest {
         assertThrows(ServiceUnavailableException.class,
                 () -> lifecycleService.publicar(EVENTO_ID, USER_ID, "organizador"));
         assertEquals(EstadoEvento.BORRADOR, draft.getEstado());
-        verify(eventoService, never()).confirmarPublicacion(any(), any(), any());
+        verify(eventoPublicacionOutboxService, never()).publicarConAvisoOutbox(any(), any(), any());
     }
 
     @Test
@@ -107,7 +112,7 @@ class EventoLifecycleServiceTest {
         assertThrows(ServiceUnavailableException.class,
                 () -> lifecycleService.publicar(EVENTO_ID, USER_ID, "organizador"));
         assertEquals(EstadoEvento.BORRADOR, draft.getEstado());
-        verify(eventoService, never()).confirmarPublicacion(any(), any(), any());
+        verify(eventoPublicacionOutboxService, never()).publicarConAvisoOutbox(any(), any(), any());
     }
 
     @Test
@@ -116,7 +121,8 @@ class EventoLifecycleServiceTest {
         Evento published = draft();
         published.setEstado(EstadoEvento.PUBLICADO);
         when(eventoService.validarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(draft);
-        when(eventoService.confirmarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(published);
+        when(eventoPublicacionOutboxService.publicarConAvisoOutbox(
+                EVENTO_ID, USER_ID, "organizador")).thenReturn(published);
         org.mockito.Mockito.doThrow(new ReservasClientException("timeout")).doNothing()
                 .when(reservasClient).inicializarDisponibilidad(any(), any());
 
@@ -130,7 +136,7 @@ class EventoLifecycleServiceTest {
         verify(reservasClient, org.mockito.Mockito.times(2))
                 .inicializarDisponibilidad(org.mockito.ArgumentMatchers.eq(EVENTO_ID), requests.capture());
         assertEquals(requests.getAllValues().get(0), requests.getAllValues().get(1));
-        verify(eventoService).confirmarPublicacion(EVENTO_ID, USER_ID, "organizador");
+        verify(eventoPublicacionOutboxService).publicarConAvisoOutbox(EVENTO_ID, USER_ID, "organizador");
     }
 
     @Test
@@ -236,7 +242,7 @@ class EventoLifecycleServiceTest {
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 versionedEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
-                cancellationService, outboxDispatcher);
+                cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
 
         assertThrows(ConflictException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
@@ -261,7 +267,7 @@ class EventoLifecycleServiceTest {
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 realEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,
-                cancellationService, outboxDispatcher);
+                cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
         org.mockito.Mockito.doAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);
             return null;
