@@ -78,7 +78,7 @@ erDiagram
 
 La relación `evento.lugarId` es una referencia por ID entre documentos de este mismo servicio. Se resuelve mediante `LugarRepository`; no hay una clave foránea ni una relación gestionada por MongoDB. Las listas de sectores, en cambio, forman parte de cada documento.
 
-La colección `outbox` guarda avisos de cambio a otros servicios. El campo `eventoId` es una referencia lógica, no una clave foránea. La cancelación usa el ID determinístico `cancelacion-{eventoId}`. Los avisos transitan por `PENDIENTE`, `PROCESANDO`, `ENTREGADO` y `ERROR_FINAL`; `leaseHasta` marca el vencimiento de una reclamación.
+La colección `outbox` guarda avisos de cambio a otros servicios. El campo `eventoId` es una referencia lógica, no una clave foránea. La cancelación usa el ID determinístico `cancelacion-{eventoId}`; la publicación usa `publicacion-{eventoId}`, tipo `PUBLICACION`, con destino `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados` y un payload de `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`. Los avisos transitan por `PENDIENTE`, `PROCESANDO`, `ENTREGADO` y `ERROR_FINAL`; `leaseHasta` marca el vencimiento de una reclamación.
 
 Los documentos `Evento` ya no tienen el campo `avisoCancelacionPendiente`. El backfill de arranque migra los documentos legacy que aún lo contienen y lo elimina después de insertar o encontrar el aviso correspondiente en `outbox`.
 
@@ -91,6 +91,8 @@ En la Entrega 1, este servicio se comunica directamente por REST/JSON. Las refer
 | Entrada a este servicio | `organizadorId` | Se toma del header `X-User-Id` y se guarda en el evento. En esta Entrega 1 no hay integración con un servicio de usuarios en este código. |
 | Este servicio → Reservas | `eventoId`, `sectorId`, `fila`, `numero` | Al publicar, se envía el ID del evento en la ruta y el ID de cada sector en el body. Para sectores numerados se generan y envían los pares de coordenadas de asiento; Reservas recibe esos datos para inicializar disponibilidad. |
 | Compras → este servicio | `eventoId` | Compras consulta `GET /internal/eventos/{eventoId}`. La respuesta incluye el ID del evento y cada `sectorId`, además del nombre del evento, nombre del sector y precio. |
+| Preferencias (MS8) → este servicio | Eventos publicados o agotados | MS8 consulta `GET /internal/eventos-publicados` directamente, sin headers de usuario. La ruta es interna, no se publica por el API Gateway y devuelve una respuesta paginada ordenada por fecha e ID. |
+| Este servicio → Preferencias (MS8) | Aviso `PUBLICACION` | Después de confirmar Reservas, MS1 persiste evento y aviso en una transacción; luego envía `POST /internal/preferencias/eventos-publicados` con el ID estable en `X-Aviso-Id`. |
 | Reservas → este servicio | `eventoId` y `agotado` | Reservas notifica cambios de disponibilidad mediante `PUT /eventos/{eventoId}/disponibilidad`; el callback actualiza el estado local entre `PUBLICADO` y `AGOTADO`. |
 
 **Límite de verificación:** este repositorio no contiene el código de persistencia ni de compra de Reservas o Compras. El cliente de este servicio y el stub de Postman permiten verificar los datos enviados a Reservas; el endpoint interno permite verificar los datos que este servicio entrega a Compras. No permiten confirmar, por sí solos, qué campos guardan las implementaciones reales de esos otros servicios. Por eso, la copia de `eventoId`, `sectorId` y `(fila, numero)` en Reservas, y la copia de nombre/precio en Compras, no se afirman aquí como persistencias externas verificadas.
@@ -119,7 +121,7 @@ Además de los índices automáticos `_id_` de MongoDB, el código declara los s
 | `eventos` | `idx_eventos_tipo` | `tipo` ascendente | Filtro por tipo de evento. |
 | `eventos` | `idx_eventos_participantes` | `participantes` ascendente (multikey) | Filtro por participante. |
 | `eventos` | `Evento_TextIndex` | `nombre`, `descripcion`, `participantes` | Búsqueda de texto y orden por relevancia. |
-| `outbox` | `_id_` (automático, único) | `_id` ascendente | Impide IDs de aviso duplicados; la cancelación usa `cancelacion-{eventoId}`. |
+| `outbox` | `_id_` (automático, único) | `_id` ascendente | Impide IDs de aviso duplicados; cancelación usa `cancelacion-{eventoId}` y publicación `publicacion-{eventoId}`. |
 | `outbox` | `idx_outbox_estado_proximo_intento` | `estado`, `proximoIntento`, `intentos` ascendentes | Reclamar avisos pendientes cuyo próximo intento venció y que no agotaron los intentos. |
 | `outbox` | `idx_outbox_estado_lease` | `estado`, `leaseHasta`, `intentos` ascendentes | Recuperar avisos `PROCESANDO` con lease vencido y seleccionar candidatos al barrido de intentos agotados. |
 

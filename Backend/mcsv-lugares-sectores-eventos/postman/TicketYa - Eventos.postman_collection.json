@@ -5876,6 +5876,43 @@
             "description": "Se aceptan 400 o 404. Anotá cuál devuelve."
           },
           "response": []
+        },
+        {
+          "name": "CG08 GET interno para Compras",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r\n\r\nconst body = pm.response.json();\r\n\r\npm.test(\"Estructura de la página\", () => {\r\n    pm.expect(body).to.have.all.keys(\"contenido\", \"pagina\", \"tamano\", \"totalElementos\", \"totalPaginas\");\r\n    pm.expect(body.pagina).to.eql(0);\r\n    pm.expect(body.tamano).to.eql(100);\r\n});\r\n\r\npm.test(\"Solo publicados o agotados con los campos acordados\", () => {\r\n    body.contenido.forEach(e => {\r\n        pm.expect([\"publicado\", \"agotado\"]).to.include(e.estado);\r\n        pm.expect(e).to.include.keys(\"eventoId\", \"nombre\", \"tipo\", \"participantes\", \"ciudad\", \"fechaHora\");\r\n    });\r\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/internal/eventos-publicados?size=100",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "internal",
+                "eventos-publicados"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "response": []
         }
       ],
       "description": "Requiere la carpeta 00. No depende de Reservas ni de Compras."

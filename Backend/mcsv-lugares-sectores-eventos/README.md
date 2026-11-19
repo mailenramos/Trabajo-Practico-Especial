@@ -7,7 +7,7 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 - JDK 21 o superior.
 - Maven 3.9 o superior.
 - Docker Desktop con Docker Compose para MongoDB y las pruebas de integración.
-- Node.js (opcional, para simular Reservas o Compras desde Postman).
+- Node.js (opcional, para simular Reservas, Compras o Preferencias desde Postman).
 
 ## Ejecutar MS1 con Docker Compose
 
@@ -96,6 +96,7 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Roles`; no debe exponerse por el API Gateway. |
 | GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
+| GET | `/internal/eventos-publicados` | Interno: Preferencias/recomendaciones (MS8) | Devuelve eventos publicados o agotados paginados. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
 ## Identidad y usuarios de prueba
 
@@ -186,6 +187,11 @@ URL base configurable con `compras.base-url` (default Docker `http://compras:808
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
 
+### Preferencias y recomendaciones (MS8)
+
+- **Consulta interna de eventos publicados:** MS8 llama `GET /internal/eventos-publicados` sin headers de usuario. La ruta devuelve eventos `publicado` o `agotado`, ordenados por fecha e ID, con `page` (default `0`) y `size` (default `100`, máximo `200`). No se publica por el API Gateway.
+- **Aviso de publicación:** después de que Reservas confirma la inicialización, MS1 guarda el evento publicado y un aviso `PUBLICACION` en la misma transacción MongoDB. El aviso usa ID `publicacion-{eventoId}`, destino `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados` y payload `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`.
+
 ### Outbox de avisos
 
 Los avisos se guardan en la colección MongoDB `outbox`:
@@ -199,6 +205,8 @@ Los avisos se guardan en la colección MongoDB `outbox`:
 
 `OUTBOX_DISPATCHER_INTERVAL` (`outbox.dispatcher.interval`, default `60s`) configura el intervalo del scheduler. El resto de la política actualmente no es configurable: máximo 8 intentos contados al reclamar; espera inicial de 30 s, factor 2, tope de 15 min, sin jitter y `leaseHasta` fijado a 60 s desde el reclamo.
 
+La entrega inmediata de `PUBLICACION` es síncrona después del commit; si Preferencias no responde, puede demorar hasta unos 7 s (timeouts de conexión y lectura). Ese fallo no revierte la publicación ni cambia su respuesta exitosa. Los reintentos posteriores son asíncronos, a cargo del dispatcher.
+
 Para inspeccionar avisos con `mongosh`:
 
 ```javascript
@@ -207,6 +215,7 @@ db.outbox.find({ estado: "PENDIENTE" }).sort({ proximoIntento: 1 })
 db.outbox.find({ estado: "PROCESANDO" }).sort({ leaseHasta: 1 })
 db.outbox.find({ estado: "ERROR_FINAL" }).sort({ actualizadoEn: -1 })
 db.outbox.find({ _id: "cancelacion-<eventoId>" })
+db.outbox.find({ _id: "publicacion-<eventoId>" })
 ```
 
 Al arrancar, un backfill transitorio busca documentos antiguos con `avisoCancelacionPendiente=true`. Inserta avisos `PENDIENTE` con ID determinístico `cancelacion-{eventoId}`; si el ID ya existe no sobrescribe el aviso. Solo después de que el aviso exista elimina el campo legacy. Registra los conteos de migrados, ya existentes y omitidos; eventos legacy inconsistentes se omiten con `WARN` y no bloquean el arranque.
@@ -242,12 +251,12 @@ Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5
 
 En `postman/` están las dos colecciones:
 
-- `TicketYa-Lugares.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa-Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 19**.
+- `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 19**.
 
-Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET interno para Compras; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
+Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
-Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET interno para Compras** no depende de servicios externos.
+Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 
 Las carpetas de aviso de cancelación se ejecutan en este orden y con estos servicios:
 
@@ -264,6 +273,16 @@ node postman/compras-stub.js
 ```
 
 El stub escucha en `localhost:8083` por defecto (`PORT` permite cambiarlo), imprime y registra los avisos recibidos. Devuelve `202` al aceptar uno nuevo y `200` cuando ya lo procesó. Permite consultar los avisos con `GET /_stub/avisos`. Requiere Node.js.
+
+Para simular Preferencias y recomendaciones (MS8), desde `mcsv-lugares-sectores-eventos` ejecutá en otra terminal:
+
+```sh
+node postman/preferencias-stub.js
+```
+
+Requiere Node.js. Escucha en el puerto `8089` por defecto; `PORT` permite cambiarlo. Si MS1 corre en Docker, configurá `PREFERENCIAS_BASE_URL=http://host.docker.internal:8089` para que el contenedor alcance el stub del host (ajustá el puerto también si cambiaste `PORT`).
+
+El stub recibe `POST /internal/preferencias/eventos-publicados`, imprime el aviso y su header `X-Aviso-Id`, y valida que estén `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`; `participantes` debe ser una lista. Devuelve `202` para un `eventoId` nuevo y `200` si ya lo había recibido. `GET /_stub/avisos` lista lo recibido y `DELETE /_stub/avisos` limpia la lista. Para simular la entrega, `POST /_stub/modo/ok` activa respuestas normales, `POST /_stub/modo/error` hace que el aviso responda `503`, y `POST /_stub/modo/timeout` deja el aviso sin respuesta; los endpoints para cambiar el modo responden normalmente.
 
 Para los escenarios anteriores que prueban publicación y fallas de Reservas, ejecutá **06** o **07** por separado:
 

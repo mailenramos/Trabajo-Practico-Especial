@@ -37,12 +37,17 @@ La consulta SHALL ordenar por `fechaHora` ascendente y por ID del evento ascende
 - **THEN** responde `400 Bad Request` con el formato de error estándar
 
 ### Requirement: Notificar publicaciones de eventos a Preferencias mediante outbox
-MS1 SHALL enviar por el dispatcher general un aviso `PUBLICACION` con ID `publicacion-{eventoId}` a `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados`. El payload SHALL contener los datos acordados y un fallo de entrega SHALL preservar la publicación y su respuesta exitosa.
+Después de que Reservas confirme la inicialización, MS1 SHALL guardar en una transacción MongoDB el evento publicado y un aviso outbox tipo `PUBLICACION` con ID `publicacion-{eventoId}`. Tras el commit, SHALL intentar entregarlo fuera de la transacción por el dispatcher general a `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados`. Los fallos no SHALL revertir la publicación ni alterar su respuesta; los reintentos SHALL ser asíncronos por el dispatcher.
 
 #### Scenario: Entregar el aviso de publicación por el dispatcher
 - **GIVEN** un evento en borrador listo para publicar y Reservas confirma la inicialización
 - **WHEN** se confirma la transacción local y el dispatcher entrega el aviso
-- **THEN** envía `X-Aviso-Id: publicacion-{eventoId}` y un payload con `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora` al destino configurado
+- **THEN** envía `X-Aviso-Id: publicacion-{eventoId}` y un payload con `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora` ISO-8601 UTC al destino configurado
+
+#### Scenario: Publicar un evento sin participantes
+- **GIVEN** un evento listo para publicar sin participantes
+- **WHEN** Reservas confirma la inicialización y MS1 registra el aviso `PUBLICACION`
+- **THEN** el payload contiene `participantes` como una lista vacía y no como `null`
 
 #### Scenario: Preferencias no está disponible al publicar
 - **GIVEN** Reservas confirmó la inicialización y la transacción local guardó el evento y el aviso

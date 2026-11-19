@@ -10,9 +10,9 @@ Este microservicio administra:
 - El ciclo de vida del evento: borrador, publicación, suspensión/reactivación de venta, cancelación, agotamiento y finalización.
 - Búsqueda paginada y ordenada de eventos publicados o agotados, y consulta de detalle.
 
-No es responsable de administrar inventario/disponibilidad ni reservas, procesar compras o devoluciones, ni autenticar usuarios. La disponibilidad se consulta en Reservas y la disponibilidad agotada se refleja localmente a partir de su callback. Compras consulta la información interna del evento y recibe avisos de cancelación. En las rutas protegidas, el Gateway valida el JWT y propaga `X-User-Id` con el claim `sub` y `X-User-Roles` como lista separada por comas; el servicio aplica autorización por rol/propiedad, pero no valida credenciales ni tokens. La búsqueda y el detalle de eventos publicados o agotados no requieren token.
+No es responsable de administrar inventario/disponibilidad ni reservas, procesar compras o devoluciones, ni autenticar usuarios. La disponibilidad se consulta en Reservas y la disponibilidad agotada se refleja localmente a partir de su callback. Compras consulta el detalle interno del evento y recibe avisos de cancelación; Preferencias y recomendaciones (MS8) consulta los eventos publicados y recibe avisos `PUBLICACION`. En las rutas protegidas, el Gateway valida el JWT y propaga `X-User-Id` con el claim `sub` y `X-User-Roles` como lista separada por comas; el servicio aplica autorización por rol/propiedad, pero no valida credenciales ni tokens. La búsqueda y el detalle de eventos publicados o agotados no requieren token.
 
-La API pública ofrece operaciones de lugares/sectores y de creación, configuración, publicación, administración, búsqueda y detalle de eventos. Los roles requeridos y el resumen de rutas están en el [README](../README.md#endpoints). La especificación interactiva está en [Swagger UI](http://localhost:8081/swagger-ui/index.html) cuando el servicio local está iniciado. El callback de Reservas y la consulta de Compras son rutas internas y no forman parte de la API publicada por el Gateway.
+La API pública ofrece operaciones de lugares/sectores y de creación, configuración, publicación, administración, búsqueda y detalle de eventos. Los roles requeridos y el resumen de rutas están en el [README](../README.md#endpoints). La especificación interactiva está en [Swagger UI](http://localhost:8081/swagger-ui/index.html) cuando el servicio local está iniciado. El callback de Reservas y las consultas de Compras y Preferencias son rutas internas y no forman parte de la API publicada por el Gateway.
 
 ## Componentes e integración local
 
@@ -24,6 +24,7 @@ flowchart LR
     DB[("MongoDB<br/>ticketya_lugares :27017")]
     R["Reservas<br/>:8080"]
     C["Compras<br/>:8083"]
+    P["Preferencias y recomendaciones (MS8)<br/>:8089"]
 
     U -->|"HTTPS/HTTP público; identidad propagada en headers"| GW
     GW -->|"REST/JSON; reenvía X-User-Id y X-User-Roles en rutas protegidas"| GL
@@ -32,9 +33,11 @@ flowchart LR
     R -->|"PUT callback agotado o recuperación<br/>/eventos/{eventoId}/disponibilidad"| GL
     C -->|"GET interno /internal/eventos/{eventoId}"| GL
     GL -->|"POST aviso de cancelación<br/>/eventos-cancelados"| C
+    P -->|"GET interno /internal/eventos-publicados"| GL
+    GL -->|"POST aviso PUBLICACION<br/>/internal/preferencias/eventos-publicados"| P
 ```
 
-Los puertos locales de la aplicación, MongoDB, Reservas y Compras corresponden a `application.yml` y `docker-compose.yml`. El puerto del Gateway no está configurado ni implementado en este repositorio. La comunicación entre microservicios es directa, por HTTP/REST y sin autenticación entre servicios en esta Entrega.
+Los puertos locales de la aplicación, MongoDB, Reservas, Compras y Preferencias corresponden a `application.yml` y `docker-compose.yml`. El puerto del Gateway no está configurado ni implementado en este repositorio. La comunicación entre microservicios es directa, por HTTP/REST y sin autenticación entre servicios en esta Entrega.
 
 ## Secuencias del ciclo de vida y consulta
 
@@ -47,6 +50,7 @@ sequenceDiagram
     participant GL as mcsv-lugares-sectores-eventos
     participant DB as MongoDB
     participant R as Reservas
+    participant P as Preferencias (MS8)
 
     Organizador->>GW: PUT /eventos/{id}/publicar
     GW->>GL: Reenvía solicitud + X-User-Id / X-User-Roles
@@ -56,8 +60,17 @@ sequenceDiagram
     GL->>R: PUT /disponibilidad/eventos/{id}
     alt Reservas confirma (204)
         R-->>GL: 204 No Content
-        GL->>DB: Guarda estado PUBLICADO y precioMinimo
-        DB-->>GL: Evento publicado
+        GL->>DB: Transacción: guarda PUBLICADO y aviso PUBLICACION
+        DB-->>GL: Commit de evento y aviso
+        GL->>P: POST /internal/preferencias/eventos-publicados + X-Aviso-Id
+        alt Preferencias responde 2xx
+            P-->>GL: Aviso aceptado
+            GL->>DB: Marca aviso ENTREGADO
+        else Preferencias falla o no responde
+            P--xGL: Error / respuesta no exitosa
+            Note over GL,DB: Publicación confirmada; el aviso queda PENDIENTE o ERROR_FINAL
+            Note over GL,P: El dispatcher reintenta de forma asíncrona
+        end
         GL-->>GW: 200 OK
         GW-->>Organizador: Evento publicado
     else Reservas caída, error o no confirma
@@ -69,6 +82,10 @@ sequenceDiagram
 ```
 
 Para sectores numerados, la solicitud a Reservas incluye los pares `(fila, numero)` derivados de las dimensiones del sector. Un reintento puede volver a inicializar con el mismo contenido; el contrato espera que esa repetición sea idempotente.
+
+### Consultar eventos para Preferencias
+
+MS8 consulta directamente `GET /internal/eventos-publicados`, sin headers de usuario y fuera del Gateway. La respuesta paginada contiene solo eventos `publicado` o `agotado` y los campos `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad`, `fechaHora` UTC y `estado`. `page` inicia en cero; `size` usa 100 por defecto, con máximo 200. La consulta ordena por fecha e ID del evento para conservar el orden entre páginas. Los parámetros inválidos responden `400`.
 
 ### Cancelar un evento
 
@@ -154,11 +171,11 @@ sequenceDiagram
 |---|---|
 | MongoDB desde la Entrega 1 | Según la consigna indicada para este trabajo, la tabla de la Entrega 1 pide una base relacional. La implementación adoptó MongoDB desde esta entrega para evitar migrar datos y cambiar contratos en la Entrega 2. El código confirma MongoDB (`spring-boot-starter-data-mongodb`, colecciones `lugares` y `eventos` y Compose con Mongo), pero el texto de la consigna no está incluido en `openspec/specs` ni en este repositorio; el motivo de anticipar Mongo se documenta como la decisión del proyecto. |
 | Confirmar primero en Reservas antes de cambiar el estado local | Evita publicar, suspender, reactivar, cancelar o finalizar localmente si Reservas no confirma la operación correspondiente. En publicación, un fallo remoto devuelve `503` y conserva `BORRADOR`; en cancelación, el fallo evita tanto el cambio local como el aviso a Compras. La secuencia está implementada en `EventoLifecycleService`. |
-| Aviso a Compras mediante outbox transaccional | Guarda la cancelación y el aviso en `outbox` en una única transacción MongoDB. El dispatcher envía `POST /eventos-cancelados` después del commit, con el ID estable en `X-Aviso-Id`; cualquier `2xx` marca `ENTREGADO`, y los errores temporales se reintentan. El flag `avisoCancelacionPendiente` fue retirado; un backfill transitorio migra documentos legacy al iniciar. |
+| Avisos a Compras y Preferencias mediante outbox transaccional | La cancelación guarda evento y aviso `CANCELACION` con ID `cancelacion-{eventoId}`; la publicación guarda evento y aviso `PUBLICACION` con ID `publicacion-{eventoId}`. Ambos avisos se insertan en `outbox` con el cambio local en una transacción MongoDB y se entregan después del commit mediante el dispatcher general y `X-Aviso-Id`. Cualquier `2xx` marca `ENTREGADO`, y los errores temporales se reintentan. La entrega inmediata de publicación es síncrona y el dispatcher reintenta de forma asíncrona si falla. El flag `avisoCancelacionPendiente` fue retirado; un backfill transitorio migra documentos legacy al iniciar. |
 | Índices de outbox | `_id_` único garantiza que no se repita el ID del aviso. `idx_outbox_estado_proximo_intento` (`estado`, `proximoIntento`, `intentos`) selecciona pendientes vencidos; `idx_outbox_estado_lease` (`estado`, `leaseHasta`, `intentos`) recupera leases vencidos y apoya el barrido de intentos agotados. |
 | Control optimista de concurrencia por versión | `Lugar` y `Evento` declaran `@Version`. Las escrituras concurrentes con una versión obsoleta no pisan silenciosamente el documento; se traducen a conflicto de actualización. |
 | Identidad propagada por el Gateway, sin autenticación local | El Gateway valida el JWT y envía el claim `sub` como `X-User-Id` y la lista de roles como `X-User-Roles`. El microservicio evalúa todos los roles sin precedencia arbitraria y aplica además la titularidad; no valida el token directamente. |
-| Comunicación directa entre servicios, fuera del Gateway y sin autenticación entre servicios | Las llamadas REST a Reservas y Compras y las rutas internas se dirigen directamente a los servicios correspondientes. El contrato del Gateway excluye el callback de disponibilidad, la consulta interna de Compras y las llamadas salientes. Esta es la configuración documentada para la Entrega 1; los clientes HTTP no propagan credenciales de servicio. |
+| Comunicación directa entre servicios, fuera del Gateway y sin autenticación entre servicios | Las llamadas REST a Reservas, Compras y Preferencias y las rutas internas se dirigen directamente a los servicios correspondientes. El contrato del Gateway excluye el callback de disponibilidad, las consultas internas de Compras y Preferencias y las llamadas salientes. Esta es la configuración documentada para la Entrega 1; los clientes HTTP no propagan credenciales de servicio. |
 | Copiar datos entre colecciones/servicios cuando se necesita una instantánea | Al crear un evento se copian la ciudad y los datos de sectores del lugar; los precios se asignan al evento. Al publicar se envían a Reservas las dimensiones/capacidad y los asientos derivados. Compras recibe una respuesta interna con los nombres y precios actuales del evento y sector. La copia de ciudad y sectores está verificada en `EventoService`; las persistencias de Reservas y Compras quedan fuera del código de este repositorio. Ver también [modelo de datos](./modelo-de-datos.md). |
 
 ## Limitaciones conocidas
@@ -183,9 +200,10 @@ Las capacidades de la tabla son los requisitos de `openspec/specs/lugares-y-sect
 | `eventos` | Definir precios por sector en borrador | `EventoServiceTest`, `EventoControllerTest` |
 | `eventos` | Publicar eventos con disponibilidad inicializada | `EventoLifecycleServiceTest`, `EventoControllerTest`, `HttpReservasClientTest` |
 | `eventos` | Administrar suspensión, reactivación y cancelación | `EventoLifecycleServiceTest`, `ComprasCancellationFlowTest`, `EventoCancelacionOutboxIntegrationTest` |
-| `eventos` | Persistir y entregar avisos outbox | `OutboxAvisoRepositoryMongoTest`, `OutboxDispatcherTest`, `OutboxSchedulerTest`, `RestClientOutboxHttpClientTest`, `EventoCancelacionOutboxIntegrationTest` |
+| `eventos` | Persistir y entregar avisos outbox | `OutboxAvisoRepositoryMongoTest`, `OutboxDispatcherTest`, `OutboxSchedulerTest`, `RestClientOutboxHttpClientTest`, `EventoCancelacionOutboxIntegrationTest`, `EventoPublicacionOutboxIntegrationTest` |
 | `eventos` | Reflejar automáticamente disponibilidad y finalización | `EventoLifecycleServiceTest`, `EventoServiceTest`, `EventoControllerTest` |
 | `eventos` | Ofrecer a Compras una consulta interna del evento | `EventoControllerTest` |
+| `eventos` | Ofrecer a Preferencias una consulta interna de eventos publicados | `EventoControllerTest`, `EventoConsultaServiceTest`, `EventoRepositoryMongoTest` |
 | `eventos` | Mantener estados y formato de errores acordados | `EventoServiceTest`, `EventoControllerTest`, `OpenApiDocumentationTest` |
 | `eventos` | Compartir identidad de asiento con Reservas | `AsientoNumeradoTest`, `EventoLifecycleServiceTest`, `HttpReservasClientTest` |
 | `eventos` | Buscar eventos publicados y agotados | `EventoConsultaServiceTest`, `EventoConsultaControllerTest`, `EventoRepositoryMongoTest` |
