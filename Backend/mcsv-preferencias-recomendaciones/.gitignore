@@ -1,0 +1,10 @@
+.claude/
+.vscode/
+.idea/
+*.iml
+target/
+.env
+*.log
+.DS_Store
+.jdk21/
+.jdk21.zip

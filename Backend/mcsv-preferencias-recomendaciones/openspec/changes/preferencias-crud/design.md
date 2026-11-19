@@ -29,7 +29,7 @@ El directorio MS8 solo contiene configuración inicial de OpenSpec. MS1 aporta e
 
 ### Identidad y autorización
 
-- Leer `X-User-Id` y `X-User-Roles` desde cada solicitud. Tratar un identificador ausente o en blanco como falta de identidad y responder `401`; si hay identidad pero ningún rol `CLIENTE`, responder `403`.
+- Requerir ambos headers, `X-User-Id` y `X-User-Roles`, en cada solicitud. Si falta cualquiera de ellos, responder `401`; responder `403` solo cuando ambos están presentes y la lista de roles no incluye `CLIENTE`.
 - Interpretar roles separados por comas, quitando espacios y normalizando a mayúsculas con `Locale.ROOT`, como en MS1. No confiar en un rol singular ni validar JWT dentro de MS8.
 
 ### Documento y reemplazo
@@ -44,7 +44,7 @@ El directorio MS8 solo contiene configuración inicial de OpenSpec. MS1 aporta e
 
 - En `application.yml`, usar `server.port: ${PORT:8089}` y `spring.data.mongodb.uri: ${MONGODB_URI:mongodb://localhost:27018/ticketya_preferencias}`. Exponer `/actuator/health` y la documentación OpenAPI como en MS1.
 - Crear Dockerfile multi-etapa basado en Maven con JDK 21 y runtime `eclipse-temurin:21-jre-alpine`; incluir herramienta HTTP para el healthcheck y ejecutar la aplicación con usuario no root. El contenedor activa `SPRING_PROFILES_ACTIVE=docker` por defecto.
-- El Compose base define `preferencias` y `mongodb-preferencias`. Mongo usa `mongo:8.0`, base `ticketya_preferencias`, volumen persistente, sin `ports` y solo en una red del Compose marcada `internal`. La aplicación se une a esa red y a la red externa `ticketya-net`, también sin publicar puertos en el Compose base. Su URI interna apunta a `mongodb-preferencias:27017`.
+- El Compose base define `preferencias` y `mongodb-preferencias`. Mongo usa `mongo:8.0`, base `ticketya_preferencias`, volumen persistente, sin `ports` y solo en una red privada del Compose que no se marca `internal`, para permitir publicar Mongo en loopback desde el override de desarrollo. La aplicación se une a esa red y a la red externa `ticketya-net`, sin publicar puertos en el Compose base. Su URI interna apunta a `mongodb-preferencias:27017`.
 - El overlay `docker-compose.dev.yml` publica `8089:8089` y `127.0.0.1:27018:27017`. Documentar creación previa de `ticketya-net`, ejecución desde host y Docker, variables configurables y uso de Actuator/Swagger en README.
 - Incluir en Postman solo las operaciones CRUD, encabezados de identidad y variables de base URL/usuario, manteniendo el alcance mínimo.
 

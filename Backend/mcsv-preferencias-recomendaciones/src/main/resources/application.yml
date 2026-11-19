@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: preferencias
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27018/ticketya_preferencias}
+      auto-index-creation: true
+
+server:
+  port: ${PORT:8089}
+
+management:
+  endpoint:
+    health:
+      show-details: never

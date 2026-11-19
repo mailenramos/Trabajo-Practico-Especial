@@ -1,5 +1,3 @@
-# Spec Delta
-
 ## Purpose
 
 Permite que cada cliente autenticado consulte y mantenga sus propios intereses en tipos de evento, artistas y ciudades. La capacidad constituye la base de datos de preferencias de MS8, sin incluir recomendaciones.
@@ -7,14 +5,14 @@ Permite que cada cliente autenticado consulte y mantenga sus propios intereses e
 ## ADDED Requirements
 
 ### Requirement: Proteger los endpoints de preferencias con el rol CLIENTE
-Las rutas `GET`, `PUT` y `DELETE /preferencias/me` SHALL requerir identidad en `X-User-Id` y el rol `CLIENTE` en `X-User-Roles`. Los roles SHALL interpretarse como una lista separada por comas, recortando espacios y sin distinguir mayúsculas. Sin identidad el servicio SHALL responder `401`; con identidad pero sin `CLIENTE` SHALL responder `403`.
+Las rutas `GET`, `PUT` y `DELETE /preferencias/me` SHALL requerir ambos headers, `X-User-Id` y `X-User-Roles`, además del rol `CLIENTE`. Los roles SHALL interpretarse como una lista separada por comas, recortando espacios y sin distinguir mayúsculas. Si falta cualquiera de los headers, el servicio SHALL responder `401`; SHALL responder `403` solo cuando ambos están presentes y la lista no incluye `CLIENTE`.
 
-#### Scenario: Sin identidad en cada endpoint
-- **WHEN** una solicitud a cualquiera de los tres endpoints no incluye identidad válida
+#### Scenario: Falta cualquiera de los headers en cada endpoint
+- **WHEN** una solicitud a cualquiera de los tres endpoints no incluye `X-User-Id` o no incluye `X-User-Roles`
 - **THEN** el servicio responde `401 Unauthorized`
 
 #### Scenario: Rol distinto de CLIENTE en cada endpoint
-- **GIVEN** la solicitud incluye `X-User-Id` y un `X-User-Roles` que no contiene `CLIENTE`
+- **GIVEN** la solicitud incluye ambos headers y `X-User-Roles` no contiene `CLIENTE`
 - **WHEN** se invoca cualquiera de los tres endpoints
 - **THEN** el servicio responde `403 Forbidden`
 
@@ -34,7 +32,7 @@ El servicio SHALL devolver las preferencias asociadas al `X-User-Id` autenticado
 #### Scenario: Consultar preferencias aún inexistentes
 - **GIVEN** no existe un documento para el usuario autenticado
 - **WHEN** el cliente solicita `GET /preferencias/me`
-- **THEN** el servicio responde `200 OK` con `tiposEvento`, `artistas` y `ciudades` como listas vacías
+- **THEN** el servicio responde `200 OK` con `tiposEvento`, `artistas` y `ciudades` como listas vacías y `actualizadoEn` como `null`
 
 ### Requirement: Reemplazar las preferencias propias
 El servicio SHALL aceptar en `PUT /preferencias/me` las listas `tiposEvento`, `artistas` y `ciudades`, sustituir el conjunto previo y responder `200 OK` con el estado guardado.
@@ -57,6 +55,11 @@ El servicio SHALL aceptar en `PUT /preferencias/me` las listas `tiposEvento`, `a
 #### Scenario: Rechazar valores repetidos después de recortar
 - **GIVEN** alguna lista contiene el mismo texto más de una vez, incluso si una aparición tiene espacios exteriores
 - **WHEN** el cliente solicita `PUT /preferencias/me`
+- **THEN** el servicio responde `400 Bad Request` y no reemplaza las preferencias existentes
+
+#### Scenario: Rechazar una lista ausente o nula
+- **GIVEN** el cliente tiene preferencias guardadas y el cuerpo omite una de las listas o la envía como `null`
+- **WHEN** solicita `PUT /preferencias/me`
 - **THEN** el servicio responde `400 Bad Request` y no reemplaza las preferencias existentes
 
 ### Requirement: Eliminar las preferencias propias
