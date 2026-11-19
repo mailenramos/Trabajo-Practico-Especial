@@ -15,6 +15,6 @@ public class PreferenciasWebConfiguration implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(preferenciasIdentityInterceptor)
-                .addPathPatterns("/preferencias/me");
+                .addPathPatterns("/preferencias/me", "/recomendaciones/me");
     }
 }

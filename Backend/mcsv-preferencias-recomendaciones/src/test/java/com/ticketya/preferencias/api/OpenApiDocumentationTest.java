@@ -19,7 +19,7 @@ class OpenApiDocumentationTest {
     private TestRestTemplate restTemplate;
 
     @Test
-    void publicaLosTresEndpointsDePreferencias() {
+    void publicaLosEndpointsDePreferenciasYRecomendaciones() {
         JsonNode documento = restTemplate.getForObject(
                 "http://localhost:" + port + "/v3/api-docs", JsonNode.class);
         JsonNode operaciones = documento.path("paths").path("/preferencias/me");
@@ -27,5 +27,6 @@ class OpenApiDocumentationTest {
         assertTrue(operaciones.has("get"));
         assertTrue(operaciones.has("put"));
         assertTrue(operaciones.has("delete"));
+        assertTrue(documento.path("paths").path("/recomendaciones/me").has("get"));
     }
 }

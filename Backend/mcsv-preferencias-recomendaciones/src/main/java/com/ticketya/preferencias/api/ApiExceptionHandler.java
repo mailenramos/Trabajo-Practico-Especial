@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.ticketya.preferencias.integration.eventos.EventosCatalogoUnavailableException;
 import com.ticketya.preferencias.service.ForbiddenException;
 import com.ticketya.preferencias.service.PreferenciasInvalidasException;
 import com.ticketya.preferencias.service.UnauthorizedException;
@@ -51,6 +52,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiError> manejarProhibido(ForbiddenException exception) {
         return error(HttpStatus.FORBIDDEN, exception.getMessage(), null);
+    }
+
+    @ExceptionHandler(EventosCatalogoUnavailableException.class)
+    public ResponseEntity<ApiError> manejarCatalogoNoDisponible(EventosCatalogoUnavailableException exception) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "El catálogo de eventos no está disponible", null);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

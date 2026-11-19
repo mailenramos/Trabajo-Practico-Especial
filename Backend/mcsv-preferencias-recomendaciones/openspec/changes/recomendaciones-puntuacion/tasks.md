@@ -13,8 +13,8 @@
 
 ## 3. Exponer recomendaciones autenticadas
 
-- [ ] 3.1 Exponer `GET /recomendaciones/me`, aplicar la identidad existente y documentar contrato y respuestas en OpenAPI. Verificar con MVC `401` si falta cualquiera de los headers, `403` sin `CLIENTE`, `200` autorizado y `503` si MS1 falla.
-- [ ] 3.2 Manejar fallos de Compras sin interrumpir el endpoint y conservar el error estándar `503` únicamente para fallos de MS1. Verificar que la respuesta autorizada mantiene `200` y usa solo preferencias cuando Compras falla.
+- [x] 3.1 Exponer `GET /recomendaciones/me`, aplicar la identidad existente y documentar contrato y respuestas en OpenAPI. Verificar con MVC `401` si falta cualquiera de los headers, `403` sin `CLIENTE`, `200` autorizado y `503` si MS1 falla.
+- [x] 3.2 Manejar fallos de Compras sin interrumpir el endpoint y conservar el error estándar `503` únicamente para fallos de MS1. Verificar que la respuesta autorizada mantiene `200` y usa solo preferencias cuando Compras falla.
 
 ## 4. Actualizar ejecución y uso
 
