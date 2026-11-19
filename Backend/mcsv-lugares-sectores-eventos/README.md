@@ -9,38 +9,69 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 - Docker Desktop con Docker Compose para MongoDB y las pruebas de integración.
 - Node.js (opcional, para simular Reservas o Compras desde Postman).
 
-## Levantar MongoDB y el servicio
+## Ejecutar MS1 con Docker Compose
 
 Ejecutá estos pasos desde `mcsv-lugares-sectores-eventos`.
 
-1. Iniciá MongoDB:
+Antes de iniciar Compose, creá la red externa compartida (solo hace falta una vez por entorno Docker):
 
-   ```sh
-   docker compose up -d mongodb
-   ```
+```sh
+docker network create ticketya-net
+```
 
-   MongoDB queda disponible en `localhost:27017`; Compose conserva los datos en `mongodb_data`.
+Para levantar MS1 y MongoDB aislados, sin publicar puertos en el host:
 
-2. Iniciá el servicio:
+```sh
+docker compose up -d --build
+```
 
-   ```sh
-   mvn spring-boot:run
-   ```
+Para desarrollo local con puertos publicados, combiná explícitamente el Compose base y el archivo dev:
 
-   Por defecto, MongoDB usa `mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0` y el servicio escucha en `http://localhost:8081`. MongoDB debe estar iniciado como replica set `rs0` para habilitar transacciones. El perfil predeterminado es `dev` y carga datos de ejemplo.
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
 
-3. Consultá lugares con headers de identidad:
+El archivo dev publica la aplicación en `8081:8081` y MongoDB solo en `127.0.0.1:27017:27017`. El Compose base no publica puertos. Los datos de MongoDB persisten en el volumen `mongodb_data`.
 
-   ```sh
-   curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://localhost:8081/lugares
-   ```
+### Integración con el Compose general
 
-4. La documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
+El contrato de integración para MS1 es:
 
-Para detener MongoDB sin borrar sus datos:
+- Red compartida externa `ticketya-net`; el Compose general debe unirse a ella como `external`.
+- Nombre DNS del servicio MS1: `lugares`.
+- Puerto interno de MS1: `8081`.
+- El Compose base de MS1 no publica puertos; el acceso entre servicios es por la red Docker.
+
+Los servicios vecinos previstos son `reservas:8080`, `compras:8083` (nombres provisionales) y `fila-virtual:8088`. El comando exacto para combinar MS1 con el Compose general queda **pendiente de confirmar con el grupo**, junto con la ruta y los nombres definitivos de sus servicios.
+
+### Ejecutar MS1 desde el host
+
+Para desarrollar con `mvn spring-boot:run`, primero creá `ticketya-net` si aún no existe y levantá MongoDB con el archivo dev, que publica el puerto solo en loopback:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb
+```
+
+Después, desde esta carpeta, iniciá MS1 en el host:
+
+```sh
+mvn spring-boot:run
+```
+
+El default de host de `MONGODB_URI` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`, compatible con el replica set anunciado dentro de Docker como `mongodb:27017`. El perfil local predeterminado es `dev` y carga datos de ejemplo; en Docker el perfil predeterminado es `docker`. La aplicación escucha en `http://localhost:8081`; la documentación interactiva está en <http://localhost:8081/swagger-ui/index.html> y el documento OpenAPI en <http://localhost:8081/v3/api-docs>.
+
+Para detener los servicios sin borrar sus datos:
 
 ```sh
 docker compose down
+```
+
+**Migración de un volumen legacy:** si el volumen existente tiene `rs0` configurado con `localhost:27017`, es necesario reinicializarlo para que anuncie `mongodb:27017`. `docker compose down -v` elimina permanentemente el volumen y todos sus datos. Exportá o respaldá los datos que necesites antes de ejecutar ese comando.
+
+Consultá lugares con headers de identidad cuando el servicio esté disponible en el host:
+
+```sh
+curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://localhost:8081/lugares
 ```
 
 ## Endpoints
@@ -136,7 +167,7 @@ El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detall
 
 ### Reservas — contrato confirmado
 
-URL base: propiedad `reservas.base-url`, predeterminada en `http://localhost:8080`. Timeouts: `reservas.connect-timeout` (2 s) y `reservas.read-timeout` (5 s).
+URL base: propiedad `reservas.base-url`, predeterminada en Docker en `http://reservas:8080` (en ejecución desde el host, `http://localhost:8080`). Timeouts: `reservas.connect-timeout` (2 s) y `reservas.read-timeout` (5 s).
 
 Este servicio hace estas llamadas a Reservas:
 
@@ -150,7 +181,7 @@ Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` 
 
 ### Compras — contrato confirmado
 
-URL base configurable con `compras.base-url` (default `http://localhost:8083`).
+URL base configurable con `compras.base-url` (default Docker `http://compras:8083`, nombre de servicio provisional; desde el host, `http://localhost:8083`).
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
@@ -182,74 +213,29 @@ Al arrancar, un backfill transitorio busca documentos antiguos con `avisoCancela
 
 El GET interno es una ruta directa entre servicios: no exige headers de usuario y no se publica por el Gateway. Los errores remotos del aviso no revierten la cancelación.
 
-## Puertos
+## Puertos de servicios vecinos
 
-Este servicio usa el puerto `8081` por defecto (`PORT` permite sobrescribirlo). Reservas usa `8080` y Compras `8083` en el entorno local.
+MS1 escucha en el puerto interno `8081` por defecto (`PORT` permite sobrescribirlo). Los servicios vecinos previstos son `reservas:8080`, `compras:8083` (provisional) y `fila-virtual:8088`.
 
-## Variables de entorno y comandos
+## Variables de entorno
 
-`application.yml` y las clases de propiedades de los clientes definen estos nombres y defaults:
+Defaults aplicados por el Compose de Docker:
 
-| Variable de entorno | Propiedad | Default |
+| Variable de entorno | Propiedad | Default en Docker |
 |---|---|---|
 | `PORT` | `server.port` | `8081` |
-| `MONGODB_URI` | `spring.data.mongodb.uri` | `mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0` |
-| `RESERVAS_BASE_URL` | `reservas.base-url` | `http://localhost:8080` |
+| `MONGODB_URI` | `spring.data.mongodb.uri` | `mongodb://mongodb:27017/ticketya_lugares?replicaSet=rs0` |
+| `RESERVAS_BASE_URL` | `reservas.base-url` | `http://reservas:8080` |
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
-| `COMPRAS_BASE_URL` | `compras.base-url` | `http://localhost:8083` |
+| `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
 | `EVENTOS_FINALIZACION_INTERVAL` | `eventos.finalizacion.interval` | `60s` |
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
-| `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `dev` (perfil predeterminado) |
+| `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
+
+El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Las URLs predeterminadas de Reservas y Compras usan DNS de Docker; son configurables con `RESERVAS_BASE_URL` y `COMPRAS_BASE_URL`.
 
 Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5s`). También son fijos el máximo de intentos, backoff y lease descritos arriba; no hay variables de entorno para esos valores.
-
-Ejemplos para configurar variables e iniciar el servicio desde la carpeta `mcsv-lugares-sectores-eventos`:
-
-**PowerShell**
-
-```powershell
-$env:PORT = "8081"
-$env:MONGODB_URI = "mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0"
-$env:RESERVAS_BASE_URL = "http://localhost:8080"
-$env:RESERVAS_CONNECT_TIMEOUT = "2s"
-$env:RESERVAS_READ_TIMEOUT = "5s"
-$env:COMPRAS_BASE_URL = "http://localhost:8083"
-$env:EVENTOS_FINALIZACION_INTERVAL = "60s"
-$env:OUTBOX_DISPATCHER_INTERVAL = "60s"
-$env:SPRING_PROFILES_ACTIVE = "dev"
-mvn spring-boot:run
-```
-
-**cmd**
-
-```bat
-set PORT=8081
-set MONGODB_URI=mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0
-set RESERVAS_BASE_URL=http://localhost:8080
-set RESERVAS_CONNECT_TIMEOUT=2s
-set RESERVAS_READ_TIMEOUT=5s
-set COMPRAS_BASE_URL=http://localhost:8083
-set EVENTOS_FINALIZACION_INTERVAL=60s
-set OUTBOX_DISPATCHER_INTERVAL=60s
-set SPRING_PROFILES_ACTIVE=dev
-mvn spring-boot:run
-```
-
-**Git Bash**
-
-```bash
-export PORT=8081
-export MONGODB_URI=mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0
-export RESERVAS_BASE_URL=http://localhost:8080
-export RESERVAS_CONNECT_TIMEOUT=2s
-export RESERVAS_READ_TIMEOUT=5s
-export COMPRAS_BASE_URL=http://localhost:8083
-export EVENTOS_FINALIZACION_INTERVAL=60s
-export OUTBOX_DISPATCHER_INTERVAL=60s
-export SPRING_PROFILES_ACTIVE=dev
-mvn spring-boot:run
-```
 
 ## Pruebas con Postman
 

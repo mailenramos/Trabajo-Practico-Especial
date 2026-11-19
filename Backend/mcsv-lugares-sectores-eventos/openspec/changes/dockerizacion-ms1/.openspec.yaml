@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-18
+goal: Construir y ejecutar MS1 de forma segura en contenedores, manteniendo el
+  flujo de desarrollo desde el host

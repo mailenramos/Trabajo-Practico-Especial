@@ -8,11 +8,16 @@ spring:
     name: gestion-lugares
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares?replicaSet=rs0}
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ticketya_lugares?directConnection=true}
       auto-index-creation: true
 
 server:
   port: ${PORT:8081}
+
+management:
+  endpoint:
+    health:
+      show-details: never
 
 reservas:
   base-url: ${RESERVAS_BASE_URL:http://localhost:8080}
