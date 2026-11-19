@@ -3281,6 +3281,45 @@
           "response": []
         },
         {
+          "name": "PB08 Publicar evento OK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código 403\", function () { pm.response.to.have.status(403); });\npm.test(\"Formato de error común (status y mensaje)\", function () {\n  var j = pm.response.json();\n  pm.expect(j).to.have.property(\"status\");\n  pm.expect(j).to.have.property(\"mensaje\");\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "99"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ORGANIZADOR"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/eventos/6aff37235f16ac0e13636f9d/publicar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "6aff37235f16ac0e13636f9d",
+                "publicar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "PB05 Publicar con rol cliente",
           "event": [
             {
