@@ -1,0 +1,8 @@
+services:
+  mongodb-preferencias:
+    ports:
+      - "127.0.0.1:27018:27017"
+
+  preferencias:
+    ports:
+      - "8089:8089"

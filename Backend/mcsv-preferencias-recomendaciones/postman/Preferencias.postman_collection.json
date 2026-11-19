@@ -1,0 +1,107 @@
+{
+  "info": {
+    "_postman_id": "c1b4387b-6e17-4cb0-aeb9-2ef09a4db488",
+    "name": "TicketYa - Preferencias (MS8)",
+    "description": "Operaciones CRUD de preferencias del cliente autenticado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8089"
+    }
+  ],
+  "item": [
+    {
+      "name": "Obtener mis preferencias",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "cliente-123"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/preferencias/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "preferencias",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reemplazar mis preferencias",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "cliente-123"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tiposEvento\": [\"MUSICA\"],\n  \"artistas\": [\"Artista de ejemplo\"],\n  \"ciudades\": [\"Buenos Aires\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/preferencias/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "preferencias",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Eliminar mis preferencias",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "cliente-123"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/preferencias/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "preferencias",
+            "me"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -18,12 +18,12 @@
 
 ## 4. Preparar ejecución y uso
 
-- [ ] 4.1 Crear Dockerfile multi-etapa con runtime Java 21 y usuario no root; agregar `.gitignore` y `.dockerignore`; crear Compose base con Mongo standalone en red privada sin `internal` ni `ports`, fuera de `ticketya-net`, y servicio preferencias en ambas redes con healthcheck Actuator y sin puertos publicados; verificar `docker compose config` y las redes/puertos resultantes.
-- [ ] 4.2 Crear `docker-compose.dev.yml` con publicaciones `8089:8089` y `127.0.0.1:27018:27017`; verificar el Compose combinado y que la base no publica puertos en el Compose base.
-- [ ] 4.3 Documentar en README ejecución host/Docker, creación de `ticketya-net`, Actuator, OpenAPI y variables `PORT`, `MONGODB_URI` y `SPRING_PROFILES_ACTIVE`; verificar que los comandos documentados coinciden con los archivos Compose.
-- [ ] 4.4 Crear una colección Postman mínima para GET, PUT y DELETE con `X-User-Id`, `X-User-Roles` y base URL configurable; verificar que el JSON de colección se puede importar y que cada operación apunta a la ruta especificada.
+- [x] 4.1 Crear Dockerfile multi-etapa con runtime Java 21 y usuario no root; agregar `.gitignore` y `.dockerignore`; crear Compose base con Mongo standalone en red privada sin `internal` ni `ports`, fuera de `ticketya-net`, y servicio preferencias en ambas redes con healthcheck Actuator y sin puertos publicados; verificar `docker compose config` y las redes/puertos resultantes.
+- [x] 4.2 Crear `docker-compose.dev.yml` con publicaciones `8089:8089` y `127.0.0.1:27018:27017`; verificar el Compose combinado y que la base no publica puertos en el Compose base.
+- [x] 4.3 Documentar en README ejecución host/Docker, creación de `ticketya-net`, Actuator, OpenAPI y variables `PORT`, `MONGODB_URI` y `SPRING_PROFILES_ACTIVE`; verificar que los comandos documentados coinciden con los archivos Compose.
+- [x] 4.4 Crear una colección Postman mínima para GET, PUT y DELETE con `X-User-Id`, `X-User-Roles` y base URL configurable; verificar que el JSON de colección se puede importar y que cada operación apunta a la ruta especificada.
 
 ## 5. Verificar el cambio completo
 
-- [ ] 5.1 Ejecutar `mvnw.cmd test` con Docker disponible para validar pruebas MVC y persistencia Testcontainers.
-- [ ] 5.2 Ejecutar `openspec validate --strict` desde el proyecto MS8 y corregir cualquier error o advertencia de los artefactos.
+- [x] 5.1 Ejecutar `mvnw.cmd test` con Docker disponible para validar pruebas MVC y persistencia Testcontainers.
+- [x] 5.2 Ejecutar `openspec validate --strict` desde el proyecto MS8 y corregir cualquier error o advertencia de los artefactos.

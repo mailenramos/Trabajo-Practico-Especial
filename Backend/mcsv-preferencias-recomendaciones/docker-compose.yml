@@ -1,0 +1,54 @@
+services:
+  mongodb-preferencias:
+    image: mongo:8.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ticketya_preferencias
+    volumes:
+      - mongodb_preferencias_data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "db.adminCommand('ping').ok"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+    networks:
+      - preferencias-private
+
+  preferencias:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongodb-preferencias:27017/ticketya_preferencias
+      PORT: ${PORT:-8089}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+    depends_on:
+      mongodb-preferencias:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null "http://localhost:$${PORT}/actuator/health"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - preferencias-private
+      - ticketya-net
+
+volumes:
+  mongodb_preferencias_data:
+
+networks:
+  preferencias-private:
+    driver: bridge
+  ticketya-net:
+    external: true
+    name: ticketya-net
