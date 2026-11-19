@@ -3,6 +3,7 @@ package com.ticketya.preferencias.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -93,6 +95,18 @@ class PreferenciasServiceTest {
 
         assertSame(anterior, persistida.get());
         verify(preferenciasRepository, times(1)).save(any());
+    }
+
+    @Test
+    void usuarioSinPreferenciasObtieneListasVaciasYFechaNula() {
+        when(preferenciasRepository.findById("cliente-nuevo")).thenReturn(Optional.empty());
+
+        Preferencia resultado = preferenciasService.obtener("cliente-nuevo");
+
+        assertEquals(List.of(), resultado.tiposEvento());
+        assertEquals(List.of(), resultado.artistas());
+        assertEquals(List.of(), resultado.ciudades());
+        assertNull(resultado.actualizadoEn());
     }
 
     private Preferencia guardarPreferenciasValidas() {

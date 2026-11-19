@@ -12,9 +12,9 @@
 
 ## 3. Exponer la API autenticada
 
-- [ ] 3.1 Implementar lectura de `X-User-Id` y parsing de `X-User-Roles` separado por comas, recortado y sin distinguir mayúsculas; verificar `401` sin identidad y `403` sin rol `CLIENTE` en GET, PUT y DELETE.
-- [ ] 3.2 Implementar `GET /preferencias/me`, `PUT /preferencias/me` y `DELETE /preferencias/me`; verificar con pruebas MVC respuestas `200` para lectura y reemplazo autorizados, `204` para eliminación, GET vacío con listas vacías y DELETE repetido idempotente.
-- [ ] 3.3 Integrar validación de cuerpos y formato de error de MS1, y documentar rutas y respuestas en OpenAPI; verificar `400` ante listas inválidas y que `/v3/api-docs` publica los tres endpoints.
+- [x] 3.1 Implementar lectura de `X-User-Id` y parsing de `X-User-Roles` separado por comas, recortado y sin distinguir mayúsculas; verificar `401` sin identidad y `403` sin rol `CLIENTE` en GET, PUT y DELETE.
+- [x] 3.2 Implementar `GET /preferencias/me`, `PUT /preferencias/me` y `DELETE /preferencias/me`; verificar con pruebas MVC respuestas `200` para lectura y reemplazo autorizados, `204` para eliminación, GET vacío con listas vacías y DELETE repetido idempotente.
+- [x] 3.3 Integrar validación de cuerpos y formato de error de MS1, y documentar rutas y respuestas en OpenAPI; verificar `400` ante listas inválidas y que `/v3/api-docs` publica los tres endpoints.
 
 ## 4. Preparar ejecución y uso
 

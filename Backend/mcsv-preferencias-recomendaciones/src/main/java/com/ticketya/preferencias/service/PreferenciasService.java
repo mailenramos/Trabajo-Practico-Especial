@@ -37,20 +37,29 @@ public class PreferenciasService {
         return preferenciasRepository.save(preferencia);
     }
 
+    public Preferencia obtener(String usuarioId) {
+        return preferenciasRepository.findById(usuarioId)
+                .orElseGet(() -> new Preferencia(usuarioId, List.of(), List.of(), List.of(), null));
+    }
+
+    public void eliminar(String usuarioId) {
+        preferenciasRepository.deleteById(usuarioId);
+    }
+
     private List<String> normalizar(List<String> valores, String campo) {
         if (valores == null) {
-            throw new IllegalArgumentException("La lista " + campo + " es obligatoria");
+            throw new PreferenciasInvalidasException(campo, "La lista " + campo + " es obligatoria");
         }
 
         List<String> normalizados = new ArrayList<>(valores.size());
         Set<String> vistos = new HashSet<>();
         for (String valor : valores) {
             if (valor == null || valor.strip().isEmpty()) {
-                throw new IllegalArgumentException("La lista " + campo + " no admite textos vacíos");
+                throw new PreferenciasInvalidasException(campo, "La lista " + campo + " no admite textos vacíos");
             }
             String normalizado = valor.strip();
             if (!vistos.add(normalizado)) {
-                throw new IllegalArgumentException("La lista " + campo + " no admite valores repetidos");
+                throw new PreferenciasInvalidasException(campo, "La lista " + campo + " no admite valores repetidos");
             }
             normalizados.add(normalizado);
         }
