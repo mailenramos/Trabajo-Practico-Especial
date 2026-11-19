@@ -9,6 +9,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -17,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class RefundService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RefundService.class);
     private final RefundRepository refundRepository;
     private final RefundTransactionService transactionService;
     private final RequestFingerprintService fingerprints;
@@ -43,7 +46,11 @@ public class RefundService {
             String idempotencyKey) {
         RefundCreateRequest request = new RefundCreateRequest(refundRequestId, amount, reason);
         try {
-            return transactionService.create(paymentId, idempotencyKey, request);
+            RefundCreationResult result = transactionService.create(paymentId, idempotencyKey, request);
+            LOGGER.info("operacion=reintegro refundId={} refundRequestId={} paymentId={} status={} replayed={}",
+                    result.refund().getId(), refundRequestId, paymentId,
+                    result.refund().getStatus(), result.replayed());
+            return result;
         } catch (DataIntegrityViolationException exception) {
             String fingerprint = fingerprints.refundFingerprint(paymentId, refundRequestId, amount, reason);
             Refund winner = recoveryTransaction.execute(
@@ -54,12 +61,17 @@ public class RefundService {
             if (!winner.getRequestFingerprint().equals(fingerprint)) {
                 throw new ConflictException("La Idempotency-Key ya fue utilizada con otros datos");
             }
+            LOGGER.info("operacion=reintegro refundId={} refundRequestId={} paymentId={} status={} replayed=true",
+                    winner.getId(), refundRequestId, paymentId, winner.getStatus());
             return new RefundCreationResult(winner, true);
         }
     }
 
     public Refund retry(UUID refundId) {
-        return transactionService.retry(refundId);
+        Refund refund = transactionService.retry(refundId);
+        LOGGER.info("operacion=reintento_reintegro refundId={} paymentId={} status={} attemptCount={}",
+                refund.getId(), refund.getPayment().getId(), refund.getStatus(), refund.getAttemptCount());
+        return refund;
     }
 
     public Refund get(UUID refundId) {

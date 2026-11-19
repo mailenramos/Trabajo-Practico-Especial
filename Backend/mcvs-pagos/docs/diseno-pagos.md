@@ -1,6 +1,6 @@
 # Diseño del microservicio de Gestión de pagos (msvc-pagos)
 
-TicketYa · Arquitectura Web (TUDAI) · Entrega 1
+TicketYa · Arquitectura Web (TUDAI) · Entrega 2
 
 ## 1. Propósito y rol en la arquitectura
 
@@ -238,3 +238,10 @@ $env:RUN_POSTGRESQL_TESTS="true"
 | `DB_PASSWORD` | Obligatoria, sin valor por defecto |
 
 El servicio escucha en el puerto `8084`. Fuera del perfil `test`, `DataInitializer` carga registros fijos únicamente si ambas tablas están vacías (un pago aprobado, uno rechazado, un reintegro exitoso y uno fallido para probar el reintento). El detalle de UUID y claves está en el `README.md`.
+
+## 10. Trazabilidad y despliegue
+
+- `CorrelationIdFilter` acepta un `X-Request-Id` UUID o genera uno nuevo, devuelve el mismo valor y lo incluye en el MDC del log de la solicitud.
+- Los logs HTTP contienen método, path, status y duración. Los logs de operaciones críticas incorporan UUID de pago/compra/reintegro y estado, sin claves de idempotencia ni datos sensibles.
+- La salida es texto estructurado en consola, apta para recolección por la plataforma; el agregador central y la propagación a través de MS3 quedan fuera de este microservicio.
+- El `Dockerfile` construye una imagen Java 17 no-root. Pagos debe permanecer en una red privada y no ser publicado por el Gateway. La orquestación completa no se modifica en este alcance.

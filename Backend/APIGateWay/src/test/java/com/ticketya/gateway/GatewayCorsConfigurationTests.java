@@ -19,9 +19,9 @@ class GatewayCorsConfigurationTests {
         assertEquals(origin, cors.checkOrigin(origin));
         assertTrue(cors.checkHttpMethod(HttpMethod.POST).contains(HttpMethod.POST));
         var allowedHeaders = cors.checkHeaders(java.util.List.of(
-                "Content-Type", "X-User-Id", "X-User-Role", "Idempotency-Key"));
-        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("x-user-id")));
-        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("x-user-role")));
+                "Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"));
+        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("authorization")));
+        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("x-request-id")));
         assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("idempotency-key")));
     }
 

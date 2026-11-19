@@ -19,6 +19,18 @@ En PowerShell, configurar `DB_PASSWORD` en el entorno y ejecutar:
 
 Hibernate actualiza las tablas y `schema.sql` agrega el índice parcial de pagos aprobados. Swagger UI está disponible en `/swagger-ui/index.html`.
 
+### Imagen Docker
+
+Desde esta carpeta:
+
+```powershell
+docker build -t ticketya/msvc-pagos .
+```
+
+Al ejecutar el contenedor, configurar las variables `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`, y conectarlo a la red privada donde está PostgreSQL y el servicio de Compras. `EXPOSE 8084` documenta el puerto del proceso; no publica el puerto del host por sí mismo. Pagos es interno y no se debe publicar directamente en Internet ni enrutar desde el Gateway. La orquestación completa con `docker-compose.yml` corresponde a la plataforma y no se modifica desde este servicio.
+
+Cada solicitud acepta `X-Request-Id` solo si es un UUID; si falta o no es válido genera uno y lo devuelve en la respuesta. El log HTTP incluye ID, método, path, status y duración. Los logs de operaciones críticas identifican pagos/reintegros sin incluir claves de idempotencia ni datos sensibles; salen por consola para que la plataforma los recolecte.
+
 El perfil de pruebas usa la base aislada `ticketya_payments_test`, `DB_PASSWORD` y `spring.jpa.hibernate.ddl-auto=create-drop`. Crear primero la base vacía en pgAdmin. Las pruebas PostgreSQL de concurrencia se ejecutan optativamente con `RUN_POSTGRESQL_TESTS=true`.
 
 Para correr la suite completa, incluidas las pruebas PostgreSQL, configurar `DB_PASSWORD` y ejecutar en PowerShell:

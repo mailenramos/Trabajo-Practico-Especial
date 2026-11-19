@@ -3,6 +3,7 @@ package com.ticketya.gateway;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
@@ -43,6 +44,7 @@ public class GatewayUnavailableFilter implements GlobalFilter {
             byte[] body;
             try {
                 body = objectMapper.writeValueAsBytes(Map.of(
+                        "timestamp", Instant.now().toString(),
                         "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
                         "error", "SERVICIO_NO_DISPONIBLE",
                         "mensaje", "El servicio destino no está disponible"));
@@ -63,6 +65,7 @@ public class GatewayUnavailableFilter implements GlobalFilter {
                     || cause instanceof ConnectException
                     || cause instanceof TimeoutException
                     || cause instanceof IOException
+                    || cause.getClass().getName().equals("io.netty.handler.timeout.ReadTimeoutException")
                     || cause.getClass().getName().equals("io.netty.channel.ConnectTimeoutException")) {
                 return true;
             }
