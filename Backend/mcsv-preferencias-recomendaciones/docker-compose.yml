@@ -28,6 +28,9 @@ services:
       MONGODB_URI: mongodb://mongodb-preferencias:27017/ticketya_preferencias
       PORT: ${PORT:-8089}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      EVENTOS_BASE_URL: ${EVENTOS_BASE_URL:-http://lugares:8081}
+      COMPRAS_BASE_URL: ${COMPRAS_BASE_URL:-http://compras:8083}
+      SERVICIO_TOKEN: ${SERVICIO_TOKEN}
     depends_on:
       mongodb-preferencias:
         condition: service_healthy

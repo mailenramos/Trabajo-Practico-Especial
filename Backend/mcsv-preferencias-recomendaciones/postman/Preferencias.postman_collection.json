@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "c1b4387b-6e17-4cb0-aeb9-2ef09a4db488",
     "name": "TicketYa - Preferencias (MS8)",
-    "description": "Operaciones CRUD de preferencias del cliente autenticado.",
+    "description": "Operaciones de preferencias y recomendaciones del cliente autenticado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -33,6 +33,32 @@
           ],
           "path": [
             "preferencias",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Obtener mis recomendaciones",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-User-Id",
+            "value": "cliente-123"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/recomendaciones/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "recomendaciones",
             "me"
           ]
         }
