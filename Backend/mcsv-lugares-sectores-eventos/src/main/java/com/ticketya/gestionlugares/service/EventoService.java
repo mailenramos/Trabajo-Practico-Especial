@@ -84,6 +84,15 @@ public class EventoService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe el evento " + eventoId));
     }
 
+    public Evento actualizarPoliticaFila(Evento evento, boolean requiereFila) {
+        if (requiereFila && evento.getEstado() == EstadoEvento.CANCELADO) {
+            throw new ConflictException("No se puede activar la fila de un evento cancelado");
+        }
+        if (evento.isRequiereFila() == requiereFila) return evento;
+        evento.setRequiereFila(requiereFila);
+        return guardar(evento);
+    }
+
     /** Invocado por la orquestación de publicación después de que Reservas confirme la inicialización. */
     public Evento validarPublicacion(String eventoId, String userId, String userRolesHeader) {
         Evento evento = buscarEvento(eventoId);

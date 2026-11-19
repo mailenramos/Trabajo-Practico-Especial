@@ -12487,6 +12487,95 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "20 Política de fila",
+      "description": "Requiere eventoCompraId de la carpeta 08. La versión y los casos de eventos cancelados se verifican en pruebas de integración; la versión no se expone por HTTP.",
+      "item": [
+        {
+          "name": "PF01 Activar requisito de fila",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 y política activada', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j.eventoId).to.eql(pm.collectionVariables.get('eventoCompraId')); pm.expect(j.requiereFila).to.eql(true); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"requiereFila\":true}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}/politica-fila", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCompraId}}", "politica-fila"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PF02 Consultar indicador actual y datos para reportes",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 y campos del evento', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'nombre', 'tipo', 'fechaHora', 'fechaInicio', 'ciudad', 'estado', 'organizadorId', 'requiereFila', 'sectores'); pm.expect(j.eventoId).to.eql(pm.collectionVariables.get('eventoCompraId')); pm.expect(j.fechaHora).to.eql(j.fechaInicio); pm.expect(j.requiereFila).to.eql(true); pm.expect(j.sectores).to.be.an('array').that.is.not.empty; j.sectores.forEach(function (s) { pm.expect(s).to.include.all.keys('sectorId', 'nombre', 'tipo', 'filas', 'asientosPorFila', 'capacidad', 'precio'); }); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCompraId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PF03 Repetir activación idempotente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 y mismo valor', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j.eventoId).to.eql(pm.collectionVariables.get('eventoCompraId')); pm.expect(j.requiereFila).to.eql(true); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"requiereFila\":true}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}/politica-fila", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCompraId}}", "politica-fila"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PF04 Desactivar requisito de fila",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 y política desactivada', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j.eventoId).to.eql(pm.collectionVariables.get('eventoCompraId')); pm.expect(j.requiereFila).to.eql(false); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"requiereFila\":false}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}/politica-fila", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCompraId}}", "politica-fila"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PF05 Rechazar body sin indicador",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 body inválido', function () { pm.response.to.have.status(400); pm.expect(pm.response.json()).to.include.all.keys('timestamp', 'status', 'error', 'mensaje'); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCompraId}}/politica-fila", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCompraId}}", "politica-fila"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PF06 Rechazar evento inexistente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404 evento inexistente', function () { pm.response.to.have.status(404); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"requiereFila\":true}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/internal/eventos/000000000000000000000000/politica-fila", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "000000000000000000000000", "politica-fila"] }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {

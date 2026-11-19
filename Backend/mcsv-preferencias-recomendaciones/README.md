@@ -93,7 +93,7 @@ MS8 combina las preferencias guardadas con el catálogo de eventos publicados de
 | Tipo del evento presente en el historial de compras | 1 |
 | Evento presente en las co-compras consultadas | 2 |
 
-Las comparaciones recortan espacios y no distinguen mayúsculas. Cada regla suma como máximo una vez por evento. Simplificaciones del alcance: solo se consultan co-compras para hasta cinco de los eventos comprados más recientes (Compras informa como máximo 20 IDs distintos); las cantidades no multiplican los puntos; si falla cualquier llamada de Compras se descartan todas sus señales y se recomienda solo con preferencias; los eventos ya comprados no se excluyen. Los fallos de MS1 no tienen fallback y responden `503`.
+Las comparaciones recortan espacios y no distinguen mayúsculas. Cada regla suma como máximo una vez por evento. Simplificaciones del alcance: solo se consultan co-compras para hasta cinco de los eventos comprados más recientes (Compras informa como máximo 20 IDs distintos); las cantidades no multiplican los puntos; si falla cualquier llamada de Compras se descartan todas sus señales y se recomienda solo con preferencias; los eventos ya comprados no se excluyen. Los fallos de MS1 no tienen fallback y responden `503`.Cuando Compras falla, la respuesta no indica que no se consideró el historial.
 
 ### Avisos de eventos publicados
 
@@ -116,7 +116,7 @@ Un body inválido produce `400`. MS8 selecciona a un cliente solo si coinciden *
 
 MS8 envía un POST por destinatario a `/internal/notificaciones`, con el token de servicio. Si todos se aceptan o no hay destinatarios, responde `202` con `{"destinatarios": n, "enviados": n}`. Si falla cualquier envío, intenta los restantes y responde `503` para que la outbox reintente. Notificaciones deduplica usando el identificador de acontecimiento estable, tipo y usuario.
 
-Simplificaciones: MS8 recorre las preferencias existentes, procesa los envíos secuencialmente y no persiste avisos enviados; la deduplicación queda a cargo de Notificaciones. El campo `lugar` del aviso es la ciudad y `fecha` se formatea en `America/Argentina/Buenos_Aires`. Las llamadas usan timeouts de conexión de 2 segundos y lectura de 5 segundos.
+Simplificaciones: MS8 recorre las preferencias existentes, procesa los envíos secuencialmente y no persiste avisos enviados; la deduplicación queda a cargo de Notificaciones. El campo `lugar` del aviso es la ciudad y `fecha` se formatea en `America/Argentina/Buenos_Aires`. Las llamadas usan timeouts de conexión de 2 segundos y lectura de 5 segundos.Como el envío es secuencial, con muchos destinatarios MS8 puede tardar más que el timeout de lectura de la outbox de MS1; en ese caso MS1 reintenta y Notificaciones deduplica los avisos ya aceptados.
 
 ## Variables de entorno
 
@@ -205,7 +205,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8090/_stub/modo/error"
 Invoke-RestMethod -Method Post -Uri "http://localhost:8090/_stub/modo/ok"
 ```
 
-`DELETE /_stub/notificaciones` limpia avisos y fallas por usuario; todos los datos del stub están en memoria. Si MS8 corre en Docker, `localhost:8090` apunta al contenedor de MS8, no al host: hay que configurar una dirección alcanzable desde ese contenedor.
+`DELETE /_stub/notificaciones` limpia avisos y fallas por usuario; todos los datos del stub están en memoria. Si MS8 corre en Docker, `localhost:8090` apunta al contenedor de MS8, no al host: hay que configurar una dirección alcanzable desde ese contenedor. En Docker Desktop, usar NOTIFICACIONES_BASE_URL=http://host.docker.internal:8090.
 
 ### Probar el endpoint con el stub de Compras
 

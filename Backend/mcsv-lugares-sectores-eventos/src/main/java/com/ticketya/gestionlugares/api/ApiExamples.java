@@ -30,7 +30,7 @@ public final class ApiExamples {
             """;
 
     public static final String EVENTO_INTERNO_COMPRAS = """
-            {"eventoId":"672a1f77bcf86cd799439011","nombre":"Festival Central","fechaInicio":"2026-12-01T21:00:00Z","estado":"publicado","sectores":[{"sectorId":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","precio":15000.00},{"sectorId":"ea248a93-5198-4c49-8a1a-d8c647db9bf2","nombre":"Campo","precio":null}]}
+            {"eventoId":"672a1f77bcf86cd799439011","nombre":"Festival Central","fechaInicio":"2026-12-01T21:00:00Z","estado":"publicado","sectores":[{"sectorId":"550e8400-e29b-41d4-a716-446655440000","nombre":"Platea","precio":15000.00,"tipo":"NUMERADO","filas":20,"asientosPorFila":30,"capacidad":null},{"sectorId":"ea248a93-5198-4c49-8a1a-d8c647db9bf2","nombre":"Campo","precio":null,"tipo":"NO_NUMERADO","filas":null,"asientosPorFila":null,"capacidad":500}],"organizadorId":"organizador-1","requiereFila":false,"tipo":"MUSICA","fechaHora":"2026-12-01T21:00:00Z","ciudad":"Buenos Aires"}
             """;
 
     public static final String ERROR = """

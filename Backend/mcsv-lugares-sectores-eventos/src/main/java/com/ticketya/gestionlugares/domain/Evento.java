@@ -14,6 +14,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Document(collection = "eventos")
 @CompoundIndex(name = "idx_eventos_estado_fecha", def = "{'estado': 1, 'fechaHora': 1}")
 @CompoundIndex(name = "idx_eventos_estado_ciudad_fecha", def = "{'estado': 1, 'ciudad': 1, 'fechaHora': 1}")
@@ -38,6 +40,7 @@ public class Evento {
     private Instant fechaHora;
     private EstadoEvento estado;
     private boolean ventaSuspendida;
+    private boolean requiereFila;
     private int limiteEntradasPorCliente;
     private List<EventoSector> sectores = new ArrayList<>();
     private BigDecimal precioMinimo;
@@ -159,6 +162,9 @@ public class Evento {
     public void setEstado(EstadoEvento estado) { this.estado = estado; }
     public boolean isVentaSuspendida() { return ventaSuspendida; }
     public void setVentaSuspendida(boolean ventaSuspendida) { this.ventaSuspendida = ventaSuspendida; }
+    @JsonIgnore
+    public boolean isRequiereFila() { return requiereFila; }
+    public void setRequiereFila(boolean requiereFila) { this.requiereFila = requiereFila; }
     public int getLimiteEntradasPorCliente() { return limiteEntradasPorCliente; }
     public void setLimiteEntradasPorCliente(int limiteEntradasPorCliente) { this.limiteEntradasPorCliente = limiteEntradasPorCliente; }
     public List<EventoSector> getSectores() { return sectores; }

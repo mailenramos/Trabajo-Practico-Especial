@@ -19,8 +19,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketya.gestionlugares.repository.LugarRepository;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.config.DevSampleDataInitializer;
+import com.ticketya.gestionlugares.outbox.EventoCancelacionOutboxBackfill;
+import com.ticketya.gestionlugares.outbox.OutboxScheduler;
+import com.ticketya.gestionlugares.service.EventoFinalizationScheduler;
 
-@SpringBootTest(properties = "spring.data.mongodb.auto-index-creation=false")
+@SpringBootTest(properties = {"spring.data.mongodb.auto-index-creation=false",
+        "spring.data.mongodb.uri=mongodb://127.0.0.1:1/openapi-test?directConnection=true"})
 @AutoConfigureMockMvc
 class OpenApiDocumentationTest {
 
@@ -32,8 +36,16 @@ class OpenApiDocumentationTest {
 
     @MockBean
     private LugarRepository lugarRepository;
+    @MockBean
     private DevSampleDataInitializer devSampleDataInitializer;
+    @MockBean
     private EventoRepository eventoRepository;
+    @MockBean
+    private EventoCancelacionOutboxBackfill backfill;
+    @MockBean
+    private OutboxScheduler outboxScheduler;
+    @MockBean
+    private EventoFinalizationScheduler finalizationScheduler;
 
     @Test
     void publicaOperacionesParametrosRespuestasYEjemplosOpenApi() throws Exception {
@@ -160,6 +172,36 @@ class OpenApiDocumentationTest {
                 .path("requestBody").path("content").path("application/json").path("examples").has("Precio"));
         assertTrue(paths.path("/eventos/{eventoId}/limite-entradas-por-cliente").path("put")
                 .path("requestBody").path("content").path("application/json").path("examples").has("Límite"));
+    }
+
+    @Test
+    void documentaContratoInternoDePoliticaDeFila() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode api = new ObjectMapper().readTree(body);
+        JsonNode paths = api.path("paths");
+        JsonNode get = paths.path("/internal/eventos/{eventoId}").path("get");
+        JsonNode put = paths.path("/internal/eventos/{eventoId}/politica-fila").path("put");
+        assertTrue(get.path("description").asText().contains("sin caché"));
+        assertTrue(put.path("description").asText().contains("cancelado"));
+        assertTrue(put.path("description").asText().contains("desactivar"));
+        for (JsonNode operation : List.of(get, put)) {
+            assertTrue(java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(), false)
+                    .noneMatch(parameter -> parameter.path("name").asText().startsWith("X-User-")));
+        }
+        assertEventErrors(put.path("responses"), "200", "400", "404", "409", "500");
+        JsonNode request = put.path("requestBody");
+        assertTrue(request.path("required").asBoolean());
+        assertTrue(request.path("content").path("application/json").path("schema").path("$ref")
+                .asText().endsWith("/PoliticaFilaRequest"));
+        JsonNode schema = api.path("components").path("schemas").path("PoliticaFilaRequest");
+        assertTrue(schema.path("properties").path("requiereFila").path("type").asText().equals("boolean"));
+        assertTrue(java.util.stream.StreamSupport.stream(schema.path("required").spliterator(), false)
+                .anyMatch(field -> field.asText().equals("requiereFila")));
+        JsonNode example = get.path("responses").path("200").path("content").path("application/json")
+                .path("examples").path("Evento para Compras").path("value");
+        assertTrue(example.has("requiereFila") && example.has("fechaHora") && example.has("organizadorId"));
+        assertTrue(example.path("sectores").get(0).has("tipo"));
     }
 
     private static void assertEventErrors(JsonNode responses, String... codes) {

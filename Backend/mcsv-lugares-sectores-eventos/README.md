@@ -104,7 +104,8 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | PUT | `/eventos/{eventoId}/venta/reactivar` | `ADMIN` | Reactiva la venta. |
 | PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Roles`; no debe exponerse por el API Gateway. |
-| GET | `/internal/eventos/{eventoId}` | Interno: Compras | Consulta datos del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
+| GET | `/internal/eventos/{eventoId}` | Interno: Compras y otros servicios | Consulta datos actuales del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
+| PUT | `/internal/eventos/{eventoId}/politica-fila` | Interno: Fila virtual (MS7) | Activa o desactiva `requiereFila`; no exige headers de usuario ni se expone por el API Gateway. |
 | GET | `/internal/eventos-publicados` | Interno: Preferencias/recomendaciones (MS8) | Devuelve eventos publicados o agotados paginados. No exige headers de usuario y no debe exponerse por el API Gateway. |
 
 ## Identidad y usuarios de prueba
@@ -196,6 +197,14 @@ URL base configurable con `compras.base-url` (default Docker `http://compras:808
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
 
+### Política de fila virtual
+
+`GET /internal/eventos/{eventoId}` devuelve `eventoId`, `nombre`, `tipo`, `fechaHora`, `ciudad`, `estado`, `organizadorId`, `requiereFila` y `sectores` con `sectorId`, `nombre`, `tipo`, `filas`, `asientosPorFila`, `capacidad` y `precio`. Conserva `fechaInicio` para Compras, con el mismo instante UTC que `fechaHora`; las dimensiones no aplicables y los precios no definidos son `null`. El GET lee el valor actual sin caché y responde `404` para eventos inexistentes.
+
+MS7 llama `PUT /internal/eventos/{eventoId}/politica-fila` con `{"requiereFila":true}` o `{"requiereFila":false}`. Responde `200` con `eventoId` y el indicador; repetir el mismo valor no escribe ni cambia la versión. Para eventos cancelados, activar responde `409` incluso si ya estaba activo; desactivar está permitido. Un conflicto de versión concurrente también responde `409`. Si el evento no existe responde `404`, antes de validar el body; si existe y el body es inválido, `400`. Los eventos nuevos y los documentos antiguos sin el campo se leen con `false`, sin migración. La pausa la maneja MS7 sin cambiar este indicador; sin fila se mantiene el flujo habitual de reservas.
+
+Ambas rutas son internas, sin headers de usuario y fuera del Gateway. Este cambio no agrega validación entrante de `X-Service-Token`.
+
 ### Preferencias y recomendaciones (MS8)
 
 - **Consulta interna de eventos publicados:** MS8 llama `GET /internal/eventos-publicados` sin headers de usuario. La ruta devuelve eventos `publicado` o `agotado`, ordenados por fecha e ID, con `page` (default `0`) y `size` (default `100`, máximo `200`). No se publica por el API Gateway.
@@ -264,9 +273,11 @@ Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5
 En `postman/` están las dos colecciones:
 
 - `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 19**.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 20**.
 
 Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
+
+La carpeta **20 Política de fila** usa `eventoCompraId` preparado por la carpeta 08. Comprueba activación, consulta actual, repetición, desactivación, body inválido y evento inexistente; la versión y los casos de cancelación se verifican en las pruebas automatizadas.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 
