@@ -12576,6 +12576,78 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "21 Personal de acceso [PROPUESTA PENDIENTE]",
+      "description": "Endpoints aún no implementados. Configurar localmente eventoPersonalId, organizadorPersonalId, correoPersonal, usuarioPersonalId y servicioToken.",
+      "item": [
+        {
+          "name": "PA01 Asignar personal",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 asignación activa', function () { pm.response.to.have.status(201); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'usuarioId', 'estado', 'asignadaEn', 'revocadaEn'); pm.expect(j.estado).to.eql('ACTIVA'); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "X-User-Id", "value": "{{organizadorPersonalId}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"{{correoPersonal}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoPersonalId}}/personal-acceso", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoPersonalId}}", "personal-acceso"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PA02 Listar personal",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 lista de asignaciones', function () { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an('array'); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "X-User-Id", "value": "{{organizadorPersonalId}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }],
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoPersonalId}}/personal-acceso", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoPersonalId}}", "personal-acceso"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PA03 Consultar autorización activa",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 autorización vigente', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'usuarioId', 'autorizado'); pm.expect(j.autorizado).to.eql(true); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoPersonalId}}/personal-acceso/{{usuarioPersonalId}}/autorizacion", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoPersonalId}}", "personal-acceso", "{{usuarioPersonalId}}", "autorizacion"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PA04 Revocar personal",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('204 revocada', function () { pm.response.to.have.status(204); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "DELETE",
+            "header": [{ "key": "X-User-Id", "value": "{{organizadorPersonalId}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }],
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoPersonalId}}/personal-acceso/{{usuarioPersonalId}}", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoPersonalId}}", "personal-acceso", "{{usuarioPersonalId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "PA05 Consultar autorización revocada",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 autorización revocada', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'usuarioId', 'autorizado'); pm.expect(j.autorizado).to.eql(false); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoPersonalId}}/personal-acceso/{{usuarioPersonalId}}/autorizacion", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoPersonalId}}", "personal-acceso", "{{usuarioPersonalId}}", "autorizacion"] }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {

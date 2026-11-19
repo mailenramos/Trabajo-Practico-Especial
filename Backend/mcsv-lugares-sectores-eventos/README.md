@@ -172,7 +172,7 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 ## Integración con otros servicios
 
-La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`; este cambio no modifica la autenticación entrante. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
+La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
 
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
@@ -203,12 +203,22 @@ URL base configurable con `compras.base-url` (default Docker `http://compras:808
 
 MS7 llama `PUT /internal/eventos/{eventoId}/politica-fila` con `{"requiereFila":true}` o `{"requiereFila":false}`. Responde `200` con `eventoId` y el indicador; repetir el mismo valor no escribe ni cambia la versión. Para eventos cancelados, activar responde `409` incluso si ya estaba activo; desactivar está permitido. Un conflicto de versión concurrente también responde `409`. Si el evento no existe responde `404`, antes de validar el body; si existe y el body es inválido, `400`. Los eventos nuevos y los documentos antiguos sin el campo se leen con `false`, sin migración. La pausa la maneja MS7 sin cambiar este indicador; sin fila se mantiene el flujo habitual de reservas.
 
-Ambas rutas son internas, sin headers de usuario y fuera del Gateway. Este cambio no agrega validación entrante de `X-Service-Token`.
+Ambas rutas son internas, sin headers de usuario y fuera del Gateway.
 
 ### Preferencias y recomendaciones (MS8)
 
 - **Consulta interna de eventos publicados:** MS8 llama `GET /internal/eventos-publicados` sin headers de usuario. La ruta devuelve eventos `publicado` o `agotado`, ordenados por fecha e ID, con `page` (default `0`) y `size` (default `100`, máximo `200`). No se publica por el API Gateway.
 - **Aviso de publicación:** después de que Reservas confirma la inicialización, MS1 guarda el evento publicado y un aviso `PUBLICACION` en la misma transacción MongoDB. El aviso usa ID `publicacion-{eventoId}`, destino `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados` y payload `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`.
+
+### Personal de acceso — propuesta pendiente de implementación
+
+El change `personal-acceso-eventos` propone `POST` y `GET /eventos/{eventoId}/personal-acceso` y `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}`, para el `ORGANIZADOR` titular o `ADMIN`. El alta consultará el correo en MS6, exigirá el rol `PERSONAL_ACCESO`, devolverá `201` o `409` si ya está activa y permitirá reactivar una asignación revocada. Una caída de MS6 responderá `503` sin guardar. La revocación conservará el registro y será idempotente.
+
+MS5 consultará `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` en cada validación: responderá `autorizado: false` si no hay una asignación activa. Para evitar datos obsoletos no se usará caché; para mantener el alcance mínimo se conservarán solo el estado y las fechas de la última activación y revocación, no un historial completo.
+
+La consulta de autorización será interna, sin headers de usuario y fuera del Gateway. MS1 enviará `X-Service-Token` al consultar MS6.
+
+La variable propuesta `USUARIOS_BASE_URL` configurará la URL de MS6; **TODO:** confirmar con el grupo los defaults de host y Docker y el contrato de respuesta de MS6. Todavía no está configurada en la aplicación ni en Compose.
 
 ### Outbox de avisos
 
@@ -273,11 +283,13 @@ Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5
 En `postman/` están las dos colecciones:
 
 - `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 20**.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 20** y una carpeta 21 de requests propuestos.
 
 Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
 La carpeta **20 Política de fila** usa `eventoCompraId` preparado por la carpeta 08. Comprueba activación, consulta actual, repetición, desactivación, body inválido y evento inexistente; la versión y los casos de cancelación se verifican en las pruebas automatizadas.
+
+La carpeta **21 Personal de acceso** contiene requests de la propuesta aún no implementada. Configurá localmente `eventoPersonalId`, `organizadorPersonalId`, `correoPersonal` y `usuarioPersonalId`.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 
