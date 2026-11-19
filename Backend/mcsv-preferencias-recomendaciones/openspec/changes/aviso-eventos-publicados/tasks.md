@@ -30,17 +30,17 @@ Commit sugerido: `feat(ms8): deliver event alerts with partial-failure handling`
 
 ## 5. Documentar y facilitar pruebas
 
-- [ ] 5.1 Agregar `NOTIFICACIONES_BASE_URL` al Compose con default `http://notificaciones:8090` y pasar `SERVICIO_TOKEN` desde el entorno sin credenciales incorporadas; validar Compose base.
-- [ ] 5.2 Documentar en README cómo levantar el stub existente `postman/notificaciones-stub.js` con `SERVICIO_TOKEN`, usar los modos `ok`, `error` y `timeout`, consultar `GET /_stub/notificaciones` y configurar una falla parcial con `PUT /_stub/fallar/{usuarioId}`. No crear ni modificar el stub.
-- [ ] 5.3 Documentar endpoint, autenticación, configuración, uso del stub y simplificaciones en README: sin persistencia, secuencial, lugar igual a ciudad, recorrido de preferencias y 503 ante cualquier fallo.
-- [ ] 5.4 Agregar carpeta y request interna a Postman con base URL, variable de token y `X-Aviso-Id` opcional; validar el JSON y la ruta.
+- [x] 5.1 Agregar `NOTIFICACIONES_BASE_URL` al Compose con default `http://notificaciones:8090` y pasar `SERVICIO_TOKEN` desde el entorno sin credenciales incorporadas; validar Compose base.
+- [x] 5.2 Documentar en README cómo levantar el stub existente `postman/notificaciones-stub.js` con `SERVICIO_TOKEN`, usar los modos `ok`, `error` y `timeout`, consultar `GET /_stub/notificaciones` y configurar una falla parcial con `PUT /_stub/fallar/{usuarioId}`. No crear ni modificar el stub.
+- [x] 5.3 Documentar endpoint, autenticación, configuración, uso del stub y simplificaciones en README: sin persistencia, secuencial, lugar igual a ciudad, recorrido de preferencias y 503 ante cualquier fallo.
+- [x] 5.4 Agregar carpeta y request interna a Postman con base URL, variable de token y `X-Aviso-Id` opcional; validar el JSON y la ruta.
 
 Commit sugerido: `docs(ms8): document published-event notification flow`
 
 ## 6. Validar el cambio
 
-- [ ] 6.1 Ejecutar `mvnw.cmd test` con Docker disponible y corregir cualquier fallo de pruebas MVC, servicio, clientes o persistencia.
-- [ ] 6.2 Ejecutar `openspec validate aviso-eventos-publicados --strict` desde MS8 y corregir cualquier error o advertencia.
-- [ ] 6.3 Ejecutar `docker compose config --quiet` y `git diff --check`.
+- [x] 6.1 Ejecutar `mvnw.cmd test` con Docker disponible y corregir cualquier fallo de pruebas MVC, servicio, clientes o persistencia.
+- [x] 6.2 Ejecutar `openspec validate aviso-eventos-publicados --strict` desde MS8 y corregir cualquier error o advertencia.
+- [x] 6.3 Ejecutar `docker compose config --quiet` y `git diff --check`.
 
 Commit sugerido: `test(ms8): verify published-event notification change`

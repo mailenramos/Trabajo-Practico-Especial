@@ -2,16 +2,66 @@
   "info": {
     "_postman_id": "c1b4387b-6e17-4cb0-aeb9-2ef09a4db488",
     "name": "TicketYa - Preferencias (MS8)",
-    "description": "Operaciones de preferencias y recomendaciones del cliente autenticado.",
+    "description": "Operaciones de preferencias, recomendaciones y avisos internos.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://localhost:8089"
+    },
+    {
+      "key": "servicioToken",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "Avisos internos",
+      "item": [
+        {
+          "name": "Recibir evento publicado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "X-Aviso-Id",
+                "value": "aviso-123",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"evento-123\",\n  \"nombre\": \"Concierto\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\"Artista de ejemplo\"],\n  \"ciudad\": \"Buenos Aires\",\n  \"fechaHora\": \"2030-01-02T03:04:05Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/internal/preferencias/eventos-publicados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "preferencias",
+                "eventos-publicados"
+              ]
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "Obtener mis preferencias",
       "request": {

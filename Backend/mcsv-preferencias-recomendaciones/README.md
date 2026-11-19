@@ -1,6 +1,6 @@
 # Gestión de preferencias (MS8)
 
-Microservicio Spring Boot 3.4.4 y Java 21 para gestionar las preferencias de eventos, artistas y ciudades de un cliente, y recomendar eventos futuros según sus preferencias y señales opcionales de compras. Persiste en su propia base MongoDB standalone `ticketya_preferencias`.
+Microservicio Spring Boot 3.4.4 y Java 21 para gestionar preferencias, recomendar eventos y avisar sobre publicaciones de interés. Persiste las preferencias en su propia base MongoDB standalone `ticketya_preferencias`.
 
 ## Requisitos
 
@@ -58,7 +58,7 @@ La aplicación escucha en `http://localhost:8089`. Si no se define `MONGODB_URI`
 
 ## Endpoints y documentación
 
-Todos los endpoints requieren `X-User-Id` y `X-User-Roles` con el rol `CLIENTE`. Si falta alguno de los headers se responde `401`; si ambos están presentes pero los roles no incluyen `CLIENTE`, se responde `403`. Los roles se separan por comas, se recortan y se comparan sin distinguir mayúsculas.
+Los endpoints de preferencias y recomendaciones requieren `X-User-Id` y `X-User-Roles` con el rol `CLIENTE`. Si falta alguno de los headers se responde `401`; si ambos están presentes pero los roles no incluyen `CLIENTE`, se responde `403`. Los roles se separan por comas, se recortan y se comparan sin distinguir mayúsculas.
 
 | Método | Ruta | Respuesta |
 |---|---|---|
@@ -95,6 +95,29 @@ MS8 combina las preferencias guardadas con el catálogo de eventos publicados de
 
 Las comparaciones recortan espacios y no distinguen mayúsculas. Cada regla suma como máximo una vez por evento. Simplificaciones del alcance: solo se consultan co-compras para hasta cinco de los eventos comprados más recientes (Compras informa como máximo 20 IDs distintos); las cantidades no multiplican los puntos; si falla cualquier llamada de Compras se descartan todas sus señales y se recomienda solo con preferencias; los eventos ya comprados no se excluyen. Los fallos de MS1 no tienen fallback y responden `503`.
 
+### Avisos de eventos publicados
+
+La outbox de MS1 invoca `POST /internal/preferencias/eventos-publicados` directamente, sin pasar por el Gateway. Requiere `X-Service-Token` igual a `SERVICIO_TOKEN`; si falta, no coincide o MS8 no tiene configurado el token, responde `403`. No requiere headers de identidad. `X-Aviso-Id` es opcional: se usa como correlación, o se genera un UUID si falta o está vacío.
+
+Ejemplo de body, con la fecha UTC que envía MS1:
+
+```json
+{
+  "eventoId": "evento-123",
+  "nombre": "Concierto",
+  "tipo": "MUSICA",
+  "participantes": ["Artista de ejemplo"],
+  "ciudad": "Buenos Aires",
+  "fechaHora": "2030-01-02T03:04:05Z"
+}
+```
+
+Un body inválido produce `400`. MS8 selecciona a un cliente solo si coinciden **un artista y la ciudad**, sin distinguir mayúsculas ni espacios exteriores; no usa `tiposEvento`. Una lista de participantes vacía es válida y no genera destinatarios.
+
+MS8 envía un POST por destinatario a `/internal/notificaciones`, con el token de servicio. Si todos se aceptan o no hay destinatarios, responde `202` con `{"destinatarios": n, "enviados": n}`. Si falla cualquier envío, intenta los restantes y responde `503` para que la outbox reintente. Notificaciones deduplica usando el identificador de acontecimiento estable, tipo y usuario.
+
+Simplificaciones: MS8 recorre las preferencias existentes, procesa los envíos secuencialmente y no persiste avisos enviados; la deduplicación queda a cargo de Notificaciones. El campo `lugar` del aviso es la ciudad y `fecha` se formatea en `America/Argentina/Buenos_Aires`. Las llamadas usan timeouts de conexión de 2 segundos y lectura de 5 segundos.
+
 ## Variables de entorno
 
 | Variable | Predeterminado | Uso |
@@ -104,7 +127,8 @@ Las comparaciones recortan espacios y no distinguen mayúsculas. Cada regla suma
 | `SPRING_PROFILES_ACTIVE` | `docker` en Compose; sin forzar en host | Perfil Spring activo. |
 | `EVENTOS_BASE_URL` | `http://localhost:8081` en host; `http://lugares:8081` en Compose | URL base del catálogo de MS1. |
 | `COMPRAS_BASE_URL` | `http://localhost:8083` en host; `http://compras:8083` en Compose | URL base de los endpoints internos de Compras. |
-| `SERVICIO_TOKEN` | Sin valor predeterminado | Valor enviado a Compras en el header `X-Service-Token`. MS8 arranca y registra un WARN si no está definido; si Compras no acepta la llamada, se usan solo las preferencias. En Docker Compose se toma del entorno del proceso que ejecuta Compose. |
+| `NOTIFICACIONES_BASE_URL` | `http://localhost:8090` en host; `http://notificaciones:8090` en Compose | URL base del servicio de Notificaciones. |
+| `SERVICIO_TOKEN` | Sin valor útil predeterminado | Valor exigido en el callback y enviado en `X-Service-Token` a Compras y Notificaciones. Si falta, MS8 registra un WARN al arrancar y rechaza el callback con `403`; si Compras no acepta la llamada, se usan solo preferencias. Compose lo toma del entorno del proceso que lo ejecuta. |
 
 Para usar un token al ejecutar MS8 en el host, configúralo en el entorno antes de iniciar la aplicación:
 
@@ -130,7 +154,58 @@ En la red compartida, el Gateway `gateway:8086` llega a MS8 mediante `MS8_URL=ht
 
 ## Postman
 
-La colección `postman/Preferencias.postman_collection.json` incluye GET, PUT y DELETE de preferencias y GET de recomendaciones. Define `baseUrl` como `http://localhost:8089` y envía los headers de identidad `X-User-Id` y `X-User-Roles`.
+La colección `postman/Preferencias.postman_collection.json` incluye las operaciones de preferencias y recomendaciones y una carpeta para el callback interno. Define `baseUrl` como `http://localhost:8089`; configura la variable `servicioToken` para la solicitud interna y, opcionalmente, habilita su header `X-Aviso-Id`.
+
+### Probar avisos con el stub de Notificaciones
+
+El stub existente `postman/notificaciones-stub.js` requiere Node.js y escucha en `8090` por defecto. En una terminal PowerShell independiente, usar un token de prueba y arrancarlo:
+
+```powershell
+$env:SERVICIO_TOKEN = "token-local"
+$env:PORT = "8090"
+node .\postman\notificaciones-stub.js
+```
+
+Iniciar MongoDB como se indica arriba y, en otra terminal, iniciar MS8 **en el host** con el mismo token y la URL del stub:
+
+```powershell
+$env:SERVICIO_TOKEN = "token-local"
+$env:NOTIFICACIONES_BASE_URL = "http://localhost:8090"
+$env:PORT = "8089"
+.\mvnw.cmd spring-boot:run
+```
+
+En un entorno de prueba aislado, desde una tercera terminal cargar preferencias coincidentes para dos clientes y enviar el callback. El PUT reemplaza cualquier preferencia previa de esos IDs.
+
+```powershell
+$preferencias = '{"tiposEvento":[],"artistas":["Artista de ejemplo"],"ciudades":["Buenos Aires"]}'
+foreach ($usuario in @("cliente-123", "cliente-456")) {
+    Invoke-RestMethod -Method Put -Uri "http://localhost:8089/preferencias/me" `
+        -Headers @{"X-User-Id"=$usuario; "X-User-Roles"="CLIENTE"} `
+        -ContentType "application/json" -Body $preferencias
+}
+$evento = '{"eventoId":"evento-123","nombre":"Concierto","tipo":"MUSICA","participantes":["Artista de ejemplo"],"ciudad":"Buenos Aires","fechaHora":"2030-01-02T03:04:05Z"}'
+Invoke-RestMethod -Method Post -Uri "http://localhost:8089/internal/preferencias/eventos-publicados" `
+    -Headers @{"X-Service-Token"="token-local"; "X-Aviso-Id"="aviso-123"} `
+    -ContentType "application/json" -Body $evento
+Invoke-RestMethod -Uri "http://localhost:8090/_stub/notificaciones"
+```
+
+El diagnóstico `GET /_stub/notificaciones` muestra avisos aceptados y reentregas. Para probar una falla parcial, configurar `PUT /_stub/fallar/cliente-456` y reenviar el callback: MS8 responde `503` después de intentar ambos destinatarios. Usar otro `eventoId` si se quiere distinguir los avisos de esta prueba; el stub deduplica los reintentos.
+
+```powershell
+Invoke-RestMethod -Method Put -Uri "http://localhost:8090/_stub/fallar/cliente-456"
+Invoke-RestMethod -Method Delete -Uri "http://localhost:8090/_stub/fallar"
+```
+
+Los modos globales se cambian con `POST /_stub/modo/ok` (acepta), `POST /_stub/modo/error` (responde `500`) y `POST /_stub/modo/timeout` (no responde). Por ejemplo:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8090/_stub/modo/error"
+Invoke-RestMethod -Method Post -Uri "http://localhost:8090/_stub/modo/ok"
+```
+
+`DELETE /_stub/notificaciones` limpia avisos y fallas por usuario; todos los datos del stub están en memoria. Si MS8 corre en Docker, `localhost:8090` apunta al contenedor de MS8, no al host: hay que configurar una dirección alcanzable desde ese contenedor.
 
 ### Probar el endpoint con el stub de Compras
 
