@@ -35,18 +35,25 @@ El archivo dev publica la aplicación en `8081:8081` y MongoDB solo en `127.0.0.
 
 ### Integración con el Compose general
 
-El contrato de integración para MS1 es:
+La red compartida `ticketya-net` es externa y se crea una sola vez por entorno Docker:
 
-- Red compartida externa `ticketya-net`; el Compose general debe unirse a ella como `external`.
-- Nombre DNS del servicio MS1: `lugares`.
-- Puerto interno de MS1: `8081`.
-- El Compose base de MS1 no publica puertos; el acceso entre servicios es por la red Docker.
+```sh
+docker network create ticketya-net
+```
 
-Los servicios vecinos previstos son `reservas:8080`, `compras:8083` (nombres provisionales) y `fila-virtual:8088`. El comando exacto para combinar MS1 con el Compose general queda **pendiente de confirmar con el grupo**, junto con la ruta y los nombres definitivos de sus servicios.
+La topología de MS1 y los servicios confirmados por el grupo es:
+
+- `lugares` escucha en el puerto interno `8081`, no publica puertos en el Compose base y se une a la red privada de este Compose y a `ticketya-net`.
+- `mongodb` permanece únicamente en la red privada de este Compose; **no** se une a `ticketya-net`.
+- Reservas llama a MS1 directamente por `lugares:8081` y Compras también se conecta directamente por el nombre del servicio, sin pasar por el Gateway.
+- Servicios y puertos: Reservas `reservas:8080`, Compras `compras:8083`, Fila virtual `fila-virtual:8088`, Gateway `gateway:8086`, Pagos `pagos:8084` y Entradas `entradas:8085`.
+- El Gateway llega a MS1 mediante `MS1_URL=http://lugares:8081`; no enruta `/actuator` ni `/internal`.
+
+El Compose general debe ubicarse en la raíz del repositorio, pero todavía no existe. El comando exacto para combinarlo con el Compose de MS1 queda **pendiente hasta que se cree ese archivo**.
 
 ### Ejecutar MS1 desde el host
 
-Para desarrollar con `mvn spring-boot:run`, primero creá `ticketya-net` si aún no existe y levantá MongoDB con el archivo dev, que publica el puerto solo en loopback:
+Para desarrollar con `mvn spring-boot:run`, levantá MongoDB con el archivo dev, que publica el puerto solo en loopback:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb
@@ -182,7 +189,7 @@ Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` 
 
 ### Compras — contrato confirmado
 
-URL base configurable con `compras.base-url` (default Docker `http://compras:8083`, nombre de servicio provisional; desde el host, `http://localhost:8083`).
+URL base configurable con `compras.base-url` (default Docker `http://compras:8083`; desde el host, `http://localhost:8083`). Compras consulta este servicio directamente por el nombre `lugares:8081`, sin pasar por el Gateway.
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
@@ -224,7 +231,7 @@ El GET interno es una ruta directa entre servicios: no exige headers de usuario 
 
 ## Puertos de servicios vecinos
 
-MS1 escucha en el puerto interno `8081` por defecto (`PORT` permite sobrescribirlo). Los servicios vecinos previstos son `reservas:8080`, `compras:8083` (provisional) y `fila-virtual:8088`.
+MS1 escucha en el puerto interno `8081` por defecto (`PORT` permite sobrescribirlo). Los servicios confirmados son Reservas `reservas:8080`, Compras `compras:8083`, Fila virtual `fila-virtual:8088`, Gateway `gateway:8086`, Pagos `pagos:8084` y Entradas `entradas:8085`. Reservas y Compras llaman a MS1 directamente por nombre de servicio, no mediante el Gateway; el Gateway usa `MS1_URL=http://lugares:8081` y no enruta `/actuator` ni `/internal`. MongoDB no está conectado a `ticketya-net`.
 
 ## Variables de entorno
 
