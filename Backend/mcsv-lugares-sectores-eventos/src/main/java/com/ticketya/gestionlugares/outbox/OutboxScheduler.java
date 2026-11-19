@@ -29,6 +29,7 @@ public class OutboxScheduler {
     @Scheduled(fixedDelayString = "${outbox.dispatcher.interval:60000}",
             initialDelayString = "${outbox.dispatcher.interval:60000}")
     public void procesarPendientes() {
+        if (!dispatcher.puedeProcesar()) return;
         Instant ahora = clock.instant();
         long agotados = outboxRepository.marcarAvisosAgotados(ahora, OutboxDispatcher.MAX_INTENTOS);
         if (agotados > 0) {

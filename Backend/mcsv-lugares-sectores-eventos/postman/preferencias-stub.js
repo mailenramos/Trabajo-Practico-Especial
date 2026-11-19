@@ -12,6 +12,7 @@
 const http = require('http');
 
 const PORT = process.env.PORT || 8089;
+const SERVICIO_TOKEN = process.env.SERVICIO_TOKEN;
 const RUTA_AVISO = '/internal/preferencias/eventos-publicados';
 const CAMPOS = ['eventoId', 'nombre', 'tipo', 'participantes', 'ciudad', 'fechaHora'];
 
@@ -42,6 +43,9 @@ const servidor = http.createServer(async (req, res) => {
   const ruta = url.split('?')[0];
 
   if (method === 'POST' && ruta === RUTA_AVISO) {
+    if (SERVICIO_TOKEN && SERVICIO_TOKEN.trim() && req.headers['x-service-token'] !== SERVICIO_TOKEN) {
+      return responder(res, 403, { error: 'Token de servicio inválido' });
+    }
     const crudo = await leerCuerpo(req);
     const avisoId = req.headers['x-aviso-id'] || null;
     console.log(`[${new Date().toISOString()}] POST ${ruta} X-Aviso-Id=${avisoId} modo=${modo}`);

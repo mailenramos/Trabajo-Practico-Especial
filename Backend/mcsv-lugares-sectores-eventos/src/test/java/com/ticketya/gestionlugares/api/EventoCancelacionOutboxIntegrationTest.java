@@ -57,7 +57,8 @@ import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 
 @SpringBootTest(properties = {
-        "outbox.dispatcher.interval=3600000"
+        "outbox.dispatcher.interval=3600000",
+        "servicio.token=token-prueba"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

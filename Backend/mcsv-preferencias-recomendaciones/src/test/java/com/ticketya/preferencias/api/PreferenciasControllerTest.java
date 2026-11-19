@@ -27,12 +27,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.ticketya.preferencias.config.PreferenciasWebConfiguration;
 import com.ticketya.preferencias.domain.Preferencia;
+import com.ticketya.preferencias.integration.compras.ComprasProperties;
 import com.ticketya.preferencias.security.UserIdentity;
 import com.ticketya.preferencias.service.PreferenciasInvalidasException;
 import com.ticketya.preferencias.service.PreferenciasService;
 
 @WebMvcTest(PreferenciasController.class)
-@Import({ApiExceptionHandler.class, PreferenciasWebConfiguration.class})
+@Import({ApiExceptionHandler.class, PreferenciasWebConfiguration.class, AvisoTokenInterceptor.class})
 class PreferenciasControllerTest {
     private static final String RUTA = "/preferencias/me";
     private static final String USUARIO_ID = "cliente-1";
@@ -45,6 +46,9 @@ class PreferenciasControllerTest {
 
     @MockitoBean
     private PreferenciasService preferenciasService;
+
+    @MockitoBean
+    private ComprasProperties comprasProperties;
 
     @Test
     void requiereAmbosHeadersEnCadaEndpoint() throws Exception {

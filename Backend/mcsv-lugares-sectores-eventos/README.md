@@ -19,6 +19,8 @@ Antes de iniciar Compose, creá la red externa compartida (solo hace falta una v
 docker network create ticketya-net
 ```
 
+Configurá `SERVICIO_TOKEN` en el entorno o en un archivo `.env` local ignorado por Git, con el valor compartido por los servicios receptores. El perfil `docker` no arranca si falta o contiene solo espacios.
+
 Para levantar MS1 y MongoDB aislados, sin publicar puertos en el host:
 
 ```sh
@@ -169,7 +171,7 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 ## Integración con otros servicios
 
-La comunicación entre servicios en la Entrega 1 es directa, por REST/JSON, y no usa autenticación entre servicios. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
+La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`; este cambio no modifica la autenticación entrante. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
 
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
@@ -212,6 +214,8 @@ Los avisos se guardan en la colección MongoDB `outbox`:
 
 `OUTBOX_DISPATCHER_INTERVAL` (`outbox.dispatcher.interval`, default `60s`) configura el intervalo del scheduler. El resto de la política actualmente no es configurable: máximo 8 intentos contados al reclamar; espera inicial de 30 s, factor 2, tope de 15 min, sin jitter y `leaseHasta` fijado a 60 s desde el reclamo.
 
+Todos los avisos salientes incluyen `X-Service-Token` y `X-Aviso-Id`. Sin `SERVICIO_TOKEN` en perfiles distintos de `docker`, se registra un aviso al arrancar y el dispatcher no procesa ni reclama avisos: permanecen pendientes sin consumir intentos ni perderse. Configurá el token y reiniciá MS1 para reanudar la entrega. Un `403` del destino sigue siendo un error definitivo.
+
 La entrega inmediata de `PUBLICACION` es síncrona después del commit; si Preferencias no responde, puede demorar hasta unos 7 s (timeouts de conexión y lectura). Ese fallo no revierte la publicación ni cambia su respuesta exitosa. Los reintentos posteriores son asíncronos, a cargo del dispatcher.
 
 Para inspeccionar avisos con `mongosh`:
@@ -246,6 +250,7 @@ Defaults aplicados por el Compose de Docker:
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
 | `PREFERENCIAS_BASE_URL` | `preferencias.base-url` | `http://preferencias:8089` |
+| `SERVICIO_TOKEN` | `servicio.token` | Sin default; obligatorio con perfil `docker` |
 | `EVENTOS_FINALIZACION_INTERVAL` | `eventos.finalizacion.interval` | `60s` |
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
@@ -288,6 +293,8 @@ node postman/preferencias-stub.js
 ```
 
 Requiere Node.js. Escucha en el puerto `8089` por defecto; `PORT` permite cambiarlo. Si MS1 corre en Docker, configurá `PREFERENCIAS_BASE_URL=http://host.docker.internal:8089` para que el contenedor alcance el stub del host (ajustá el puerto también si cambiaste `PORT`).
+
+Para verificar el token, configurá `SERVICIO_TOKEN` con el mismo valor en el entorno del stub antes de iniciarlo y en MS1 antes de arrancar. El stub responde `403` si el header falta o no coincide; sin token configurado no lo valida. No incluyas el secreto en el repositorio.
 
 El stub recibe `POST /internal/preferencias/eventos-publicados`, imprime el aviso y su header `X-Aviso-Id`, y valida que estén `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`; `participantes` debe ser una lista. Devuelve `202` para un `eventoId` nuevo y `200` si ya lo había recibido. `GET /_stub/avisos` lista lo recibido y `DELETE /_stub/avisos` limpia la lista. Para simular la entrega, `POST /_stub/modo/ok` activa respuestas normales, `POST /_stub/modo/error` hace que el aviso responda `503`, y `POST /_stub/modo/timeout` deja el aviso sin respuesta; los endpoints para cambiar el modo responden normalmente.
 

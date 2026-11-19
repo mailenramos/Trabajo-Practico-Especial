@@ -52,7 +52,7 @@ import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 
-@SpringBootTest(properties = "outbox.dispatcher.interval=3600000")
+@SpringBootTest(properties = {"outbox.dispatcher.interval=3600000", "servicio.token=token-prueba"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
@@ -182,6 +182,7 @@ class EventoPublicacionOutboxIntegrationTest {
         assertEquals("POST", request.method());
         assertEquals(PREFERENCIAS_PATH, request.path());
         assertEquals("publicacion-" + eventoId, request.avisoId());
+        assertEquals("token-prueba", request.serviceToken());
         assertEquals(EstadoEvento.PUBLICADO.name(), request.estadoEvento());
         JsonNode payload = objectMapper.readTree(request.body());
         assertEquals(eventoId, payload.get("eventoId").asText());
@@ -251,7 +252,8 @@ class EventoPublicacionOutboxIntegrationTest {
                 EstadoEvento estadoEvento = EVENTO_REPOSITORY.get().findById(eventoId)
                         .map(Evento::getEstado).orElse(null);
                 REQUESTS.add(new RequestCapture(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),
-                        exchange.getRequestHeaders().getFirst("X-Aviso-Id"), body, estadoEvento == null
+                        exchange.getRequestHeaders().getFirst("X-Aviso-Id"),
+                        exchange.getRequestHeaders().getFirst("X-Service-Token"), body, estadoEvento == null
                                 ? null : estadoEvento.name()));
                 Integer status = RESPUESTAS.poll();
                 exchange.sendResponseHeaders(status == null ? 500 : status, -1);
@@ -264,6 +266,7 @@ class EventoPublicacionOutboxIntegrationTest {
         }
     }
 
-    private record RequestCapture(String method, String path, String avisoId, String body, String estadoEvento) {
+    private record RequestCapture(String method, String path, String avisoId, String serviceToken,
+            String body, String estadoEvento) {
     }
 }

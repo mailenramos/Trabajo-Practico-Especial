@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 
+import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
@@ -26,14 +27,22 @@ public class OutboxDispatcher {
     private final OutboxAvisoRepository outboxRepository;
     private final OutboxHttpClient httpClient;
     private final Clock clock;
+    private final ServicioToken servicioToken;
 
-    public OutboxDispatcher(OutboxAvisoRepository outboxRepository, OutboxHttpClient httpClient, Clock outboxClock) {
+    public OutboxDispatcher(OutboxAvisoRepository outboxRepository, OutboxHttpClient httpClient, Clock outboxClock,
+            ServicioToken servicioToken) {
         this.outboxRepository = outboxRepository;
         this.httpClient = httpClient;
         this.clock = outboxClock;
+        this.servicioToken = servicioToken;
+    }
+
+    public boolean puedeProcesar() {
+        return servicioToken.disponible();
     }
 
     public boolean procesarSiguiente() {
+        if (!puedeProcesar()) return false;
         Instant ahora = clock.instant();
         Optional<AvisoOutbox> reclamado = outboxRepository.reclamarSiguiente(
                 ahora, ahora.plus(LEASE), MAX_INTENTOS);
@@ -41,6 +50,7 @@ public class OutboxDispatcher {
     }
 
     public boolean procesarAviso(String avisoId) {
+        if (!puedeProcesar()) return false;
         Instant ahora = clock.instant();
         Optional<AvisoOutbox> reclamado = outboxRepository.reclamarPorId(
                 avisoId, ahora, ahora.plus(LEASE), MAX_INTENTOS);
@@ -53,7 +63,8 @@ public class OutboxDispatcher {
         try {
             procesarRespuesta(aviso, ahora, httpClient.enviar(aviso));
         } catch (ResourceAccessException exception) {
-            registrarFalloReintentable(aviso, ahora, exception.getMostSpecificCause().toString());
+            registrarFalloReintentable(aviso, ahora,
+                    servicioToken.ocultarEn(exception.getMostSpecificCause().toString()));
         }
         return true;
     }

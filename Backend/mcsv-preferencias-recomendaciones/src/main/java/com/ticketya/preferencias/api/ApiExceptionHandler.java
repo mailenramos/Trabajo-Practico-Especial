@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.ticketya.preferencias.integration.eventos.EventosCatalogoUnavailableException;
+import com.ticketya.preferencias.service.NotificacionesPartialFailureException;
 import com.ticketya.preferencias.service.ForbiddenException;
 import com.ticketya.preferencias.service.PreferenciasInvalidasException;
 import com.ticketya.preferencias.service.UnauthorizedException;
@@ -52,6 +53,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiError> manejarProhibido(ForbiddenException exception) {
         return error(HttpStatus.FORBIDDEN, exception.getMessage(), null);
+    }
+
+    @ExceptionHandler(ServicioTokenInvalidoException.class)
+    public ResponseEntity<ApiError> manejarTokenDeServicioInvalido(ServicioTokenInvalidoException exception) {
+        return error(HttpStatus.FORBIDDEN, exception.getMessage(), null);
+    }
+
+    @ExceptionHandler(NotificacionesPartialFailureException.class)
+    public ResponseEntity<ApiError> manejarFalloParcialNotificaciones(
+            NotificacionesPartialFailureException exception) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), null);
     }
 
     @ExceptionHandler(EventosCatalogoUnavailableException.class)

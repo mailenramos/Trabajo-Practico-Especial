@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Map;
 import java.util.List;
 
@@ -19,15 +20,17 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.mock.env.MockEnvironment;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
+import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 
-@SpringBootTest(properties = "outbox.dispatcher.interval=3600000")
+@SpringBootTest(properties = {"outbox.dispatcher.interval=3600000", "servicio.token=token-prueba"})
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
 class OutboxSchedulerTest {
@@ -45,6 +48,7 @@ class OutboxSchedulerTest {
 
     @Autowired private OutboxScheduler scheduler;
     @Autowired private OutboxAvisoRepository outboxRepository;
+    @Autowired private Clock clock;
     @MockBean private OutboxHttpClient httpClient;
 
     @BeforeEach
@@ -78,6 +82,38 @@ class OutboxSchedulerTest {
         assertEquals(EstadoAvisoOutbox.ERROR_FINAL, persistido.getEstado());
         assertEquals("intentos agotados", persistido.getUltimoError());
         verify(httpClient, never()).enviar(any(AvisoOutbox.class));
+    }
+
+    @Test
+    void sinTokenNoReclamaNiBarreYEntregaAlConfigurarToken() {
+        AvisoOutbox pendiente = aviso("aviso-espera", Instant.now().minusSeconds(1), 2);
+        pendiente.setUltimoError("error previo");
+        outboxRepository.insert(pendiente);
+        AvisoOutbox agotado = aviso("aviso-agotado-espera", Instant.now().minusSeconds(1), 8);
+        outboxRepository.insert(agotado);
+        OutboxDispatcher pausado = new OutboxDispatcher(outboxRepository, httpClient, clock,
+                new ServicioToken("   ", new MockEnvironment()));
+        OutboxScheduler schedulerPausado = new OutboxScheduler(outboxRepository, pausado, clock);
+
+        schedulerPausado.procesarPendientes();
+        org.junit.jupiter.api.Assertions.assertFalse(pausado.procesarAviso(pendiente.getId()));
+        org.junit.jupiter.api.Assertions.assertFalse(pausado.procesarSiguiente());
+
+        AvisoOutbox sinCambios = outboxRepository.findById(pendiente.getId()).orElseThrow();
+        assertEquals(EstadoAvisoOutbox.PENDIENTE, sinCambios.getEstado());
+        assertEquals(2, sinCambios.getIntentos());
+        assertEquals("error previo", sinCambios.getUltimoError());
+        assertEquals(EstadoAvisoOutbox.PENDIENTE,
+                outboxRepository.findById(agotado.getId()).orElseThrow().getEstado());
+        verify(httpClient, never()).enviar(any(AvisoOutbox.class));
+
+        when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
+        OutboxDispatcher habilitado = new OutboxDispatcher(outboxRepository, httpClient, clock,
+                new ServicioToken("token-prueba", new MockEnvironment()));
+        org.junit.jupiter.api.Assertions.assertTrue(habilitado.procesarAviso(pendiente.getId()));
+        AvisoOutbox entregado = outboxRepository.findById(pendiente.getId()).orElseThrow();
+        assertEquals(EstadoAvisoOutbox.ENTREGADO, entregado.getEstado());
+        assertEquals(3, entregado.getIntentos());
     }
 
     @Test

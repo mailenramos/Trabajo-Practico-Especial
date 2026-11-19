@@ -10,9 +10,10 @@ import org.springframework.web.client.RestClient;
 
 import com.ticketya.preferencias.integration.compras.ComprasProperties;
 import com.ticketya.preferencias.integration.eventos.EventosProperties;
+import com.ticketya.preferencias.integration.notificaciones.NotificacionesProperties;
 
 @Configuration
-@EnableConfigurationProperties({EventosProperties.class, ComprasProperties.class})
+@EnableConfigurationProperties({EventosProperties.class, ComprasProperties.class, NotificacionesProperties.class})
 public class IntegracionesHttpConfiguration {
 
     @Bean("eventosRestClient")
@@ -27,6 +28,16 @@ public class IntegracionesHttpConfiguration {
 
     @Bean("comprasRestClient")
     RestClient comprasRestClient(RestClient.Builder builder, ComprasProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(properties.getConnectTimeout());
+        requestFactory.setReadTimeout(properties.getReadTimeout());
+        return builder.baseUrl(properties.getBaseUrl())
+                .requestFactory(requestFactory)
+                .build();
+    }
+
+    @Bean("notificacionesRestClient")
+    RestClient notificacionesRestClient(RestClient.Builder builder, NotificacionesProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(properties.getConnectTimeout());
         requestFactory.setReadTimeout(properties.getReadTimeout());

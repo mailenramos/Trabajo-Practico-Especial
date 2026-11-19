@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.ticketya.preferencias.config.PreferenciasWebConfiguration;
 import com.ticketya.preferencias.domain.Preferencia;
 import com.ticketya.preferencias.integration.compras.ComprasClient;
+import com.ticketya.preferencias.integration.compras.ComprasProperties;
 import com.ticketya.preferencias.integration.compras.ComprasUnavailableException;
 import com.ticketya.preferencias.integration.compras.SenalesCompras;
 import com.ticketya.preferencias.integration.eventos.EventoPublicado;
@@ -32,7 +33,8 @@ import com.ticketya.preferencias.service.PreferenciasService;
 import com.ticketya.preferencias.service.RecomendacionesService;
 
 @WebMvcTest(RecomendacionesController.class)
-@Import({ApiExceptionHandler.class, PreferenciasWebConfiguration.class, RecomendacionesService.class})
+@Import({ApiExceptionHandler.class, PreferenciasWebConfiguration.class, AvisoTokenInterceptor.class,
+        RecomendacionesService.class})
 class RecomendacionesControllerTest {
     private static final String RUTA = "/recomendaciones/me";
     private static final String USUARIO_ID = "cliente-1";
@@ -52,6 +54,9 @@ class RecomendacionesControllerTest {
 
     @MockitoBean
     private Clock clock;
+
+    @MockitoBean
+    private ComprasProperties comprasProperties;
 
     @BeforeEach
     void configurarDependencias() {

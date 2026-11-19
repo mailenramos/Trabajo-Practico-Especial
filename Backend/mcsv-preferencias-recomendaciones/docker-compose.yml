@@ -30,6 +30,7 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       EVENTOS_BASE_URL: ${EVENTOS_BASE_URL:-http://lugares:8081}
       COMPRAS_BASE_URL: ${COMPRAS_BASE_URL:-http://compras:8083}
+      NOTIFICACIONES_BASE_URL: ${NOTIFICACIONES_BASE_URL:-http://notificaciones:8090}
       SERVICIO_TOKEN: ${SERVICIO_TOKEN}
     depends_on:
       mongodb-preferencias:

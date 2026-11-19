@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.ConfigDataApplicationContextInitial
 
 import com.ticketya.preferencias.integration.compras.ComprasProperties;
 import com.ticketya.preferencias.integration.eventos.EventosProperties;
+import com.ticketya.preferencias.integration.notificaciones.NotificacionesProperties;
 
 class IntegracionesHttpConfigurationTest {
 
@@ -24,6 +25,7 @@ class IntegracionesHttpConfigurationTest {
                 .run(context -> {
                     EventosProperties eventos = context.getBean(EventosProperties.class);
                     ComprasProperties compras = context.getBean(ComprasProperties.class);
+                    NotificacionesProperties notificaciones = context.getBean(NotificacionesProperties.class);
 
                     assertEquals("http://localhost:8081", eventos.getBaseUrl());
                     assertEquals(Duration.ofSeconds(2), eventos.getConnectTimeout());
@@ -32,6 +34,9 @@ class IntegracionesHttpConfigurationTest {
                     assertEquals("", compras.getServicioToken());
                     assertEquals(Duration.ofSeconds(2), compras.getConnectTimeout());
                     assertEquals(Duration.ofSeconds(5), compras.getReadTimeout());
+                    assertEquals("http://localhost:8090", notificaciones.getBaseUrl());
+                    assertEquals(Duration.ofSeconds(2), notificaciones.getConnectTimeout());
+                    assertEquals(Duration.ofSeconds(5), notificaciones.getReadTimeout());
                 });
     }
 }

@@ -24,12 +24,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.mock.env.MockEnvironment;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class OutboxDispatcherTest {
 
     private static final Instant AHORA = Instant.parse("2026-11-18T18:00:00Z");
@@ -49,7 +53,7 @@ class OutboxDispatcherTest {
         when(outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), OutboxDispatcher.MAX_INTENTOS))
                 .thenReturn(Optional.of(aviso));
         dispatcher = new OutboxDispatcher(outboxRepository, httpClient,
-                Clock.fixed(AHORA, ZoneOffset.UTC));
+                Clock.fixed(AHORA, ZoneOffset.UTC), new ServicioToken("token-prueba", new MockEnvironment()));
     }
 
     @ParameterizedTest
@@ -67,7 +71,7 @@ class OutboxDispatcherTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {400, 404, 409})
+    @ValueSource(ints = {400, 403, 404, 409})
     void errores4xxDefinitivosNoSeReintentan(int status) {
         when(httpClient.enviar(aviso)).thenReturn(status);
 
@@ -113,6 +117,16 @@ class OutboxDispatcherTest {
         assertEquals(EstadoAvisoOutbox.PENDIENTE, aviso.getEstado());
         assertEquals(AHORA.plusSeconds(30), aviso.getProximoIntento());
         assertTrue(aviso.getUltimoError().contains("ConnectException"));
+    }
+
+    @Test
+    void ocultaTokenEnErrorPersistido(CapturedOutput output) {
+        when(httpClient.enviar(aviso)).thenThrow(new ResourceAccessException(
+                "error token-prueba", new ConnectException("token-prueba")));
+        dispatcher.procesarSiguiente();
+        assertTrue(!aviso.getUltimoError().contains("token-prueba"));
+        assertTrue(!output.getOut().contains("token-prueba"));
+        assertEquals(EstadoAvisoOutbox.PENDIENTE, aviso.getEstado());
     }
 
     @Test
