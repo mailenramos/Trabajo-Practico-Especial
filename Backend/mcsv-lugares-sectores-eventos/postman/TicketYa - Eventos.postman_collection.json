@@ -6641,7 +6641,7 @@
           "response": []
         }
       ],
-      "description": "Requiere la carpeta 00, un Reservas respondiendo en localhost:8080 (reservas-stub.js) y el simulador de Compras en localhost:8083 (compras-stub.js)."
+      "description": "Requiere la carpeta 00, un Reservas respondiendo en localhost:8080 (reservas-stub.js) y el simulador de Compras en localhost:8083 (compras-eventos-stub.js)."
     },
     {
       "name": "10 [Reservas ENCENDIDO, Compras APAGADO] Aviso pendiente",
@@ -6975,7 +6975,7 @@
           "response": []
         }
       ],
-      "description": "Requiere la carpeta 00, Reservas en localhost:8080 y NADA escuchando en el 8083. Después: encender compras-stub.js, esperar el reenvío (intervalo configurable) y correr la carpeta 11."
+      "description": "Requiere la carpeta 00, Reservas en localhost:8080 y NADA escuchando en el 8083. Después: encender compras-eventos-stub.js, esperar el reenvío (intervalo configurable) y correr la carpeta 11."
     },
     {
       "name": "11 [Correr después de la 10] Reenvío del aviso pendiente",
@@ -7019,7 +7019,7 @@
           "response": []
         }
       ],
-      "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-stub.js y esperado el intervalo de reenvío (60 segundos)."
+      "description": "Ejecutar solo después de haber corrido la carpeta 10, encendido compras-eventos-stub.js y esperado el intervalo de reenvío (60 segundos)."
     },
     {
       "name": "12 Preparación de búsqueda (requiere Reservas ENCENDIDO)",
