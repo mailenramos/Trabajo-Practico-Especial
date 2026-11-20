@@ -2,6 +2,7 @@ package ticketya.cliente.rest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -21,11 +22,19 @@ abstract class ClienteRest {
     private final String servicio;
 
     protected ClienteRest(String servicio, String urlBase, Duration timeoutConexion, Duration timeoutLectura) {
+        this(servicio, urlBase, timeoutConexion, timeoutLectura, new ClientHttpRequestInterceptor[0]);
+    }
+
+    /** Con interceptores que se aplican a todas las llamadas del cliente (por ejemplo, encabezados). */
+    protected ClienteRest(String servicio, String urlBase, Duration timeoutConexion, Duration timeoutLectura,
+                          ClientHttpRequestInterceptor... interceptores) {
         this.servicio = servicio;
         SimpleClientHttpRequestFactory fabrica = new SimpleClientHttpRequestFactory();
         fabrica.setConnectTimeout(timeoutConexion);
         fabrica.setReadTimeout(timeoutLectura);
-        this.http = RestClient.builder().baseUrl(urlBase).requestFactory(fabrica).build();
+        this.http = RestClient.builder().baseUrl(urlBase).requestFactory(fabrica)
+                .requestInterceptors(lista -> lista.addAll(java.util.List.of(interceptores)))
+                .build();
     }
 
     /**

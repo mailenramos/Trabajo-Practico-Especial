@@ -13,6 +13,7 @@ import ticketya.modelo.TipoAviso;
 import ticketya.repositorio.AvisoPendienteRepository;
 import ticketya.repositorio.CompraRepository;
 import ticketya.repositorio.CompradorDeEvento;
+import ticketya.web.CorrelacionFilter;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
@@ -119,7 +120,20 @@ public class AvisoService {
     }
 
     /**
-     * Evento modificado: un aviso EVENTO_MODIFICADO por cliente con una compra CONFIRMADA del evento,
+     * Evento cancelado para el comprador de una compra cobrada después del cierre del evento (la
+     * emisión respondió EVENTO_CERRADO). Mismo acontecimientoId que la cancelación: si el cliente ya
+     * recibió ese aviso por otra compra del evento, no se duplica.
+     */
+    public void eventoCanceladoParaCompra(Compra c) {
+        Map<String, Object> datos = new LinkedHashMap<>();
+        datos.put("evento", c.getEventoNombre());
+        datos.put("fecha", fechaHora(c.getEventoFechaInicio()));
+        registrar(TipoAviso.EVENTO_CANCELADO, "evento-cancelado-" + c.getEventoId(), c.getClienteId(),
+                c.getEventoId(), datos);
+    }
+
+    /**
+     * Evento modificado:un aviso EVENTO_MODIFICADO por cliente con una compra CONFIRMADA del evento,
      * todos con el acontecimientoId {@code evento-modificado-{eventoId}-v{version}}. La nueva fecha y
      * el nuevo horario (en la zona configurada) van solo si cambió la fecha; el nuevo lugar, solo si
      * vino lugar o ciudad.
@@ -143,10 +157,15 @@ public class AvisoService {
         }
     }
 
-    /** Guarda el aviso PENDIENTE; si ya existe (mismo acontecimiento, tipo y destinatario) no hace nada. */
+    /**
+     * Guarda el aviso PENDIENTE; si ya existe (mismo acontecimiento, tipo y destinatario) no hace nada.
+     * La correlación es la del pedido en curso (la del Gateway) o, si no hay, una nueva.
+     */
     public void registrar(TipoAviso tipo, String acontecimientoId, String usuarioId, String recursoId,
                           Map<String, Object> datos) {
-        avisos.registrar(acontecimientoId, tipo.name(), usuarioId, recursoId, UUID.randomUUID().toString(),
+        String correlacion = CorrelacionFilter.actual();
+        avisos.registrar(acontecimientoId, tipo.name(), usuarioId, recursoId,
+                correlacion != null ? correlacion : UUID.randomUUID().toString(),
                 json.writeValueAsString(datos), Instant.now());
     }
 

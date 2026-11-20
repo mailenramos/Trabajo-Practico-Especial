@@ -34,7 +34,7 @@ La configuración está en `src/main/resources/application.properties`. Los valo
 | `PAGOS_URL` | URL del servicio de Pagos | `http://localhost:8084` |
 | `ENTRADAS_URL` | URL del servicio de Entradas | `http://localhost:8085` |
 | `NOTIFICACIONES_URL` | URL del servicio de Notificaciones | `http://localhost:8090` |
-| `SERVICIO_TOKEN` | Token compartido entre servicios. Los endpoints `/internal/**` lo exigen en el encabezado `X-Service-Token`, y se envía en los avisos a Notificaciones. **Sin valor, todas las llamadas internas responden 403** y Notificaciones rechaza los avisos | vacía |
+| `SERVICIO_TOKEN` | Token compartido entre servicios. Los endpoints `/internal/**` lo exigen en el encabezado `X-Service-Token`, y se envía en las llamadas a Entradas y en los avisos a Notificaciones. **Sin valor, todas las llamadas internas responden 403**, y Entradas y Notificaciones rechazan las llamadas de este servicio | vacía |
 
 El servicio escucha en el puerto **8083**. La base `ticketya_compras` y sus tablas se crean solas la primera vez que arranca (`createDatabaseIfNotExist` y `ddl-auto=update`), así que no hay que correr ningún script.
 
@@ -110,7 +110,7 @@ Sin los otros servicios, igual se pueden consultar compras y devoluciones (lista
 .\mvnw test
 ```
 
-Corre más de 300 pruebas: de los repositorios, de los servicios, de los endpoints de punta a punta y de los clientes de los otros servicios. Los otros servicios se reemplazan por dobles de prueba, así que no hace falta tenerlos corriendo. Lo único necesario es MySQL con `DB_USER` y `DB_PASSWORD` configuradas: las pruebas crean y borran su propia base `ticketya_compras_test`, y una de ellas arranca la aplicación contra `ticketya_compras`.
+Corre casi 400 pruebas: de los repositorios, de los servicios, de los endpoints de punta a punta y de los clientes de los otros servicios. Los otros servicios se reemplazan por dobles de prueba, así que no hace falta tenerlos corriendo. Lo único necesario es MySQL con `DB_USER` y `DB_PASSWORD` configuradas: las pruebas crean y borran su propia base `ticketya_compras_test`, y una de ellas arranca la aplicación contra `ticketya_compras`.
 
 Incluyen pruebas de concurrencia (dos pagos simultáneos de la misma reserva, dos solicitudes de devolución de la misma entrada) que verifican que no se duplica ningún efecto.
 
@@ -150,6 +150,8 @@ Las reglas de titularidad no cambian: un cliente ve y opera solo sus compras y d
 **Compatibilidad:** si no llega `X-User-Roles` pero sí el encabezado anterior `X-User-Role` (un solo rol, de la Entrega 1), se lo toma como único rol. Si llegan los dos, manda `X-User-Roles`. `X-User-Role` está obsoleto y se retira cuando todo el grupo use el Gateway nuevo.
 
 **Seguridad:** el servicio confía en estos encabezados, así que solo debe ser alcanzable a través del Gateway. En la configuración de entrega (Docker), el puerto 8083 no debe publicarse fuera de la red `ticketya-net`; solo el Gateway llega a él. Esa configuración todavía no está en el repositorio. Los endpoints `/internal/**` no pasan por el Gateway y usan `X-Service-Token`.
+
+**Correlación:** el servicio toma el `X-Correlation-Id` que agrega el Gateway (o genera uno si no viene) y lo reenvía en cada llamada a Entradas. También lo usa como `correlacionId` de los avisos a Notificaciones generados durante ese pedido. Las llamadas que nacen de tareas programadas llevan un identificador nuevo.
 
 Un ejemplo de consulta, como la reenviaría el Gateway:
 
@@ -203,5 +205,9 @@ Las decisiones de diseño más importantes:
 - Cada reintegro se guarda antes de pedirlo a Pagos, con un identificador único. Un reintegro fallido se reintenta sobre el mismo reintegro, nunca creando uno nuevo.
 - Una aprobación de devolución que queda incompleta (por la falla de otro servicio) no se revierte: se registra en qué paso quedó y un administrador la retoma.
 - Una compra pagada cuya venta rechaza Reservas (la reserva venció entre el cobro y la confirmación) queda fallida y se reintegra el total automáticamente.
+- Una compra pagada cuyo evento ya cerró Entradas (la emisión responde 409 `EVENTO_CERRADO`) no se reintenta: queda fallida, sin entradas, con el reintegro automático del total y el aviso `EVENTO_CANCELADO` al comprador.
+- La cancelación de un evento se da por completa solo cuando Entradas confirma el cierre del evento (`cerrado: true`). Mientras no lo confirme, queda en proceso y se reintenta, sin duplicar reintegros.
+- Antes de repetir una emisión de entradas que quedó sin respuesta, se consultan las entradas de la compra: si ya se emitieron, se asignan sin volver a emitir.
+- Una entrada `UTILIZADA` (su QR se validó en el acceso) no se puede devolver. Si se usó después de solicitar la devolución, la aprobación queda con el error guardado y no se reintegra el dinero.
 - Los avisos a Notificaciones se guardan en la misma transacción que la operación (outbox) y se envían después: si Notificaciones no responde, la compra, la devolución o el reintegro se completan igual y el aviso se reintenta con espera creciente.
 - La modificación de un evento es idempotente por evento y versión: la misma versión, o una anterior a la ya procesada, no cambia nada.

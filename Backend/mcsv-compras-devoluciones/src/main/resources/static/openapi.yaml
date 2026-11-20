@@ -26,6 +26,10 @@ info:
     hasta JWT). Sin el encabezado, con un valor incorrecto o si el servicio no tiene token
     configurado, responden `403` con el código `SERVICIO_NO_AUTORIZADO`.
 
+    **Correlación:** el servicio toma el `X-Correlation-Id` que agrega el Gateway (o genera
+    uno si no viene) y lo reenvía en sus llamadas a Entradas, junto con `X-Service-Token`.
+    También lo usa como `correlacionId` de los avisos a Notificaciones de ese pedido.
+
     **Formato de error:** todos los errores usan
     `{"timestamp","status","error","mensaje","campos"?}`. El campo `error` lleva un código
     y `campos` solo aparece en los errores de validación.
@@ -53,7 +57,7 @@ info:
     | `RESERVA_NO_VIGENTE` | 409 | La reserva venció, se liberó o ya se confirmó: hay que reservar de nuevo |
     | `COMPRA_YA_INICIADA` | 409 | La reserva ya tiene una compra confirmada o fallida |
     | `IDEMPOTENCIA_CONFLICTO` | 409 | La `Idempotency-Key` ya se usó con otros datos |
-    | `ENTRADA_NO_VIGENTE` | 409 | La entrada está en reintegro o devuelta |
+    | `ENTRADA_NO_VIGENTE` | 409 | La entrada no está vigente: está en reintegro, devuelta o utilizada (el mensaje nombra el estado) |
     | `PLAZO_VENCIDO` | 409 | El evento empieza en 72 horas o menos |
     | `EVENTO_CANCELADO` | 409 | El evento está cancelado: sus reintegros son automáticos |
     | `DEVOLUCION_EN_CURSO` | 409 | La entrada ya tiene una devolución aprobada |
@@ -256,6 +260,17 @@ paths:
         Reservas rechaza la venta (la reserva venció o se liberó), la compra queda `FALLIDA`
         y se pide un reintegro automático por el total, que aparece en `reintegros`.
 
+        **Evento cerrado:** si el cobro se aprobó pero Entradas rechaza la emisión con 409
+        `EVENTO_CERRADO` (el evento se canceló y Entradas ya registró su cierre), no se
+        reintenta la emisión: la compra queda `FALLIDA`, sin entradas, con un reintegro
+        automático por el total (`origen: CANCELACION_EVENTO`, motivo "Evento cancelado") y se
+        avisa al comprador con `EVENTO_CANCELADO`. Repetir el pago no crea otro reintegro ni
+        otro aviso. Una compra cuyas entradas ya se habían emitido antes del cierre recibe las
+        mismas entradas y se confirma.
+
+        Antes de repetir una emisión que quedó sin respuesta, se consultan las entradas de la
+        compra en Entradas: si ya se emitieron, se asignan sin volver a emitir.
+
         Si la compra ya no está pendiente (por ejemplo, la cerró la cancelación de su evento),
         no se cobra, no se confirma la venta ni se emiten entradas: responde 200 con la compra
         en su estado actual (`FALLIDA`, con su reintegro por cancelación si había un cobro).
@@ -290,7 +305,7 @@ paths:
               medioDePago: CREDIT_CARD
       responses:
         '200':
-          description: Pago resuelto. La compra queda CONFIRMADA (pago aprobado) o FALLIDA (pago rechazado, o venta rechazada con reintegro automático)
+          description: Pago resuelto. La compra queda CONFIRMADA (pago aprobado) o FALLIDA (pago rechazado, o venta rechazada o evento cerrado, con reintegro automático)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Compra' }
@@ -556,6 +571,11 @@ paths:
         estado de la entrada (Entradas rechazó el cambio por transición inválida, 409
         `TRANSICION_INVALIDA`): en ese caso reintentar sirve recién cuando se resuelve el
         estado de la entrada en Entradas.
+
+        Si la entrada se usó entre la solicitud y la aprobación (su QR se validó), Entradas
+        responde 409 `ENTRADA_UTILIZADA`: la solicitud queda `APROBADA` con ese código en
+        `coordinacion.ultimoError` y no se pide el reintegro a Pagos, así que no se mueve
+        dinero. La resuelve un administrador.
       parameters:
         - $ref: '#/components/parameters/DevolucionId'
         - $ref: '#/components/parameters/XUserId'
@@ -739,8 +759,12 @@ paths:
         E-1. Idempotente por `eventoId`: el mismo evento se procesa una sola vez. Responde
         enseguida y procesa en segundo plano:
 
-        1. Pide a Entradas pasar a en reintegro las entradas del evento (la cantidad que
-           responde es solo informativa).
+        1. Pide a Entradas pasar a en reintegro las entradas del evento y registrar su cierre
+           (`POST /internal/eventos/{idEvento}/entradas/reintegro`). La cantidad que responde
+           (`entradasMarcadas`) es solo informativa; `cerrado: true` confirma el cierre. Sin
+           esa confirmación (el campo no viene, viene en `false` o Entradas no responde), la
+           cancelación no se da por completa: el error queda guardado y se reintenta al
+           retomarla. Repetir la marcación es seguro.
         2. Por cada compra **confirmada** del evento: cierra como rechazadas sus solicitudes
            de devolución pendientes (motivo "Evento cancelado: reintegro automático") y pide
            **un** reintegro con `reason` "Evento cancelado" por el precio unitario de las
@@ -770,7 +794,7 @@ paths:
         (5 minutos por defecto; el servicio se cayó a mitad de camino o una compra falló), se
         retoma automáticamente, sin esperar otro aviso: el servicio revisa las cancelaciones
         en proceso cada `compras.cancelacion.intervalo-reanudacion` (60 s por defecto). La
-        retoma no duplica reintegros ni vuelve a pedir a Entradas una marcación ya hecha.
+        retoma no duplica reintegros ni vuelve a pedir a Entradas un cierre ya confirmado.
         Eventos no necesita reenviar el aviso después de recibir 202; si lo reenvía, la
         respuesta es la misma (202 mientras se procesa, 200 cuando terminó).
       requestBody:
@@ -1160,7 +1184,7 @@ components:
         origen:
           type: string
           enum: [DEVOLUCION, CANCELACION_EVENTO, VENTA_RECHAZADA]
-          description: CANCELACION_EVENTO es el reintegro automático de una compra confirmada, o pendiente ya cobrada, de un evento cancelado
+          description: CANCELACION_EVENTO es el reintegro automático de una compra confirmada, o pendiente ya cobrada, de un evento cancelado (incluida la compra cobrada cuya emisión Entradas rechazó con EVENTO_CERRADO)
         estado: { type: string, enum: [PENDIENTE, EXITOSO, FALLIDO] }
         intentos: { type: integer }
         pagosReintegroId: { type: string, nullable: true, description: ID del reintegro en Pagos }

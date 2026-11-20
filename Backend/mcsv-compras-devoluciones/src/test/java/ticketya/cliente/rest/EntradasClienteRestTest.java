@@ -9,6 +9,7 @@ import ticketya.cliente.EntradasCliente.Entrada;
 import ticketya.cliente.EntradasCliente.EntradaEmitida;
 import ticketya.cliente.EntradasCliente.EventoEmision;
 import ticketya.cliente.EntradasCliente.LineaEmision;
+import ticketya.cliente.EntradasCliente.ResultadoCierre;
 import ticketya.cliente.EntradasCliente.SolicitudEmision;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -98,6 +99,17 @@ class EntradasClienteRestTest {
         assertThat(cliente.consultar("e-1").orElseThrow().estado()).isEqualTo(EstadoEntrada.EN_REINTEGRO);
         assertThat(EstadoEntrada.de("Devuelta")).isEqualTo(EstadoEntrada.DEVUELTA);
         assertThat(EstadoEntrada.de("ANULADA")).isEqualTo(EstadoEntrada.DESCONOCIDO);
+    }
+
+    @Test
+    void reconoceUtilizadaYUnEstadoDesconocidoNoEsVigente() {
+        assertThat(EstadoEntrada.de("UTILIZADA")).isEqualTo(EstadoEntrada.UTILIZADA);
+        assertThat(EstadoEntrada.de(" utilizada ")).isEqualTo(EstadoEntrada.UTILIZADA);
+        assertThat(EstadoEntrada.de("VENCIDA")).isEqualTo(EstadoEntrada.DESCONOCIDO).isNotEqualTo(EstadoEntrada.VIGENTE);
+        assertThat(EstadoEntrada.de(null)).isEqualTo(EstadoEntrada.DESCONOCIDO);
+
+        servidor.responder(200, "{\"idCliente\":\"c\",\"estado\":\"UTILIZADA\"}");
+        assertThat(cliente.consultar("e-1").orElseThrow().estado()).isEqualTo(EstadoEntrada.UTILIZADA);
     }
 
     @Test
@@ -222,6 +234,65 @@ class EntradasClienteRestTest {
     }
 
     @Test
+    void unaEmisionRechazadaPorEventoCerradoEsUnConflictoDeNegocio() {
+        servidor.responder(409, "{\"status\":409,\"error\":\"EVENTO_CERRADO\",\"mensaje\":\"x\"}");
+
+        assertThatThrownBy(() -> cliente.emitir(solicitud()))
+                .isInstanceOf(ticketya.cliente.EventoCerradoException.class)
+                .isNotInstanceOf(ServicioExternoException.class)
+                .hasMessageContaining("evento-1")
+                .satisfies(e -> assertThat(((ticketya.cliente.EventoCerradoException) e).getIdEvento())
+                        .isEqualTo("evento-1"));
+
+        servidor.responder(409, "{\"codigo\":\"EVENTO_CERRADO\"}");
+        assertThatThrownBy(() -> cliente.emitir(solicitud())).isInstanceOf(ticketya.cliente.EventoCerradoException.class);
+    }
+
+    @Test
+    void otro409EnLaEmisionSigueSiendoUnaFallaDelServicio() {
+        servidor.responder(409, "{\"error\":\"IDEMPOTENCIA_CONFLICTO\"}");
+
+        assertThatThrownBy(() -> cliente.emitir(solicitud()))
+                .isInstanceOf(ServicioExternoException.class)
+                .hasMessageContaining("409");
+    }
+
+    @Test
+    void laConsultaPorCompraUsaLaRutaDelContratoYNoEmite() {
+        servidor.responder(200, """
+                {"idCompra":"compra-1","entradas":[
+                  {"idEntrada":"e-1","sector":{"id":"platea","nombre":"Platea"},"fila":10,"numero":1,"codigoQr":"QR1"},
+                  {"idEntrada":"e-2","idSector":"campo","fila":null,"numero":null,"codigoQr":"QR2"}]}""");
+
+        List<EntradaEmitida> entradas = cliente.listarPorCompra("compra-1");
+
+        assertThat(servidor.metodo).isEqualTo("GET");
+        assertThat(servidor.ruta).isEqualTo("/internal/compras/compra-1/entradas");
+        assertThat(entradas).containsExactly(
+                new EntradaEmitida("e-1", "platea", 10, 1, "QR1"),
+                new EntradaEmitida("e-2", "campo", null, null, "QR2"));
+    }
+
+    @Test
+    void unaCompraSinEntradasDaUnaListaVacia() {
+        servidor.responder(200, "[]");
+        assertThat(cliente.listarPorCompra("compra-1")).isEmpty();
+
+        servidor.responder(200, "{\"idCompra\":\"compra-1\",\"entradas\":[]}");
+        assertThat(cliente.listarPorCompra("compra-1")).isEmpty();
+
+        servidor.responder(204, "");
+        assertThat(cliente.listarPorCompra("compra-1")).isEmpty();
+    }
+
+    @Test
+    void unaFallaEnLaConsultaPorCompraEsUnaFallaDelServicio() {
+        servidor.responder(503, "{}");
+
+        assertThatThrownBy(() -> cliente.listarPorCompra("compra-1")).isInstanceOf(ServicioExternoException.class);
+    }
+
+    @Test
     void unaFilaNoNumericaEnLaEmisionEsUnErrorDeContrato() {
         servidor.responder(201, "[{\"idEntrada\":\"e-1\",\"idSector\":\"platea\",\"fila\":\"A\",\"numero\":1}]");
 
@@ -231,21 +302,34 @@ class EntradasClienteRestTest {
     }
 
     @Test
-    void laMarcacionPorEventoUsaLaRutaPropuestaYLeeEntradasMarcadas() {
-        servidor.responder(200, "{\"idEvento\":\"evento-1\",\"entradasMarcadas\":4}");
+    void laMarcacionPorEventoUsaLaRutaDelContratoYLeeEntradasMarcadasYCerrado() {
+        servidor.responder(200, "{\"idEvento\":\"evento-1\",\"entradasMarcadas\":4,\"cerrado\":true}");
 
-        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(4);
+        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(new ResultadoCierre(4, true));
         assertThat(servidor.metodo).isEqualTo("POST");
         assertThat(servidor.ruta).isEqualTo("/internal/eventos/evento-1/entradas/reintegro");
     }
 
     @Test
-    void laMarcacionRepetidaRespondeCeroYSinElCampoTambienEsCero() {
-        servidor.responder(200, "{\"entradasMarcadas\":0}");
-        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isZero();
+    void unEventoSinEntradasConElCierreConfirmadoRespondeCeroYCerrado() {
+        servidor.responder(200, "{\"entradasMarcadas\":0,\"cerrado\":true}");
+
+        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(new ResultadoCierre(0, true));
+    }
+
+    @Test
+    void sinCerradoOConCerradoEnFalseElCierreNoEstaConfirmado() {
+        servidor.responder(200, "{\"entradasMarcadas\":3,\"cerrado\":false}");
+        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(new ResultadoCierre(3, false));
+
+        servidor.responder(200, "{\"entradasMarcadas\":3}");
+        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(new ResultadoCierre(3, false));
+
+        servidor.responder(200, "{\"entradasMarcadas\":3,\"cerrado\":\"true\"}");
+        assertThat(cliente.marcarEntradasDelEvento("evento-1").cerrado()).as("solo un booleano cuenta").isFalse();
 
         servidor.responder(204, "");
-        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isZero();
+        assertThat(cliente.marcarEntradasDelEvento("evento-1")).isEqualTo(new ResultadoCierre(0, false));
     }
 
     @Test

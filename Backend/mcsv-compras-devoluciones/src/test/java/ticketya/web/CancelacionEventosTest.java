@@ -427,7 +427,7 @@ class CancelacionEventosTest extends PruebaDevoluciones {
     }
 
     @Test
-    void siEntradasNoMarcaLasEntradasLosReintegrosSiguenIgual() throws Exception {
+    void siEntradasNoMarcaLasEntradasLosReintegrosSiguenPeroLaCancelacionNoSeCompleta() throws Exception {
         List<DetalleCompra> detalle = entradasConfirmadas(CLIENTE);
         entradas.setMarcacionCaida(true);
 
@@ -437,6 +437,58 @@ class CancelacionEventosTest extends PruebaDevoluciones {
         assertThat(detalle).allSatisfy(d ->
                 assertThat(entradas.estado(d.getEntradaId())).isEqualTo(EstadoEntrada.DEVUELTA));
         assertThat(cancelacion().getUltimoError()).startsWith("MARCACION");
+        // Sin el cierre confirmado por Entradas, la cancelación sigue en proceso para retomarla
+        assertThat(cancelacion().getEstado()).isEqualTo(EstadoCancelacion.EN_PROCESO);
+    }
+
+    // ------------------------------------------------------------------ cierre confirmado por Entradas
+
+    @Test
+    void conElCierreConfirmadoElPasoDeEntradasSeCompleta() throws Exception {
+        entradasConfirmadas(CLIENTE);
+
+        avisarCancelacion().andExpect(status().isAccepted());
+
+        assertThat(cancelacion().isMarcacionHecha()).isTrue();
+        assertThat(cancelacion().getUltimoError()).isNull();
+        assertThat(cancelacion().getEstado()).isEqualTo(EstadoCancelacion.PROCESADA);
+    }
+
+    @Test
+    void sinElCierreConfirmadoElPasoQuedaIncompletoYSeReintentaSinDuplicar() throws Exception {
+        List<DetalleCompra> detalle = entradasConfirmadas(CLIENTE);
+        // Entradas responde sin cerrado o con cerrado: false
+        entradas.setCierreConfirmado(false);
+
+        avisarCancelacion().andExpect(status().isAccepted());
+
+        assertThat(cancelacion().isMarcacionHecha()).isFalse();
+        assertThat(cancelacion().getUltimoError()).startsWith("MARCACION").contains("cierre");
+        assertThat(cancelacion().getEstado()).isEqualTo(EstadoCancelacion.EN_PROCESO);
+        assertThat(cancelacion().getEntradasMarcadas()).isEqualTo(4);
+        assertThat(elReintegroPorCancelacion(compraDe(detalle)).getEstado()).isEqualTo(EstadoReintegro.EXITOSO);
+
+        // Al retomar se vuelve a pedir el cierre; esta vez Entradas lo confirma
+        entradas.setCierreConfirmado(true);
+        cancelacionService.procesar(EVENTO_ID);
+
+        assertThat(entradas.marcaciones()).isEqualTo(2);
+        assertThat(cancelacion().isMarcacionHecha()).isTrue();
+        assertThat(cancelacion().getUltimoError()).isNull();
+        assertThat(cancelacion().getEstado()).isEqualTo(EstadoCancelacion.PROCESADA);
+        // Las entradas ya marcadas no se cuentan dos veces y no hay otro reintegro
+        assertThat(cancelacion().getEntradasMarcadas()).isEqualTo(4);
+        assertThat(reintegrosPorCancelacion(compraDe(detalle))).hasSize(1);
+        assertThat(pagos.reintegrosNuevos()).isEqualTo(1);
+    }
+
+    @Test
+    void unEventoSinEntradasConElCierreConfirmadoSeCompletaConCeroMarcadas() throws Exception {
+        avisarCancelacion().andExpect(status().isAccepted());
+
+        assertThat(entradas.marcaciones()).isEqualTo(1);
+        assertThat(cancelacion().getEntradasMarcadas()).isZero();
+        assertThat(cancelacion().isMarcacionHecha()).isTrue();
         assertThat(cancelacion().getEstado()).isEqualTo(EstadoCancelacion.PROCESADA);
     }
 
