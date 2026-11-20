@@ -11,11 +11,20 @@
 //   POST   /_stub/ocupar/{eventoId}   ocupa lugares: {"sectorId":"...","cantidad":3}  (sector no numerado)
 //                                     o {"sectorId":"...","asientos":[{"fila":1,"numero":1}]}  (sector numerado)
 //   DELETE /_stub/eventos             borra todo lo inicializado
+//
+// Para probar la cancelación recuperable de MS1 (solo afectan a PUT .../venta):
+//   POST /_stub/modo/ok               responde normal (por defecto)
+//   POST /_stub/modo/error            responde 500 sin aplicar el cambio
+//   POST /_stub/modo/timeout          no responde (MS1 vence a los 5 s) y no aplica el cambio
+//   POST /_stub/modo/perder-respuesta aplica el cambio y corta la conexión sin responder (respuesta perdida)
+//   GET  /_stub/venta/{eventoId}      muestra el estado de venta actual: {"eventoId","estado"}
+// CANCELADA es terminal: repetirla da 204; ACTIVA o SUSPENDIDA sobre un evento cancelado dan 409.
 
 const http = require("http");
 
 const PORT = process.env.PORT || 8080;
 const ESTADOS = ["ACTIVA", "SUSPENDIDA", "CANCELADA", "FINALIZADA"];
+let modoVenta = "ok";
 const inicializados = new Map(); // eventoId -> { canon, body, estado, ocupados: Map(sectorId -> { cantidad, asientos:Set }) }
 
 function responder(res, status, body) {
@@ -178,9 +187,33 @@ const server = http.createServer((req, res) => {
       }
       const evento = inicializados.get(m[1]);
       if (!evento) return error(res, 404, "No hay disponibilidad inicializada para ese evento");
+      console.log(`  modo=${modoVenta} estadoActual=${evento.estado}`);
+      if (modoVenta === "error") return error(res, 500, "Error simulado");
+      if (modoVenta === "timeout") return console.log("  -> sin respuesta (timeout simulado)");
+      if (evento.estado === "CANCELADA" && body.estado !== "CANCELADA") {
+        return error(res, 409, "El evento está cancelado: CANCELADA es un estado terminal");
+      }
       evento.estado = body.estado;
+      if (modoVenta === "perder-respuesta") {
+        console.log(`  -> estado aplicado (${body.estado}) pero se corta la conexión sin responder`);
+        return req.socket.destroy();
+      }
       console.log(`  -> 204 estado de venta: ${body.estado}`);
       return responder(res, 204);
+    }
+
+    m = ruta.match(/^\/_stub\/modo\/(ok|error|timeout|perder-respuesta)$/);
+    if (m && req.method === "POST") {
+      modoVenta = m[1];
+      console.log(`  -> modo de venta: ${modoVenta}`);
+      return responder(res, 200, { modo: modoVenta });
+    }
+
+    m = ruta.match(/^\/_stub\/venta\/([^/]+)$/);
+    if (m && req.method === "GET") {
+      const evento = inicializados.get(m[1]);
+      if (!evento) return error(res, 404, "No hay disponibilidad registrada para ese evento");
+      return responder(res, 200, { eventoId: m[1], estado: evento.estado });
     }
 
     m = ruta.match(/^\/_stub\/ocupar\/([^/]+)$/);

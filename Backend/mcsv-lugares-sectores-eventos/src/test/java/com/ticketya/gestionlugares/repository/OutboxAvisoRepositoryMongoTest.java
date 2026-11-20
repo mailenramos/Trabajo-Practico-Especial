@@ -69,6 +69,28 @@ class OutboxAvisoRepositoryMongoTest {
     }
 
     @Test
+    void preservaMetodoYBodyAusenteAlPersistirYReclamar() {
+        AvisoOutbox aviso = aviso("cancelacion-fila-evento-1", AHORA, 0,
+                EstadoAvisoOutbox.PENDIENTE, null);
+        aviso.setMetodoHttp("PUT");
+        aviso.setPayload(null);
+        outboxRepository.insert(aviso);
+
+        AvisoOutbox reclamado = outboxRepository.reclamarPorId(aviso.getId(), AHORA, AHORA.plusSeconds(60), 8)
+                .orElseThrow();
+        assertEquals("PUT", reclamado.getMetodoHttp());
+        org.junit.jupiter.api.Assertions.assertNull(reclamado.getPayload());
+    }
+
+    @Test
+    void documentoLegacySinMetodoNiPayloadConservaBodyVacio() {
+        mongoTemplate.getCollection("outbox").insertOne(new org.bson.Document("_id", "legacy-sin-body"));
+        AvisoOutbox aviso = outboxRepository.findById("legacy-sin-body").orElseThrow();
+        org.junit.jupiter.api.Assertions.assertNull(aviso.getMetodoHttp());
+        assertEquals(Map.of(), aviso.getPayload());
+    }
+
+    @Test
     void configuraTransaccionesMongoYRevierteAmbosDocumentosSiFallaLaInsercionDelAviso() {
         assertNotNull(transactionManager);
         outboxRepository.insert(aviso("aviso-evento-existente", AHORA, 0,

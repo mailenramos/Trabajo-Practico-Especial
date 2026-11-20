@@ -13,6 +13,7 @@ import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
+import com.ticketya.gestionlugares.reservas.ReservasConflictException;
 import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
@@ -57,14 +58,14 @@ public class EventoLifecycleService {
 
     public Evento suspenderVenta(String eventoId, String userId, String userRolesHeader) {
         Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
-        invocarReservas("No se pudo suspender la venta", () -> reservasClient.cambiarEstadoVenta(
+        invocarReservasVentaAdministrativa("No se pudo suspender la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.SUSPENDIDA));
         return eventoService.suspenderVentaLocal(evento.getId());
     }
 
     public Evento reactivarVenta(String eventoId, String userId, String userRolesHeader) {
         Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
-        invocarReservas("No se pudo reactivar la venta", () -> reservasClient.cambiarEstadoVenta(
+        invocarReservasVentaAdministrativa("No se pudo reactivar la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.ACTIVA));
         return eventoService.reactivarVentaLocal(evento.getId());
     }
@@ -144,6 +145,16 @@ public class EventoLifecycleService {
         }
         return new SectorDisponibilidadRequest(sector.getSectorId(), sector.getTipo(),
                 sector.getCapacidad(), List.of());
+    }
+
+    private static void invocarReservasVentaAdministrativa(String mensaje, Runnable accion) {
+        try {
+            accion.run();
+        } catch (ReservasConflictException exception) {
+            throw new ConflictException(mensaje + ": conflicto en Reservas");
+        } catch (ReservasClientException exception) {
+            throw new ServiceUnavailableException(mensaje, exception);
+        }
     }
 
     private static void invocarReservas(String mensaje, Runnable accion) {

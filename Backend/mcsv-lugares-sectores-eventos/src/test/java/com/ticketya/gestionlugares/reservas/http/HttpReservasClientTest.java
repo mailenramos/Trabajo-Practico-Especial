@@ -103,7 +103,7 @@ class HttpReservasClientTest {
                 .andExpect(content().json("{\"estado\":\"SUSPENDIDA\"}"))
                 .andRespond(withStatus(CONFLICT));
 
-        assertThrows(ReservasClientException.class,
+        assertThrows(com.ticketya.gestionlugares.reservas.ReservasConflictException.class,
                 () -> client.cambiarEstadoVenta("evento-1", EstadoVentaReservas.SUSPENDIDA));
         server.verify();
     }

@@ -3,12 +3,14 @@ package com.ticketya.gestionlugares.outbox;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import java.io.IOException;
 import java.util.Map;
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,8 +24,41 @@ import org.springframework.mock.env.MockEnvironment;
 
 import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
+import com.ticketya.gestionlugares.filas.http.FilasProperties;
 
 class RestClientOutboxHttpClientTest {
+
+    @Test
+    void preparaYEnviaCancelacionAFilaSinBodyConHeadersComunes() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(),
+                new ServicioToken("token-prueba", new MockEnvironment()));
+        Instant ahora = Instant.parse("2030-01-01T10:00:00Z");
+        org.slf4j.MDC.put("correlationId", "traza-fila");
+        try {
+            AvisoOutbox aviso = CancelacionFilaAvisoOutboxFactory.crear("evento-1", ahora, new FilasProperties());
+            assertEquals("cancelacion-fila-evento-1", aviso.getId());
+            assertEquals("CANCELACION_FILA", aviso.getTipo());
+            assertEquals("evento-1", aviso.getEventoId());
+            assertEquals("PUT", aviso.getMetodoHttp());
+            org.junit.jupiter.api.Assertions.assertNull(aviso.getPayload());
+            assertEquals(com.ticketya.gestionlugares.domain.EstadoAvisoOutbox.PENDIENTE, aviso.getEstado());
+            assertEquals(ahora, aviso.getProximoIntento());
+            server.expect(requestTo("http://localhost:8088/internal/filas/eventos/evento-1/cancelacion"))
+                    .andExpect(method(HttpMethod.PUT))
+                    .andExpect(header("X-Aviso-Id", "cancelacion-fila-evento-1"))
+                    .andExpect(header("X-Service-Token", "token-prueba"))
+                    .andExpect(header("X-Correlation-Id", "traza-fila"))
+                    .andExpect(headerDoesNotExist("Content-Type"))
+                    .andExpect(content().bytes(new byte[0]))
+                    .andRespond(withStatus(HttpStatus.NO_CONTENT));
+            assertEquals(204, client.enviar(aviso));
+            server.verify();
+        } finally {
+            org.slf4j.MDC.remove("correlationId");
+        }
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"PUBLICACION", "CANCELACION"})

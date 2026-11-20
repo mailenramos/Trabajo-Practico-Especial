@@ -183,6 +183,39 @@ class EventoLifecycleServiceTest {
     }
 
     @Test
+    void conflictoHttpDeReservasAlSuspenderOReactivarResponde409SinCambios() throws Exception {
+        var builder = org.springframework.web.client.RestClient.builder().baseUrl("http://reservas.test");
+        var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+        ReservasClient cliente = new com.ticketya.gestionlugares.reservas.http.HttpReservasClient(builder.build());
+        var lifecycle = new EventoLifecycleService(eventoService, cliente, eventoCancelacionOutboxService,
+                eventoPublicacionOutboxService, outboxDispatcher);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
+                .standaloneSetup(new com.ticketya.gestionlugares.api.EventoController(eventoService, lifecycle))
+                .setControllerAdvice(new com.ticketya.gestionlugares.api.ApiExceptionHandler()).build();
+        Evento evento = draft();
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(evento);
+        for (String estado : List.of("SUSPENDIDA", "ACTIVA")) {
+            server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers
+                    .requestTo("http://reservas.test/disponibilidad/eventos/evento-1/venta"))
+                    .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content()
+                            .json("{\"estado\":\"" + estado + "\"}"))
+                    .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                            .withStatus(org.springframework.http.HttpStatus.CONFLICT));
+        }
+        for (String operacion : List.of("suspender", "reactivar")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .put("/eventos/{id}/venta/{operacion}", EVENTO_ID, operacion)
+                            .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN"))
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+        }
+        verify(eventoService, never()).suspenderVentaLocal(EVENTO_ID);
+        verify(eventoService, never()).reactivarVentaLocal(EVENTO_ID);
+        assertEquals(EstadoEvento.PUBLICADO, evento.getEstado());
+        server.verify();
+    }
+
+    @Test
     void admiteAdminEntreVariosRolesYRechazaAliasLegado() {
         Evento published = draft();
         published.setEstado(EstadoEvento.PUBLICADO);

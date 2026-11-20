@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 @Document(collection = "outbox")
 @CompoundIndex(name = "idx_outbox_estado_proximo_intento",
@@ -21,6 +22,8 @@ public class AvisoOutbox {
     private String eventoId;
     private String correlationId;
     private String destino;
+    private String metodoHttp;
+    @Field(write = Field.Write.ALWAYS)
     private Map<String, Object> payload = new LinkedHashMap<>();
     private EstadoAvisoOutbox estado = EstadoAvisoOutbox.PENDIENTE;
     private int intentos;
@@ -44,6 +47,8 @@ public class AvisoOutbox {
     public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
     public String getDestino() { return destino; }
     public void setDestino(String destino) { this.destino = destino; }
+    public String getMetodoHttp() { return metodoHttp; }
+    public void setMetodoHttp(String metodoHttp) { this.metodoHttp = metodoHttp; }
     public Map<String, Object> getPayload() { return payload; }
     public void setPayload(Map<String, Object> payload) { this.payload = payload; }
     public EstadoAvisoOutbox getEstado() { return estado; }

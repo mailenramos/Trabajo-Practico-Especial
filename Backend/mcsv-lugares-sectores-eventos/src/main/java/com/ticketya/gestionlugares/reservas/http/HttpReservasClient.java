@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClientException;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
+import com.ticketya.gestionlugares.reservas.ReservasConflictException;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
 
@@ -42,6 +43,9 @@ public class HttpReservasClient implements ReservasClient {
                 .body(new EstadoVentaRequest(estado))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
+                    if (response.getStatusCode().value() == 409) {
+                        throw new ReservasConflictException("Reservas rechazó el cambio de estado de venta");
+                    }
                     throw new ReservasClientException("Reservas respondió " + response.getStatusCode()
                             + " al cambiar el estado de venta");
                 })

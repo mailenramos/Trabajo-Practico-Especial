@@ -19,6 +19,16 @@ import org.springframework.web.client.RestClient;
 class OutboxConfigurationTest {
 
     @Test
+    void configuraUrlDeFilasConPropiedadDeEntorno() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withUserConfiguration(OutboxConfiguration.class)
+                .withBean(RestClient.Builder.class, RestClient::builder)
+                .withPropertyValues("filas.base-url=http://fila-virtual:8088")
+                .run(context -> assertEquals(java.net.URI.create("http://fila-virtual:8088"),
+                        context.getBean(com.ticketya.gestionlugares.filas.http.FilasProperties.class).getBaseUrl()));
+    }
+
+    @Test
     void configuraTimeoutDeConexionDeDosSegundosYLecturaDeCincoSegundos() {
         RestClient.Builder builder = mock(RestClient.Builder.class);
         when(builder.clone()).thenReturn(builder);

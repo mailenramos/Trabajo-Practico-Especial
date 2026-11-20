@@ -4,6 +4,7 @@ import java.net.URI;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -28,14 +29,17 @@ public class RestClientOutboxHttpClient implements OutboxHttpClient {
     public int enviar(AvisoOutbox aviso) {
         try (Correlacion.Contexto contexto = Correlacion.usar(
                 Correlacion.actual() == null ? aviso.getCorrelationId() : Correlacion.actual())) {
-            return restClient.post()
+            HttpMethod metodo = aviso.getMetodoHttp() == null
+                    ? HttpMethod.POST : HttpMethod.valueOf(aviso.getMetodoHttp());
+            RestClient.RequestBodySpec solicitud = restClient.method(metodo)
                     .uri(URI.create(aviso.getDestino()))
                     .header("X-Aviso-Id", aviso.getId())
                     .header("X-Service-Token", servicioToken.valor())
-                    .header(Correlacion.HEADER, Correlacion.actual())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(aviso.getPayload())
-                    .exchange((request, response) -> response.getStatusCode().value());
+                    .header(Correlacion.HEADER, Correlacion.actual());
+            if (aviso.getPayload() != null) {
+                solicitud.contentType(MediaType.APPLICATION_JSON).body(aviso.getPayload());
+            }
+            return solicitud.exchange((request, response) -> response.getStatusCode().value());
         } catch (ResourceAccessException exception) {
             throw new ResourceAccessException("Error de transporte: "
                     + exception.getMostSpecificCause().getClass().getSimpleName());

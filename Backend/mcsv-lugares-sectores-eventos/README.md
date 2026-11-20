@@ -200,7 +200,9 @@ Este servicio hace estas llamadas a Reservas:
 
 Reservas llama a este servicio mediante el callback `PUT /eventos/{eventoId}/disponibilidad`, con `{"agotado":true}` o `{"agotado":false}`. Responde `204` para cambios, avisos duplicados y avisos tardíos de eventos cancelados o finalizados; `404` si el evento no existe y `409` si sigue en borrador. El callback es interno, sin headers de usuario y fuera del Gateway.
 
-Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender, reactivar o cancelar, el servicio responde `503` y no cambia el estado local; la operación se puede reintentar.
+Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender, reactivar o cancelar, el servicio responde `503` y no cambia el estado local; la operación se puede reintentar. Si Reservas responde `409` al suspender o reactivar, MS1 devuelve `409` sin modificar el evento.
+
+La propuesta de cancelación recuperable aún no está implementada. El equipo de Reservas confirmó que repetir `CANCELADA` responde `204` y que este estado es terminal: intentar pasar a `ACTIVA` o `SUSPENDIDA` responde `409`.
 
 ### Compras — contrato confirmado
 

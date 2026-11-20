@@ -12,10 +12,11 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import com.ticketya.gestionlugares.compras.http.ComprasProperties;
+import com.ticketya.gestionlugares.filas.http.FilasProperties;
 import com.ticketya.gestionlugares.preferencias.http.PreferenciasProperties;
 
 @Configuration
-@EnableConfigurationProperties({ComprasProperties.class, PreferenciasProperties.class})
+@EnableConfigurationProperties({ComprasProperties.class, PreferenciasProperties.class, FilasProperties.class})
 public class OutboxConfiguration {
 
     @Bean
