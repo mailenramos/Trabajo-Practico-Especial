@@ -52,7 +52,7 @@ import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
 import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.domain.TipoSector;
-import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
+import com.ticketya.gestionlugares.outbox.OutboxHttpClient;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
@@ -92,12 +92,13 @@ class CatalogoCacheIntegrationTest {
     @Autowired private TransactionTemplate transaccion;
     @SpyBean private MongoTemplate mongo;
     @MockBean private ReservasClient reservas;
-    @MockBean private OutboxDispatcher dispatcher;
+    @MockBean private OutboxHttpClient outboxHttpClient;
     @MockBean private Ticker ticker;
 
     @BeforeEach
     void preparar() {
         when(ticker.read()).thenAnswer(invocation -> TIEMPO.get());
+        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
         eventos.deleteAll();
         lugares.deleteAll();
         personal.deleteAll();

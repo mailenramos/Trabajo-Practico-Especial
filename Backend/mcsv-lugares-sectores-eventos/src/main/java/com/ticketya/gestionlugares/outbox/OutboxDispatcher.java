@@ -7,7 +7,9 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.client.ResourceAccessException;
 
 import com.ticketya.gestionlugares.config.ServicioToken;
@@ -15,6 +17,7 @@ import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.trazabilidad.Correlacion;
+import com.ticketya.gestionlugares.service.ConflictException;
 
 @Service
 public class OutboxDispatcher {
@@ -29,13 +32,15 @@ public class OutboxDispatcher {
     private final OutboxHttpClient httpClient;
     private final Clock clock;
     private final ServicioToken servicioToken;
+    private final EventoCancelacionOutboxService cancelacionService;
 
     public OutboxDispatcher(OutboxAvisoRepository outboxRepository, OutboxHttpClient httpClient, Clock outboxClock,
-            ServicioToken servicioToken) {
+            ServicioToken servicioToken, EventoCancelacionOutboxService cancelacionService) {
         this.outboxRepository = outboxRepository;
         this.httpClient = httpClient;
         this.clock = outboxClock;
         this.servicioToken = servicioToken;
+        this.cancelacionService = cancelacionService;
     }
 
     public boolean puedeProcesar() {
@@ -47,7 +52,7 @@ public class OutboxDispatcher {
         Instant ahora = clock.instant();
         Optional<AvisoOutbox> reclamado = outboxRepository.reclamarSiguiente(
                 ahora, ahora.plus(LEASE), MAX_INTENTOS);
-        return procesar(reclamado, ahora);
+        return procesar(reclamado, ahora) != Resultado.NO_RECLAMADO;
     }
 
     public boolean procesarAviso(String avisoId) {
@@ -55,30 +60,60 @@ public class OutboxDispatcher {
         Instant ahora = clock.instant();
         Optional<AvisoOutbox> reclamado = outboxRepository.reclamarPorId(
                 avisoId, ahora, ahora.plus(LEASE), MAX_INTENTOS);
-        return procesar(reclamado, ahora);
+        return procesar(reclamado, ahora) != Resultado.NO_RECLAMADO;
     }
 
-    private boolean procesar(Optional<AvisoOutbox> reclamado, Instant ahora) {
-        if (reclamado.isEmpty()) return false;
+    public boolean procesarCancelacion(String avisoId) {
+        if (!puedeProcesar()) return false;
+        Instant ahora = clock.instant();
+        Optional<AvisoOutbox> reclamado = outboxRepository.reclamarPorId(
+                avisoId, ahora, ahora.plus(LEASE), MAX_INTENTOS);
+        return procesar(reclamado, ahora) == Resultado.CANCELACION_CONFIRMADA;
+    }
+
+    private Resultado procesar(Optional<AvisoOutbox> reclamado, Instant ahora) {
+        if (reclamado.isEmpty()) return Resultado.NO_RECLAMADO;
         AvisoOutbox aviso = reclamado.orElseThrow();
         try (Correlacion.Contexto contexto = Correlacion.usar(aviso.getCorrelationId())) {
             try {
-                procesarRespuesta(aviso, ahora, httpClient.enviar(aviso));
+                if (procesarRespuesta(aviso, ahora, httpClient.enviar(aviso))) {
+                    return Resultado.CANCELACION_CONFIRMADA;
+                }
             } catch (ResourceAccessException exception) {
                 registrarFalloReintentable(aviso, ahora,
                         servicioToken.ocultarEn(exception.getMostSpecificCause().toString()));
             }
         }
-        return true;
+        return Resultado.PROCESADO;
     }
 
-    private void procesarRespuesta(AvisoOutbox aviso, Instant ahora, int status) {
+    private boolean procesarRespuesta(AvisoOutbox aviso, Instant ahora, int status) {
+        if ("CANCELACION_RESERVAS".equals(aviso.getTipo()) && status >= 200 && status < 300) {
+            if (status != 204) {
+                registrarFalloReintentable(aviso, clock.instant(), "Reservas respondió HTTP " + status);
+                return false;
+            }
+            try {
+                if (cancelacionService.confirmar(aviso, clock.instant())) {
+                    intentarNotificacion("cancelacion-" + aviso.getEventoId());
+                    intentarNotificacion("cancelacion-fila-" + aviso.getEventoId());
+                    return true;
+                } else {
+                    LOGGER.warn("No se confirmó la cancelación: reclamo vencido para {}", aviso.getId());
+                }
+            } catch (DataAccessException | TransactionException | ConflictException exception) {
+                LOGGER.error("No se pudo confirmar la cancelación del aviso {}; se recuperará por lease: {}",
+                        aviso.getId(), exception.getClass().getSimpleName());
+            }
+            return false;
+        }
+
         if (status >= 200 && status < 300) {
             aviso.setEstado(EstadoAvisoOutbox.ENTREGADO);
             aviso.setEntregadoEn(ahora);
             aviso.setUltimoError(null);
             guardarResultado(aviso, ahora);
-            return;
+            return false;
         }
 
         String error = "El destino respondió HTTP " + status;
@@ -88,6 +123,16 @@ public class OutboxDispatcher {
             registrarFalloDefinitivo(aviso, ahora, error);
         } else {
             throw new IllegalStateException("Respuesta HTTP no clasificada: " + status);
+        }
+        return false;
+    }
+
+    private void intentarNotificacion(String avisoId) {
+        try {
+            procesarAviso(avisoId);
+        } catch (DataAccessException | TransactionException exception) {
+            LOGGER.error("No se pudo intentar el aviso {}; el scheduler podrá recuperarlo: {}",
+                    avisoId, exception.getClass().getSimpleName());
         }
     }
 
@@ -113,6 +158,13 @@ public class OutboxDispatcher {
     }
 
     private void guardarResultado(AvisoOutbox aviso, Instant ahora) {
+        if ("CANCELACION_RESERVAS".equals(aviso.getTipo())) {
+            Instant leaseHasta = aviso.getLeaseHasta();
+            if (!outboxRepository.guardarResultadoReclamo(aviso, leaseHasta, clock.instant())) {
+                LOGGER.warn("No se guardó el resultado del reclamo vencido {}", aviso.getId());
+            }
+            return;
+        }
         aviso.setActualizadoEn(ahora);
         aviso.setLeaseHasta(null);
         outboxRepository.save(aviso);
@@ -130,5 +182,9 @@ public class OutboxDispatcher {
             }
         }
         return espera;
+    }
+
+    private enum Resultado {
+        NO_RECLAMADO, PROCESADO, CANCELACION_CONFIRMADA
     }
 }

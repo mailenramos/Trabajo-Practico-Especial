@@ -17,11 +17,14 @@ import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 public class RestClientOutboxHttpClient implements OutboxHttpClient {
 
     private final RestClient restClient;
+    private final RestClient reservasRestClient;
     private final ServicioToken servicioToken;
 
     public RestClientOutboxHttpClient(@Qualifier("outboxRestClient") RestClient restClient,
+            @Qualifier("outboxReservasRestClient") RestClient reservasRestClient,
             ServicioToken servicioToken) {
         this.restClient = restClient;
+        this.reservasRestClient = reservasRestClient;
         this.servicioToken = servicioToken;
     }
 
@@ -31,7 +34,8 @@ public class RestClientOutboxHttpClient implements OutboxHttpClient {
                 Correlacion.actual() == null ? aviso.getCorrelationId() : Correlacion.actual())) {
             HttpMethod metodo = aviso.getMetodoHttp() == null
                     ? HttpMethod.POST : HttpMethod.valueOf(aviso.getMetodoHttp());
-            RestClient.RequestBodySpec solicitud = restClient.method(metodo)
+            RestClient cliente = "CANCELACION_RESERVAS".equals(aviso.getTipo()) ? reservasRestClient : restClient;
+            RestClient.RequestBodySpec solicitud = cliente.method(metodo)
                     .uri(URI.create(aviso.getDestino()))
                     .header("X-Aviso-Id", aviso.getId())
                     .header("X-Service-Token", servicioToken.valor())

@@ -175,11 +175,12 @@ class EventoLifecycleServiceTest {
                 () -> lifecycleService.reactivarVenta("evento-2", "admin-1", "ADMIN"));
         verify(eventoService, never()).reactivarVentaLocal("evento-2");
 
-        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(
-                org.mockito.ArgumentMatchers.eq(EVENTO_ID), any(), any())).thenReturn(evento);
+        Evento cancelado = draft();
+        cancelado.setEstado(EstadoEvento.CANCELADO);
+        when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(evento, cancelado);
+        when(outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + EVENTO_ID)).thenReturn(true);
         lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN");
-        verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
-        verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENTO_ID);
+        verify(outboxDispatcher).procesarCancelacion("cancelacion-reservas-" + EVENTO_ID);
     }
 
     @Test
@@ -234,12 +235,9 @@ class EventoLifecycleServiceTest {
         Evento published = draft();
         published.setEstado(EstadoEvento.PUBLICADO);
         when(eventoService.buscarEvento(EVENTO_ID)).thenReturn(published);
-        org.mockito.Mockito.doThrow(new ReservasClientException("timeout"))
-                .when(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
-
         assertThrows(ServiceUnavailableException.class,
                 () -> lifecycleService.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
-        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
+        verify(eventoCancelacionOutboxService).registrarIntencion(any(), any(), any());
         assertEquals(EstadoEvento.PUBLICADO, published.getEstado());
     }
 
@@ -262,7 +260,7 @@ class EventoLifecycleServiceTest {
     }
 
     @Test
-    void conflictoDeVersionConcurrenteAlCancelarSeConservaComoConflicto() {
+    void conflictoDeVersionConcurrenteAlRegistrarCancelacionDevuelve503() {
         Evento primeraLectura = draft();
         primeraLectura.setEstado(EstadoEvento.PUBLICADO);
         Evento lecturaParaCancelar = draft();
@@ -274,15 +272,16 @@ class EventoLifecycleServiceTest {
         EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository,
                 org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
-                versionedEventService, outboxAvisoRepository, new ComprasProperties());
+                versionedEventService, outboxAvisoRepository, new ComprasProperties(),
+                new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),
+                new com.ticketya.gestionlugares.filas.http.FilasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
                 cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
 
-        assertThrows(ConflictException.class,
+        assertThrows(ServiceUnavailableException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
-        InOrder order = inOrder(reservasClient, eventoRepository);
-        order.verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
-        order.verify(eventoRepository).save(any(Evento.class));
+        verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
+        verify(eventoRepository).save(any(Evento.class));
     }
 
     @Test
@@ -300,18 +299,25 @@ class EventoLifecycleServiceTest {
         EventoService realEventService = new EventoService(eventoRepository, lugarRepository,
                 org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
-                realEventService, outboxAvisoRepository, new ComprasProperties());
+                realEventService, outboxAvisoRepository, new ComprasProperties(),
+                new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),
+                new com.ticketya.gestionlugares.filas.http.FilasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,
                 cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
-        org.mockito.Mockito.doAnswer(invocation -> {
+        when(outboxAvisoRepository.confirmarReclamo(any(), any())).thenReturn(true);
+        when(outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + EVENTO_ID)).thenAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);
-            return null;
-        }).when(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.CANCELADA);
+            com.ticketya.gestionlugares.domain.AvisoOutbox trabajo = new com.ticketya.gestionlugares.domain.AvisoOutbox();
+            trabajo.setEventoId(EVENTO_ID);
+            trabajo.setMotivoCancelacion("motivo");
+            cancellationService.confirmar(trabajo, Instant.now());
+            return true;
+        });
 
         Evento result = concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        verify(eventoRepository, org.mockito.Mockito.times(2)).save(any(Evento.class));
+        verify(eventoRepository, org.mockito.Mockito.times(3)).save(any(Evento.class));
     }
 
     private static Evento draft() {

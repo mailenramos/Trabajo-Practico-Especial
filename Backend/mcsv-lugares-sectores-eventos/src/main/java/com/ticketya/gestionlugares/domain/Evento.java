@@ -41,6 +41,7 @@ public class Evento {
     private EstadoEvento estado;
     private boolean ventaSuspendida;
     private boolean requiereFila;
+    private boolean cancelacionPendiente;
     private int limiteEntradasPorCliente;
     private List<EventoSector> sectores = new ArrayList<>();
     private BigDecimal precioMinimo;
@@ -162,6 +163,9 @@ public class Evento {
     public void setEstado(EstadoEvento estado) { this.estado = estado; }
     public boolean isVentaSuspendida() { return ventaSuspendida; }
     public void setVentaSuspendida(boolean ventaSuspendida) { this.ventaSuspendida = ventaSuspendida; }
+    @JsonIgnore
+    public boolean isCancelacionPendiente() { return cancelacionPendiente; }
+    public void setCancelacionPendiente(boolean cancelacionPendiente) { this.cancelacionPendiente = cancelacionPendiente; }
     @JsonIgnore
     public boolean isRequiereFila() { return requiereFila; }
     public void setRequiereFila(boolean requiereFila) { this.requiereFila = requiereFila; }

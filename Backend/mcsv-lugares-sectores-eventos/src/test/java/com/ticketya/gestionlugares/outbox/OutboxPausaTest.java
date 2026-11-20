@@ -26,7 +26,7 @@ class OutboxPausaTest {
         OutboxHttpClient cliente = mock(OutboxHttpClient.class);
         Clock clock = Clock.systemUTC();
         OutboxDispatcher dispatcher = new OutboxDispatcher(repository, cliente, clock,
-                new ServicioToken(token, new MockEnvironment()));
+                new ServicioToken(token, new MockEnvironment()), mock(EventoCancelacionOutboxService.class));
         new OutboxScheduler(repository, dispatcher, clock).procesarPendientes();
         new OutboxScheduler(repository, dispatcher, clock).procesarPendientes();
         assertFalse(dispatcher.procesarAviso("aviso-1"));

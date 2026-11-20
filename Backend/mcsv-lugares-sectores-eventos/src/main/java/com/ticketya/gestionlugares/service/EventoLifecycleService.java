@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
@@ -57,14 +59,14 @@ public class EventoLifecycleService {
     }
 
     public Evento suspenderVenta(String eventoId, String userId, String userRolesHeader) {
-        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
+        Evento evento = validarAdministracionVentaSinCancelacion(eventoId, userId, userRolesHeader);
         invocarReservasVentaAdministrativa("No se pudo suspender la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.SUSPENDIDA));
         return eventoService.suspenderVentaLocal(evento.getId());
     }
 
     public Evento reactivarVenta(String eventoId, String userId, String userRolesHeader) {
-        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
+        Evento evento = validarAdministracionVentaSinCancelacion(eventoId, userId, userRolesHeader);
         invocarReservasVentaAdministrativa("No se pudo reactivar la venta", () -> reservasClient.cambiarEstadoVenta(
                 eventoId, EstadoVentaReservas.ACTIVA));
         return eventoService.reactivarVentaLocal(evento.getId());
@@ -76,17 +78,31 @@ public class EventoLifecycleService {
 
     public Evento cancelar(String eventoId, String motivo, String userId, String userRolesHeader) {
         Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
-        if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
-            throw new ConflictException("Solo se cancela un evento publicado o agotado");
+        if (evento.isCancelacionPendiente()) {
+            throw new ServiceUnavailableException("La cancelación está pendiente");
         }
-        invocarReservas("No se pudo cancelar la venta", () -> reservasClient.cambiarEstadoVenta(
-                eventoId, EstadoVentaReservas.CANCELADA));
         String motivoEfectivo = motivo == null || motivo.isBlank()
                 ? MOTIVO_CANCELACION_POR_DEFECTO : motivo.trim();
-        Evento cancelado = eventoCancelacionOutboxService.cancelarConAvisoOutbox(
-                evento.getId(), motivoEfectivo, Instant.now());
-        outboxDispatcher.procesarAviso("cancelacion-" + cancelado.getId());
-        return cancelado;
+        try {
+            eventoCancelacionOutboxService.registrarIntencion(evento.getId(), motivoEfectivo, Instant.now());
+        } catch (ConflictException exception) {
+            Evento actual = eventoService.buscarEvento(eventoId);
+            if (actual.getEstado() == EstadoEvento.CANCELADO || actual.getEstado() == EstadoEvento.FINALIZADO) {
+                throw exception;
+            }
+            throw new ServiceUnavailableException("No se pudo registrar la intención de cancelación", exception);
+        } catch (DataAccessException | TransactionException exception) {
+            throw new ServiceUnavailableException("No se pudo registrar la intención de cancelación", exception);
+        }
+        try {
+            if (outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + evento.getId())) {
+                Evento resultado = eventoService.buscarEvento(eventoId);
+                if (resultado.getEstado() == EstadoEvento.CANCELADO) return resultado;
+            }
+        } catch (DataAccessException | TransactionException exception) {
+            throw new ServiceUnavailableException("No se pudo confirmar la cancelación", exception);
+        }
+        throw new ServiceUnavailableException("La cancelación está pendiente");
     }
 
     public Evento aplicarDisponibilidad(String eventoId, boolean agotado) {
@@ -95,6 +111,7 @@ public class EventoLifecycleService {
 
     public void finalizarVencidos() {
         for (Evento evento : eventoService.buscarPendientesDeFinalizacion(Instant.now())) {
+            if (evento.isCancelacionPendiente()) continue;
             try {
                 invocarReservas("No se pudo finalizar la venta", () -> reservasClient.cambiarEstadoVenta(
                         evento.getId(), EstadoVentaReservas.FINALIZADA));
@@ -111,6 +128,12 @@ public class EventoLifecycleService {
         if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
             throw new ConflictException("Solo se puede modificar la venta de un evento publicado o agotado");
         }
+        return evento;
+    }
+
+    private Evento validarAdministracionVentaSinCancelacion(String eventoId, String userId, String userRolesHeader) {
+        Evento evento = validarAdministracionVenta(eventoId, userId, userRolesHeader);
+        EventoService.validarSinCancelacionPendiente(evento);
         return evento;
     }
 

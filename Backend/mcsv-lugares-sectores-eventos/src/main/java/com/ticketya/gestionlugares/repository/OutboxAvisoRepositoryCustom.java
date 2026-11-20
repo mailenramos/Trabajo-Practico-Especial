@@ -11,5 +11,9 @@ public interface OutboxAvisoRepositoryCustom {
 
     Optional<AvisoOutbox> reclamarPorId(String avisoId, Instant ahora, Instant leaseHasta, int maxIntentos);
 
+    boolean confirmarReclamo(AvisoOutbox aviso, Instant ahora);
+
+    boolean guardarResultadoReclamo(AvisoOutbox aviso, Instant leaseHasta, Instant ahora);
+
     long marcarAvisosAgotados(Instant ahora, int maxIntentos);
 }

@@ -53,7 +53,8 @@ class OutboxDispatcherTest {
         when(outboxRepository.reclamarSiguiente(AHORA, AHORA.plusSeconds(60), OutboxDispatcher.MAX_INTENTOS))
                 .thenReturn(Optional.of(aviso));
         dispatcher = new OutboxDispatcher(outboxRepository, httpClient,
-                Clock.fixed(AHORA, ZoneOffset.UTC), new ServicioToken("token-prueba", new MockEnvironment()));
+                Clock.fixed(AHORA, ZoneOffset.UTC), new ServicioToken("token-prueba", new MockEnvironment()),
+                org.mockito.Mockito.mock(EventoCancelacionOutboxService.class));
     }
 
     @Test

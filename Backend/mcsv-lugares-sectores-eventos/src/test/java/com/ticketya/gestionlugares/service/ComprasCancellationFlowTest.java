@@ -15,7 +15,6 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,7 +26,6 @@ import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
 import com.ticketya.gestionlugares.domain.TipoSector;
-import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.service.EventoService;
 
@@ -63,43 +61,27 @@ class ComprasCancellationFlowTest {
 
     @Test
     void guardaCancelacionAntesDeAvisarYUsaMotivoPredeterminado() {
-        when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
-        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
-            String reason = invocation.getArgument(1);
-            Instant canceledAt = invocation.getArgument(2);
-            assertEquals("Cancelación del evento por el administrador", reason);
-            return cancelado(reason, canceledAt);
-        });
-        when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
+        when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento, cancelado);
+        when(outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, null, "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        ArgumentCaptor<Instant> sentAt = ArgumentCaptor.forClass(Instant.class);
-        verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(eq(EVENT_ID),
-                eq("Cancelación del evento por el administrador"), sentAt.capture());
-        verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
-        InOrder order = inOrder(reservasClient, eventoCancelacionOutboxService, outboxDispatcher);
-        order.verify(reservasClient).cambiarEstadoVenta(EVENT_ID, EstadoVentaReservas.CANCELADA);
-        order.verify(eventoCancelacionOutboxService).cancelarConAvisoOutbox(
+        InOrder order = inOrder(eventoCancelacionOutboxService, outboxDispatcher);
+        order.verify(eventoCancelacionOutboxService).registrarIntencion(
                 eq(EVENT_ID), eq("Cancelación del evento por el administrador"), any());
-        order.verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
+        order.verify(outboxDispatcher).procesarCancelacion("cancelacion-reservas-" + EVENT_ID);
     }
 
     @Test
     void laCancelacionNuevaIntentaEntregaInmediataPorDispatcher() {
-        when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento);
-        when(eventoCancelacionOutboxService.cancelarConAvisoOutbox(eq(EVENT_ID), any(), any())).thenAnswer(invocation -> {
-            String reason = invocation.getArgument(1);
-            Instant canceledAt = invocation.getArgument(2);
-            return cancelado(reason, canceledAt);
-        });
-        when(outboxDispatcher.procesarAviso("cancelacion-" + EVENT_ID)).thenReturn(true);
+        when(eventoService.buscarEvento(EVENT_ID)).thenReturn(evento, cancelado);
+        when(outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + EVENT_ID)).thenReturn(true);
 
         Evento result = lifecycle.cancelar(EVENT_ID, "Cierre preventivo", "admin", "ADMIN");
 
         assertEquals(EstadoEvento.CANCELADO, result.getEstado());
-        verify(outboxDispatcher).procesarAviso("cancelacion-" + EVENT_ID);
+        verify(outboxDispatcher).procesarCancelacion("cancelacion-reservas-" + EVENT_ID);
     }
 
     @Test
@@ -111,8 +93,9 @@ class ComprasCancellationFlowTest {
                 () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "ADMIN"));
 
         verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
-        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
+        verify(eventoCancelacionOutboxService, never()).registrarIntencion(any(), any(), any());
         verify(outboxDispatcher, never()).procesarAviso(any());
+        verify(outboxDispatcher, never()).procesarCancelacion(any());
     }
 
     @Test
@@ -124,17 +107,9 @@ class ComprasCancellationFlowTest {
                 () -> lifecycle.cancelar(EVENT_ID, "otro motivo", "admin", "ADMIN"));
 
         verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
-        verify(eventoCancelacionOutboxService, never()).cancelarConAvisoOutbox(any(), any(), any());
+        verify(eventoCancelacionOutboxService, never()).registrarIntencion(any(), any(), any());
         verify(outboxDispatcher, never()).procesarAviso(any());
+        verify(outboxDispatcher, never()).procesarCancelacion(any());
     }
 
-    private static Evento cancelado(String motivo, Instant cuando) {
-        Evento event = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
-                Instant.parse("2027-01-01T00:00:00Z"), 4, List.of());
-        event.setId(EVENT_ID);
-        event.setEstado(EstadoEvento.CANCELADO);
-        event.setMotivoCancelacion(motivo);
-        event.setCanceladoEn(cuando);
-        return event;
-    }
 }

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -53,7 +52,6 @@ import com.ticketya.gestionlugares.outbox.OutboxDispatcher;
 import com.ticketya.gestionlugares.outbox.OutboxHttpClient;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
-import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 
 @SpringBootTest(properties = {
@@ -95,8 +93,6 @@ class EventoCancelacionOutboxIntegrationTest {
         Evento evento = guardarEventoPublicado();
         when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenAnswer(invocation -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
-            assertEquals(EstadoEvento.CANCELADO,
-                    eventoRepository.findById(evento.getId()).orElseThrow().getEstado());
             return 204;
         });
 
@@ -116,30 +112,34 @@ class EventoCancelacionOutboxIntegrationTest {
         assertEquals(evento.getId(), aviso.getPayload().get("eventoId"));
         assertEquals("Cierre preventivo", aviso.getPayload().get("motivo"));
         assertNotNull(aviso.getPayload().get("canceladoEn"));
-        verify(reservasClient).cambiarEstadoVenta(evento.getId(), EstadoVentaReservas.CANCELADA);
-        verify(outboxHttpClient).enviar(any(AvisoOutbox.class));
+        verify(outboxHttpClient, org.mockito.Mockito.times(3)).enviar(any(AvisoOutbox.class));
     }
 
     @Test
     void falloAlInsertarAvisoRevierteElCambioDelEvento() throws Exception {
         Evento evento = guardarEventoPublicado();
         outboxRepository.insert(avisoExistente("cancelacion-" + evento.getId()));
+        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
 
         mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isServiceUnavailable());
 
         Evento persistido = eventoRepository.findById(evento.getId()).orElseThrow();
         assertEquals(EstadoEvento.PUBLICADO, persistido.getEstado());
-        assertEquals(1, outboxRepository.count());
-        verify(outboxHttpClient, never()).enviar(any(AvisoOutbox.class));
+        assertEquals(2, outboxRepository.count());
+        verify(outboxHttpClient).enviar(any(AvisoOutbox.class));
     }
 
     @Test
     void falloDeComprasMantieneRespuesta200YAvisoPendiente() throws Exception {
         Evento evento = guardarEventoPublicado();
-        doThrow(new ResourceAccessException("Compras no responde",
-                new ConnectException("connection refused")))
-                .when(outboxHttpClient).enviar(any(AvisoOutbox.class));
+        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenAnswer(invocation -> {
+            AvisoOutbox aviso = invocation.getArgument(0);
+            if ("CANCELACION".equals(aviso.getTipo())) {
+                throw new ResourceAccessException("Compras no responde", new ConnectException("connection refused"));
+            }
+            return 204;
+        });
 
         mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo"))
                 .andExpect(status().isOk())
@@ -157,16 +157,15 @@ class EventoCancelacionOutboxIntegrationTest {
     @Test
     void cancelarDosVecesDevuelve409YSoloDejaUnAviso() throws Exception {
         Evento evento = guardarEventoPublicado();
-        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenReturn(200);
+        when(outboxHttpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
 
         mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo"))
                 .andExpect(status().isOk());
         mockMvc.perform(solicitudCancelacion(evento.getId(), "Otro motivo"))
                 .andExpect(status().isConflict());
 
-        assertEquals(1, outboxRepository.count());
-        verify(reservasClient).cambiarEstadoVenta(evento.getId(), EstadoVentaReservas.CANCELADA);
-        verify(outboxHttpClient).enviar(any(AvisoOutbox.class));
+        assertEquals(3, outboxRepository.count());
+        verify(outboxHttpClient, org.mockito.Mockito.times(3)).enviar(any(AvisoOutbox.class));
     }
 
     @Test

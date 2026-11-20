@@ -23,6 +23,7 @@ public class AvisoOutbox {
     private String correlationId;
     private String destino;
     private String metodoHttp;
+    private String motivoCancelacion;
     @Field(write = Field.Write.ALWAYS)
     private Map<String, Object> payload = new LinkedHashMap<>();
     private EstadoAvisoOutbox estado = EstadoAvisoOutbox.PENDIENTE;
@@ -49,6 +50,8 @@ public class AvisoOutbox {
     public void setDestino(String destino) { this.destino = destino; }
     public String getMetodoHttp() { return metodoHttp; }
     public void setMetodoHttp(String metodoHttp) { this.metodoHttp = metodoHttp; }
+    public String getMotivoCancelacion() { return motivoCancelacion; }
+    public void setMotivoCancelacion(String motivoCancelacion) { this.motivoCancelacion = motivoCancelacion; }
     public Map<String, Object> getPayload() { return payload; }
     public void setPayload(Map<String, Object> payload) { this.payload = payload; }
     public EstadoAvisoOutbox getEstado() { return estado; }

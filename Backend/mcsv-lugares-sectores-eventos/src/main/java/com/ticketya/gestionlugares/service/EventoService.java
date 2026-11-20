@@ -120,12 +120,14 @@ public class EventoService {
     /** Transición local para ser invocada solo después de la confirmación correspondiente de Reservas. */
     public Evento suspenderVentaLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
+        validarSinCancelacionPendiente(evento);
         evento.suspenderVenta();
         return guardarCambioCatalogo(evento);
     }
 
     public Evento reactivarVentaLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
+        validarSinCancelacionPendiente(evento);
         evento.reactivarVenta();
         return guardarCambioCatalogo(evento);
     }
@@ -133,6 +135,7 @@ public class EventoService {
     public Evento cancelarLocal(String eventoId, String motivo, Instant canceladoEn) {
         Evento evento = buscarEvento(eventoId);
         evento.cancelar(motivo, canceladoEn);
+        evento.setCancelacionPendiente(false);
         return guardarCambioCatalogo(evento);
     }
 
@@ -142,6 +145,7 @@ public class EventoService {
 
     public Evento finalizarLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
+        validarSinCancelacionPendiente(evento);
         evento.finalizar();
         return guardarCambioCatalogo(evento);
     }
@@ -155,6 +159,24 @@ public class EventoService {
     public List<Evento> buscarPendientesDeFinalizacion(Instant ahora) {
         return eventoRepository.findByEstadoInAndFechaHoraBefore(
                 List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO), ahora);
+    }
+
+    public Evento registrarIntencionCancelacion(String eventoId) {
+        Evento evento = buscarEvento(eventoId);
+        if (evento.isCancelacionPendiente()) {
+            throw new ServiceUnavailableException("La cancelación está pendiente");
+        }
+        if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
+            throw new ConflictException("Solo se cancela un evento publicado o agotado");
+        }
+        evento.setCancelacionPendiente(true);
+        return guardar(evento);
+    }
+
+    public static void validarSinCancelacionPendiente(Evento evento) {
+        if (evento.isCancelacionPendiente()) {
+            throw new ConflictException("El evento tiene una cancelación pendiente");
+        }
     }
 
     private Evento guardarCambioCatalogo(Evento evento) {

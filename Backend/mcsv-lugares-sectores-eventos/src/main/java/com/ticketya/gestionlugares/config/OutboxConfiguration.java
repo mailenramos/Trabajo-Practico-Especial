@@ -14,9 +14,11 @@ import org.springframework.web.client.RestClient;
 import com.ticketya.gestionlugares.compras.http.ComprasProperties;
 import com.ticketya.gestionlugares.filas.http.FilasProperties;
 import com.ticketya.gestionlugares.preferencias.http.PreferenciasProperties;
+import com.ticketya.gestionlugares.reservas.http.ReservasProperties;
 
 @Configuration
-@EnableConfigurationProperties({ComprasProperties.class, PreferenciasProperties.class, FilasProperties.class})
+@EnableConfigurationProperties({ComprasProperties.class, PreferenciasProperties.class, FilasProperties.class,
+        ReservasProperties.class})
 public class OutboxConfiguration {
 
     @Bean
@@ -33,6 +35,18 @@ public class OutboxConfiguration {
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
+        return builder.clone().requestFactory(requestFactory).build();
+    }
+
+    @Bean
+    @Qualifier("outboxReservasRestClient")
+    RestClient outboxReservasRestClient(RestClient.Builder builder, ReservasProperties properties) {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(properties.getConnectTimeout())
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(properties.getReadTimeout());
         return builder.clone().requestFactory(requestFactory).build();
     }
 }

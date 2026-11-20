@@ -32,7 +32,7 @@ class RestClientOutboxHttpClientTest {
     void preparaYEnviaCancelacionAFilaSinBodyConHeadersComunes() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(),
+        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(), builder.build(),
                 new ServicioToken("token-prueba", new MockEnvironment()));
         Instant ahora = Instant.parse("2030-01-01T10:00:00Z");
         org.slf4j.MDC.put("correlationId", "traza-fila");
@@ -65,7 +65,7 @@ class RestClientOutboxHttpClientTest {
     void enviaPostConXAvisoIdEstableEnCadaReentregaYSinCambiarPayload(String tipo) {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(),
+        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(), builder.build(),
                 new ServicioToken("token-prueba", new MockEnvironment()));
         AvisoOutbox aviso = new AvisoOutbox();
         aviso.setTipo(tipo);
@@ -97,7 +97,7 @@ class RestClientOutboxHttpClientTest {
     void sinTokenNoEnviaSolicitud() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(),
+        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(), builder.build(),
                 new ServicioToken("", new MockEnvironment()));
         AvisoOutbox aviso = new AvisoOutbox();
         aviso.setDestino("http://destino.test/avisos");
@@ -109,7 +109,7 @@ class RestClientOutboxHttpClientTest {
     void excepcionDeTransporteNoExponeToken() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(),
+        RestClientOutboxHttpClient client = new RestClientOutboxHttpClient(builder.build(), builder.build(),
                 new ServicioToken("token-prueba", new MockEnvironment()));
         AvisoOutbox aviso = new AvisoOutbox();
         aviso.setId("aviso-1");

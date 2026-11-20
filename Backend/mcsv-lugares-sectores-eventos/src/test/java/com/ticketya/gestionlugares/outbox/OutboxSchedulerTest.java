@@ -92,7 +92,8 @@ class OutboxSchedulerTest {
         AvisoOutbox agotado = aviso("aviso-agotado-espera", Instant.now().minusSeconds(1), 8);
         outboxRepository.insert(agotado);
         OutboxDispatcher pausado = new OutboxDispatcher(outboxRepository, httpClient, clock,
-                new ServicioToken("   ", new MockEnvironment()));
+                new ServicioToken("   ", new MockEnvironment()),
+                org.mockito.Mockito.mock(EventoCancelacionOutboxService.class));
         OutboxScheduler schedulerPausado = new OutboxScheduler(outboxRepository, pausado, clock);
 
         schedulerPausado.procesarPendientes();
@@ -109,7 +110,8 @@ class OutboxSchedulerTest {
 
         when(httpClient.enviar(any(AvisoOutbox.class))).thenReturn(204);
         OutboxDispatcher habilitado = new OutboxDispatcher(outboxRepository, httpClient, clock,
-                new ServicioToken("token-prueba", new MockEnvironment()));
+                new ServicioToken("token-prueba", new MockEnvironment()),
+                org.mockito.Mockito.mock(EventoCancelacionOutboxService.class));
         org.junit.jupiter.api.Assertions.assertTrue(habilitado.procesarAviso(pendiente.getId()));
         AvisoOutbox entregado = outboxRepository.findById(pendiente.getId()).orElseThrow();
         assertEquals(EstadoAvisoOutbox.ENTREGADO, entregado.getEstado());

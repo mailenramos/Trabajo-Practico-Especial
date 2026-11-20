@@ -40,6 +40,34 @@ public class OutboxAvisoRepositoryCustomImpl implements OutboxAvisoRepositoryCus
     }
 
     @Override
+    public boolean confirmarReclamo(AvisoOutbox aviso, Instant ahora) {
+        Objects.requireNonNull(aviso.getLeaseHasta(), "El reclamo debe tener lease");
+        Query query = reclamoVigente(aviso, aviso.getLeaseHasta(), ahora);
+        Update update = new Update().set("estado", EstadoAvisoOutbox.ENTREGADO)
+                .set("entregadoEn", ahora).set("actualizadoEn", ahora)
+                .unset("ultimoError").unset("leaseHasta");
+        return mongoTemplate.updateFirst(query, update, AvisoOutbox.class).getModifiedCount() == 1;
+    }
+
+    @Override
+    public boolean guardarResultadoReclamo(AvisoOutbox aviso, Instant leaseHasta, Instant ahora) {
+        Update update = new Update().set("estado", aviso.getEstado())
+                .set("ultimoError", aviso.getUltimoError()).set("actualizadoEn", ahora)
+                .set("proximoIntento", aviso.getProximoIntento()).unset("leaseHasta");
+        return mongoTemplate.updateFirst(reclamoVigente(aviso, leaseHasta, ahora),
+                update, AvisoOutbox.class).getModifiedCount() == 1;
+    }
+
+    private Query reclamoVigente(AvisoOutbox aviso, Instant leaseHasta, Instant ahora) {
+        return Query.query(new Criteria().andOperator(
+                Criteria.where("_id").is(aviso.getId()),
+                Criteria.where("estado").is(EstadoAvisoOutbox.PROCESANDO),
+                Criteria.where("intentos").is(aviso.getIntentos()),
+                Criteria.where("leaseHasta").is(leaseHasta),
+                Criteria.where("leaseHasta").gt(ahora)));
+    }
+
+    @Override
     public long marcarAvisosAgotados(Instant ahora, int maxIntentos) {
         Objects.requireNonNull(ahora, "ahora no puede ser null");
         if (maxIntentos < 1) {
