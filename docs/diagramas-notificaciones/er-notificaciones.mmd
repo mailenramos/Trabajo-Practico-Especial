@@ -1,0 +1,19 @@
+erDiagram
+    NOTIFICACION {
+        UUID id PK
+        varchar clave_deduplicacion UK "acontecimiento | tipo | destinatario"
+        varchar tipo "COMPRA_CONFIRMADA, EVENTO_CANCELADO, ..."
+        varchar estado "PENDIENTE, PROCESANDO, ENVIADA, ERROR_FINAL"
+        varchar usuario_id "destinatario (MS6), sin FK"
+        varchar recurso_id "compra, evento, devolución o reintegro"
+        varchar correlacion_id
+        int version_esquema
+        timestamp ocurrido_en
+        text datos "JSON del aviso"
+        int intentos
+        timestamp proximo_intento
+        timestamp vence_procesamiento
+        varchar ultimo_error
+        timestamp creada_en
+        timestamp enviada_en
+    }
