@@ -67,6 +67,12 @@ public class ManejadorDeErrores {
         return ResponseEntity.badRequest().body(cuerpo);
     }
 
+    @ExceptionHandler(ValidacionException.class)
+    ResponseEntity<ErrorRespuesta> validacionManual(ValidacionException e) {
+        return ResponseEntity.badRequest().body(new ErrorRespuesta(Instant.now(), 400, "VALIDACION",
+                e.getMessage(), e.getCampos()));
+    }
+
     @ExceptionHandler(MissingRequestHeaderException.class)
     ResponseEntity<ErrorRespuesta> encabezadoFaltante(MissingRequestHeaderException e) {
         return responder(HttpStatus.BAD_REQUEST, "ENCABEZADO_FALTANTE",

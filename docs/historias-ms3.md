@@ -1,6 +1,6 @@
 # TicketYa — Microservicio 3: Compras y Devoluciones (User Stories)
 
-Versión actualizada con los contratos acordados con los servicios 1, 2, 4 y 5. Para el detalle técnico de la implementación, ver `openspec/changes/archive/2026-11-08-compras-y-pagos/design.md` y `openspec/changes/archive/2026-11-08-devoluciones/design.md`. El diagrama de secuencia de la compra y el entidad-relación están en [`diagramas-ms3.md`](diagramas-ms3.md) (fuentes e imágenes en [`diagramas-ms3/`](diagramas-ms3)), y el código del servicio, en [`Backend/mcsv-compras-devoluciones/`](../Backend/mcsv-compras-devoluciones).
+Versión actualizada con los contratos acordados con los servicios 1, 2, 4 y 5, y con las historias de la Entrega 2 (Recomendaciones, modificación de eventos y avisos a Notificaciones). Para el detalle técnico de la implementación, ver `openspec/changes/archive/2026-11-08-compras-y-pagos/design.md`, `openspec/changes/archive/2026-11-08-devoluciones/design.md` y, para la Entrega 2, `openspec/changes/compras-entrega-2/design.md`. El diagrama de secuencia de la compra y el entidad-relación están en [`diagramas-ms3.md`](diagramas-ms3.md) (fuentes e imágenes en [`diagramas-ms3/`](diagramas-ms3)), y el código del servicio, en [`Backend/mcsv-compras-devoluciones/`](../Backend/mcsv-compras-devoluciones).
 
 ## Alcance del servicio
 
@@ -12,6 +12,9 @@ El microservicio 3 administra las compras de los clientes y las solicitudes de d
 - Coordina el cobro y, según el resultado, la confirmación de la venta o la liberación de los lugares.
 - Registra solicitudes de devolución y las valida; un administrador las aprueba o rechaza.
 - Coordina los reintegros, incluidos los de un evento cancelado, y permite reintentarlos sin duplicar.
+- (Entrega 2) Aplica los cambios de fecha, horario o lugar de un evento a sus compras y avisa a los compradores.
+- (Entrega 2) Avisa a Notificaciones cada cambio relevante de una compra, devolución o reintegro, sin bloquear ni revertir la operación.
+- (Entrega 2) Le da a Recomendaciones dos consultas sobre las compras confirmadas.
 
 ### Qué no hace
 
@@ -19,15 +22,19 @@ El microservicio 3 administra las compras de los clientes y las solicitudes de d
 - No procesa cobros ni reintegros: los pide al servicio de pagos (servicio 4).
 - No emite entradas ni administra sus estados: lo pide al servicio de entradas (servicio 5).
 - No guarda eventos ni precios: los consulta al servicio de eventos (servicio 1).
+- No envía correos: se los pide a Notificaciones (servicio 9).
+- No calcula recomendaciones: solo le da datos de compras a Recomendaciones (servicio 8).
 
-**Datos propios:** compras, detalles de compra (con el precio unitario de cada entrada como referencia histórica), claves de idempotencia, solicitudes de devolución y reintegros. Los demás servicios se referencian solo por ID, sin claves foráneas.
+**Datos propios:** compras, detalles de compra (con el precio unitario de cada entrada como referencia histórica), claves de idempotencia, solicitudes de devolución, reintegros y, desde la Entrega 2, modificaciones de eventos recibidas y avisos pendientes de enviar a Notificaciones. Los demás servicios se referencian solo por ID, sin claves foráneas.
 
 | Servicio | Qué le pide este servicio |
 | --- | --- |
-| 1 · Lugares, sectores y eventos | Precios de los sectores y fecha de inicio del evento. Recibe de él el aviso de cancelación. |
+| 1 · Lugares, sectores y eventos | Precios de los sectores, fecha de inicio y tipo del evento. Recibe de él los avisos de cancelación y de modificación. |
 | 2 · Disponibilidad y reservas | Estado de una reserva; confirmar la venta; liberar lugares. |
 | 4 · Pagos | Procesar un cobro; procesar un reintegro; reintentar un reintegro fallido; consultar un pago. |
 | 5 · Entradas | Emitir entradas; consultar titular, estado, evento y sector de una entrada; pasar a en reintegro y a devuelta. |
+| 8 · Preferencias y recomendaciones | Nada: es Recomendaciones quien consulta a este servicio (co-compras e historial de preferencias). |
+| 9 · Notificaciones | Recibir los avisos de compras, devoluciones, reintegros y eventos cancelados o modificados. |
 
 ## Identificadores y convenciones
 
@@ -37,8 +44,9 @@ El microservicio 3 administra las compras de los clientes y las solicitudes de d
 - Un lugar se identifica por sector, fila y número, ambos enteros (por ejemplo, fila 10, número 1). En sectores no numerados no hay fila ni número.
 - El detalle de compra guarda una fila por entrada, nunca una cantidad.
 - Errores de todos los servicios: `{timestamp, status, error, mensaje, campos?}`; el código de error va en `error`.
-- Usuario y rol llegan en los encabezados `X-User-Id` y `X-User-Role` (sin autenticación en la Entrega 1).
-- Puertos: 8080 Reservas, 8081 Eventos, 8083 Compras, 8084 Pagos, 8085 Entradas. El del Gateway no está definido.
+- Usuario y roles llegan en los encabezados `X-User-Id` y `X-User-Roles` (roles separados por coma), que propaga el API Gateway después de validar el JWT (Entrega 2). En la Entrega 1 era un solo rol en `X-User-Role`, que se sigue aceptando como respaldo si no llega `X-User-Roles`.
+- Los endpoints `/internal/**` de la Entrega 2 los llaman otros servicios: exigen el encabezado `X-Service-Token` con el token compartido (variable `SERVICIO_TOKEN`), provisorio hasta JWT.
+- Puertos: 8080 Reservas, 8081 Eventos, 8083 Compras, 8084 Pagos, 8085 Entradas, 8090 Notificaciones (a confirmar). El del Gateway no está definido.
 
 ## Estados
 
@@ -55,6 +63,10 @@ Este servicio maneja tres máquinas de estado independientes: la de la compra, l
 | Reintegro | Pendiente | Registrado en este servicio, sin respuesta de Pagos todavía. Solo dura entre el registro y la respuesta. |
 | Reintegro | Exitoso | El servicio de pagos lo confirmó; permite pasar la entrada a devuelta. |
 | Reintegro | Fallido | El servicio de pagos no lo logró; se reintenta sin duplicar. |
+| Aviso a Notificaciones | Pendiente | Guardado junto con la operación, a la espera de la tarea de envío (o de su próximo intento). Estado inicial. |
+| Aviso a Notificaciones | Procesando | Una ejecución de la tarea lo tomó y lo está enviando. Si se interrumpe, vence y vuelve a pendiente. |
+| Aviso a Notificaciones | Enviado | Notificaciones confirmó la recepción. Desde procesando. |
+| Aviso a Notificaciones | Error final | Notificaciones lo rechazó por inválido o se agotaron los intentos. No se reintenta; la operación que lo generó no cambia. |
 
 ### Estados de otros servicios que este servicio consulta o provoca
 
@@ -201,9 +213,63 @@ Cuando un administrador cancela un evento, el servicio de eventos avisa a este s
 - **Dado** un reintegro registrado como fallido, **cuando** un administrador lo reintenta con `POST /reintegros/{reintegroId}/reintento` (el reintento de Pagos), **entonces** no se duplica y, si se confirma, las entradas que incluye pasan a devuelta.
 - **Dado** un cliente con entradas de un evento cancelado, **cuando** consulta sus compras o devoluciones, **entonces** ve el estado de su reintegro.
 
+## Entrega 2: Recomendaciones, modificación de eventos y avisos
+
+### R-1 · Co-compras de un evento
+
+**Origen:** Entrega 2 (Recomendaciones). **Como** servicio de recomendaciones, **quiero** saber qué otros eventos compraron quienes compraron un evento, **para** recomendar eventos parecidos.
+
+- **Dado** clientes con una compra confirmada del evento A que también compraron B y C, **cuando** Recomendaciones consulta `GET /internal/eventos/A/co-compras`, **entonces** recibe B y C con la cantidad de clientes en común, de mayor a menor, sin el evento A.
+- **Dado** un cliente con varias compras confirmadas del mismo evento, **cuando** se cuentan las co-compras, **entonces** cuenta una sola vez.
+- **Dado** compras pendientes o fallidas, **cuando** se cuentan las co-compras, **entonces** no cuentan para nada.
+- **Dado** que no se pide límite, **cuando** se consulta, **entonces** se devuelven como máximo 10 eventos; un límite mayor a 20 se trata como 20.
+- **Dado** un evento sin compras confirmadas, **cuando** se consulta, **entonces** responde 200 con la lista vacía, no 404.
+
+### R-2 · Historial de preferencias de un cliente
+
+**Origen:** Entrega 2 (Recomendaciones). **Como** servicio de recomendaciones, **quiero** conocer los tipos de evento y los eventos que compró un cliente, **para** recomendarle eventos de su interés.
+
+- **Dado** un cliente con 3 compras confirmadas de RECITAL y 1 de TEATRO, **cuando** Recomendaciones consulta `GET /internal/usuarios/{usuarioId}/historial-preferencias`, **entonces** recibe `tipos` con RECITAL (3) y TEATRO (1), de mayor a menor.
+- **Dado** una compra nueva, **cuando** se inicia, **entonces** guarda el tipo del evento que informa Eventos; si Eventos no lo informa, la compra se crea igual sin tipo.
+- **Dado** compras confirmadas anteriores a la Entrega 2 (sin tipo), **cuando** se arma el historial, **entonces** no cuentan en `tipos` pero sus eventos sí figuran en `eventosComprados`.
+- **Dado** un cliente con compras confirmadas, **cuando** se consulta, **entonces** `eventosComprados` trae los eventos distintos, del comprado más recientemente al más antiguo, como máximo 20.
+- **Dado** un cliente sin compras confirmadas, **cuando** se consulta, **entonces** responde 200 con las dos listas vacías.
+
+### E-3 · Aplicar la modificación de un evento
+
+**Origen:** Entrega 2. **Como** cliente, **quiero** enterarme si cambian la fecha, el horario o el lugar de un evento que compré, **para** organizarme; **como** equipo, **queremos** que las fechas guardadas se mantengan al día.
+
+- **Dado** que Eventos modifica un evento, **cuando** avisa con `POST /internal/eventos-modificados` (`eventoId`, `version` y al menos uno de `fechaHora`, `lugar` o `ciudad`), **entonces** en una sola transacción se registra la modificación, se actualiza la fecha de inicio guardada en las compras y solicitudes de devolución del evento (si vino `fechaHora`) y se guarda un aviso EVENTO_MODIFICADO por cada cliente con compra confirmada. Responde 202.
+- **Dado** una modificación que solo cambia el lugar, **cuando** se aplica, **entonces** no cambia ninguna fecha guardada y los avisos llevan el lugar nuevo.
+- **Dado** la misma versión recibida otra vez, o una versión menor que la ya procesada, **cuando** llega, **entonces** no se cambia nada, no se crean avisos y responde 200.
+- **Dado** un cliente con varias compras confirmadas del evento, **cuando** se generan los avisos, **entonces** recibe uno solo; los clientes con compras pendientes o fallidas no reciben ninguno.
+- **Dado** un cuerpo inválido o un token incorrecto, **cuando** llega el aviso, **entonces** responde 400 o 403 y no guarda nada.
+- **Dado** una falla a mitad de la transacción, **cuando** ocurre, **entonces** no queda nada guardado y Eventos puede reintentar con la misma versión.
+- Modificar la fecha o el lugar no genera reintegros ni cambia el estado de las entradas.
+
+### N-1 · Avisar a Notificaciones sin afectar la operación
+
+**Origen:** Entrega 2 (Notificaciones). **Como** cliente, **quiero** recibir un correo cuando se confirma mi compra, se resuelve mi devolución, termina mi reintegro o se cancela o modifica mi evento, **para** estar al tanto; **como** equipo, **queremos** que una falla de Notificaciones nunca revierta una compra, una devolución ni un reintegro.
+
+- **Dado** una compra que pasa a confirmada, **cuando** se confirma, **entonces** en la misma transacción se guardan los avisos COMPRA_CONFIRMADA y ENTRADAS_DISPONIBLES.
+- **Dado** una devolución aprobada o rechazada por un administrador, o un reintegro que termina exitoso o fallido, **cuando** cambia su estado, **entonces** en la misma transacción se guarda el aviso DEVOLUCION_APROBADA, DEVOLUCION_RECHAZADA o RESULTADO_REINTEGRO.
+- **Dado** un evento cancelado, **cuando** llega el aviso de cancelación, **entonces** se guarda un aviso EVENTO_CANCELADO por cada cliente con compra confirmada. Las solicitudes pendientes que la cancelación cierra no generan DEVOLUCION_RECHAZADA.
+- **Dado** que la operación de negocio se revierte, **cuando** ocurre, **entonces** no queda ningún aviso guardado. Repetir la operación no crea un segundo aviso (mismo acontecimiento, tipo y destinatario).
+- **Dado** que Notificaciones no responde, **cuando** se compra, se devuelve o se reintegra, **entonces** la operación se completa igual y el aviso queda pendiente.
+
+### N-2 · Enviar los avisos con reintentos
+
+**Origen:** Entrega 2 (Notificaciones). **Como** equipo, **queremos** que los avisos pendientes se envíen solos y se reintenten ante fallas, **para** que ningún cliente se quede sin su correo por una caída puntual.
+
+- **Dado** avisos pendientes, **cuando** corre la tarea de envío (cada 10 s), **entonces** cada aviso lo toma una sola ejecución (toma condicional) y, con una respuesta 2xx de Notificaciones, queda enviado.
+- **Dado** una falla temporal (sin respuesta, 403 u otro error), **cuando** ocurre, **entonces** el aviso vuelve a pendiente con espera creciente (30 s, 60 s, 120 s...) y el mismo `acontecimientoId`, así Notificaciones no duplica la notificación.
+- **Dado** un rechazo definitivo (400, 415 o 422) o los 5 intentos agotados, **cuando** ocurre, **entonces** el aviso queda en error final con el último error.
+- **Dado** un aviso que quedó enviándose porque el servicio se cayó, **cuando** pasa su vencimiento (2 minutos), **entonces** vuelve a pendiente contando el intento (o a error final si ya los agotó), y el resultado tardío de ese envío no pisa su estado.
+- El envío es de al menos una vez: si se pierde la confirmación, el aviso puede repetirse y Notificaciones lo deduplica.
+
 ## Permisos y requisitos técnicos
 
-El API Gateway identifica al usuario con los encabezados `X-User-Id` y `X-User-Role` y los propaga; este servicio valida los permisos de sus propias operaciones.
+El API Gateway valida el JWT, descarta los encabezados de identidad del cliente y propaga `X-User-Id` (el `sub` del token) y `X-User-Roles` (puede haber varios roles); este servicio no valida el token, pero sí los permisos de sus propias operaciones. Como confía en esos encabezados, solo debe ser alcanzable a través del Gateway: en la configuración de entrega el puerto 8083 no debe publicarse fuera de la red de Docker (`ticketya-net`).
 
 | ID | Historia | Criterio de aceptación |
 | --- | --- | --- |
@@ -214,6 +280,8 @@ El API Gateway identifica al usuario con los encabezados `X-User-Id` y `X-User-R
 | P-5 | Como equipo, queremos que las llamadas a otros servicios sean comunicación directa entre servicios, para no exponerlas en el gateway. | Las operaciones internas (confirmar venta, liberar, emitir, cobrar, reintegrar) no pasan por el API Gateway. |
 | P-6 | Como equipo, queremos pruebas unitarias de la lógica de compra y devolución, para detectar errores temprano. | Hay pruebas de cada escenario de C-1 a E-2 que corren con los otros servicios reemplazados por dobles de prueba. |
 | P-7 | Como equipo, queremos documentar los endpoints con OpenAPI, para que sean claros y probables. | Cada endpoint tiene método, ruta, parámetros, códigos de respuesta, ejemplos JSON y códigos de error. |
+| P-9 | Como administrador con varios roles, quiero que se me reconozca como administrador, para operar aunque también sea cliente. | Es administrador quien tiene el rol configurado (`ADMIN`) en `X-User-Roles`, entre otros; sin él, 403 `SOLO_ADMINISTRADOR`. La titularidad sigue por `X-User-Id`, sin importar los roles. Sin `X-User-Roles` se toma `X-User-Role` como único rol; si llegan los dos, manda `X-User-Roles`. |
+| P-8 | Como equipo, queremos que solo otros servicios autorizados llamen a los endpoints internos, para que no se expongan datos de compras. | Los `/internal/**` de la Entrega 2 exigen `X-Service-Token`, comparado en tiempo constante; sin él, con uno incorrecto o sin token configurado, responden 403 `SERVICIO_NO_AUTORIZADO`. |
 
 ## Endpoints de este servicio
 
@@ -231,8 +299,11 @@ El API Gateway identifica al usuario con los encabezados `X-User-Id` y `X-User-R
 | `GET /reintegros` | Administrador | Lista los reintegros. Filtro `?estado=` | 200, 403 |
 | `POST /reintegros/{reintegroId}/reintento` | Administrador | Reintenta sin duplicar; en una devolución, la retoma desde el paso que falló | 200, 202, 403, 404 |
 | `POST /eventos-cancelados` | Eventos (interno) | Aviso de cancelación. Idempotente por `eventoId`; procesa en segundo plano | 200, 202, 400 |
+| `POST /internal/eventos-modificados` | Eventos (interno, `X-Service-Token`) | Modificación de fecha, horario o lugar. Idempotente por `eventoId` + `version` | 202, 200, 400, 403 |
+| `GET /internal/eventos/{eventoId}/co-compras` | Recomendaciones (interno, `X-Service-Token`) | Otros eventos comprados por quienes compraron este. `?limite=` (10 por defecto, tope 20) | 200, 400, 403 |
+| `GET /internal/usuarios/{usuarioId}/historial-preferencias` | Recomendaciones (interno, `X-Service-Token`) | Tipos de evento y eventos comprados por el cliente | 200, 403 |
 
-El administrador se identifica con `X-User-Role: ADMIN` (confirmado por el grupo; el valor es configurable).
+El administrador es quien tiene `ADMIN` entre sus roles de `X-User-Roles` (confirmado por el grupo; el valor es configurable). `X-User-Role` (un solo rol) se acepta como respaldo durante la transición.
 
 ## Contratos con los otros servicios
 
@@ -240,6 +311,15 @@ El administrador se identifica con `X-User-Role: ADMIN` (confirmado por el grupo
 
 - `GET /internal/eventos/{eventoId}`: `eventoId`, `nombre`, `fechaInicio` (ISO-8601, UTC), `estado` (en minúsculas: `borrador`, `publicado`, `agotado`, `cancelado` o `finalizado`) y `sectores` (`sectorId`, `nombre`, `precio`). 404 si no existe. Llamada directa, sin Gateway.
 - `POST /eventos-cancelados` (Eventos llama a este servicio): `eventoId`, `motivo`, `canceladoEn`. 202 si lo acepta, 200 si ya lo procesó.
+- **Entrega 2, contrato a acordar:** que `GET /internal/eventos/{eventoId}` devuelva `tipo`, y que Eventos llame a `POST /internal/eventos-modificados` con `X-Service-Token`, `eventoId`, un contador `version` por evento y `fechaHora` en UTC (más `lugar` y `ciudad` si cambian).
+
+### Preferencias y recomendaciones (8) — Entrega 2
+
+- Consume `GET /internal/eventos/{eventoId}/co-compras` (`{eventoId, coCompras: [{eventoId, cantidad}]}`) y `GET /internal/usuarios/{usuarioId}/historial-preferencias` (`{usuarioId, tipos: [{tipo, cantidad}], eventosComprados: [...]}`), con `X-Service-Token`. A acordar: si necesita paginación o un límite distinto en co-compras.
+
+### Notificaciones (9) — acordado e implementado
+
+- `POST /internal/notificaciones` con `X-Service-Token`. Cuerpo: `acontecimientoId`, `tipo`, `versionEsquema` (1), `ocurridoEn`, `recursoId`, `usuarioId`, `correlacionId` y `datos` (campos según el tipo). Responde 202 con la notificación nueva o la ya registrada (deduplica por acontecimiento, tipo y destinatario). El contrato completo está en su `openapi.yaml`.
 
 ### Reservas (2) — confirmado
 
@@ -298,12 +378,16 @@ Servicio interno, sin encabezados de usuario, con rutas internas (`/internal/pag
 | Pago aprobado pero venta rechazada | Reintegro automático por el total y la compra pasa a fallida. El reintegro se crea solo al pasar la compra a fallida, así que nunca hay dos por compra. |
 | Fallos parciales al aprobar una devolución | Se registra y se retoma, sin revertir: la devolución queda aprobada, guarda qué pasos se hicieron y un administrador la reintenta desde el que falló. No se revierte porque Reservas y Entradas no tienen operaciones inversas. Cada paso es repetible sin duplicar efectos. |
 | Tipo de la fila | La fila de un lugar es un entero en todos los servicios (confirmado por Reservas). Una fila no numérica recibida de otro servicio es un error de contrato (502 `CONTRATO_INVALIDO`). |
-| Rol de administrador | `X-User-Role: ADMIN`, confirmado por el grupo. |
+| Rol de administrador | `ADMIN`, confirmado por el grupo. Desde la Entrega 2 se decide por pertenencia al conjunto de `X-User-Roles` (un usuario puede tener varios roles). |
+| Identidad (Entrega 2) | El Gateway valida el JWT y propaga `X-User-Id` y `X-User-Roles`; este servicio no valida el token. `X-User-Role` se acepta como respaldo si falta `X-User-Roles` y se retira cuando todo el grupo use el Gateway nuevo. Los encabezados de identidad no se registran en los logs. |
 | Cancelación de un evento | Aviso idempotente por `eventoId` (202 aceptado o en proceso, 200 ya procesado). Un reintegro por compra confirmada, con `reason` "Evento cancelado" y el precio de las entradas vigentes. Los reintegros fallidos los reintenta un administrador, como en las devoluciones. Una cancelación interrumpida se retoma automáticamente: una revisión periódica (`compras.cancelacion.intervalo-reanudacion`, 60 s; se desactiva con `compras.cancelacion.reanudacion-activa=false`) toma con una actualización condicional las que llevan en proceso más que el plazo. |
 | Compra pendiente ya cobrada en un evento cancelado | La cancelación cierra las compras pendientes del evento: pasan a fallidas con un cambio de estado condicional y, si tienen un pago aprobado (registrado o informado por Pagos), reciben un único reintegro por el total. Si un pago se retoma a la vez, gana quien cambia primero el estado. Límite aceptado en la Entrega 1: las entradas emitidas cuya respuesta se perdió quedan en reintegro sin pasar a devueltas. |
 | Retención de la clave de idempotencia | No vence en la Entrega 1: se conserva mientras exista la compra. Es seguro porque antes de cobrar se revisa si la compra ya tiene un pago, se consulta a Pagos si otra clave ya intentó pagarla y Pagos rechaza (409) un segundo cobro de una compra ya pagada, así que repetir un pago con una clave olvidada no cobraría dos veces. Una limpieza agregaría código y pruebas sin sumar seguridad; en la Entrega 2 puede sumarse una limpieza programada (por ejemplo, 24 horas después de completarse). |
 | Contrato de Entradas | Confirmado por Entradas: pedido de emisión con `lugares` (`idSector`, `nombreSector`, `fila`, `numero`), consulta con el sector anidado, cambios de estado repetibles (200) y 409 `TRANSICION_INVALIDA` como conflicto de estado. Código de error en `error` (o en `codigo` mientras Entradas migra). |
 | Estado de un evento | Eventos lo envía en minúsculas: `borrador`, `publicado`, `agotado`, `cancelado` o `finalizado`. Una entrada de un evento `cancelado` no admite devolución (409 `EVENTO_CANCELADO`). |
+| Avisos a Notificaciones (Entrega 2) | Outbox: el aviso se guarda en la misma transacción que la operación y una tarea programada lo envía con reintentos. La clave única (acontecimiento, tipo, destinatario) es la misma con la que deduplica Notificaciones. 400, 415 y 422 no se reintentan; 403 sí. Las llamadas a Pagos de un reintegro quedan fuera de la transacción que guarda su resultado y su aviso. |
+| Modificación de eventos (Entrega 2) | Idempotente por `eventoId` + `version`; una versión anterior a la ya procesada se ignora. Todo en una transacción. No genera reintegros ni cambia entradas. |
+| Endpoints internos (Entrega 2) | `X-Service-Token` con el token compartido `SERVICIO_TOKEN`, provisorio hasta la adaptación a JWT (cambio aparte). |
 
 ### Abiertos
 
@@ -311,13 +395,19 @@ Servicio interno, sin encabezados de usuario, con rutas internas (`/internal/pag
 2. **Eventos:** IDs fijos de evento y sectores para los datos de prueba.
 3. **Gateway:** puerto sin definir.
 4. **Pagos:** confirmar que con las rutas internas no cambian los cuerpos, los códigos de respuesta ni el formato de error (se asume que no).
+5. **Eventos (Entrega 2):** que devuelva `tipo` en el evento y que tenga el contador `version` por evento para avisar modificaciones (si no, se usaría la fecha de modificación como identificador).
+6. **Grupo (Entrega 2):** nombre definitivo del encabezado y de la variable del token de servicio (hoy `X-Service-Token` y `SERVICIO_TOKEN`) y URL de Notificaciones en el contenedor (`notificaciones:8090`).
+7. **Recomendaciones (Entrega 2):** si necesita paginación o un límite distinto en co-compras.
+8. **Grupo (Entrega 2):** la configuración de Docker de entrega, con la red `ticketya-net` y sin publicar el puerto 8083 de este servicio, todavía no está en el repositorio.
 
 ## Cómo se organiza en OpenSpec
 
-Tres cambios, en este orden. Cada criterio Dado / Cuando / Entonces de este documento se convierte en un escenario WHEN / THEN de la spec.
+Tres cambios en la Entrega 1 y dos en la Entrega 2, en este orden. Cada criterio Dado / Cuando / Entonces de este documento se convierte en un escenario WHEN / THEN de la spec.
 
 | Orden | Cambio | Historias | Por qué en este lugar |
 | --- | --- | --- | --- |
 | 1 | `compras-y-pagos` | C-1 a C-6, P-1, P-3 | Camino principal; fija el modelo de compra y la idempotencia. También deja el modelo de datos de los reintegros. |
 | 2 | `devoluciones` | D-1 a D-4, P-2 | Necesita compras confirmadas y define la máquina de estados del reintegro. |
 | 3 | `cancelacion-de-eventos` | E-1, E-2 | Reutiliza la coordinación de reintegros del cambio anterior, sin aprobación individual. |
+| 4 | `compras-entrega-2` | R-1, R-2, E-3, N-1, N-2, P-8 | Entrega 2: suma consultas, avisos y modificación de eventos sobre los estados ya definidos. |
+| 5 | `compras-jwt-roles` | P-9 | Entrega 2: adapta la identidad al JWT del Gateway (varios roles) sin cambiar la titularidad ni los códigos de respuesta. |

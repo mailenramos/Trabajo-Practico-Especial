@@ -22,7 +22,14 @@ public class DoblesConfig {
     @Bean @Primary
     public EntradasFalso entradasFalso() { return new EntradasFalso(); }
 
-    /** El procesamiento en segundo plano corre en el mismo hilo: la prueba ve el resultado al volver. */
     @Bean @Primary
+    public NotificacionesFalso notificacionesFalso() { return new NotificacionesFalso(); }
+
+    /**
+     * El procesamiento en segundo plano corre en el mismo hilo: la prueba ve el resultado al volver.
+     * También se llama applicationTaskExecutor: al definir este ejecutor, Spring Boot no crea el suyo,
+     * y CancelacionService lo pide por ese nombre.
+     */
+    @Bean(name = {"ejecutorSincronico", "applicationTaskExecutor"}) @Primary
     public TaskExecutor ejecutorSincronico() { return new SyncTaskExecutor(); }
 }

@@ -17,8 +17,8 @@ sequenceDiagram
     MS3->>MS2: GET /disponibilidad/reservas/{reservaId}
     MS2-->>MS3: reserva (clienteId, estado, expiraEn, detalles)
     MS3->>MS1: GET /internal/eventos/{eventoId}
-    MS1-->>MS3: evento y precios de sectores
-    MS3->>MS3: calcula total y registra la compra PENDIENTE (una fila por lugar)
+    MS1-->>MS3: evento, tipo y precios de sectores
+    MS3->>MS3: calcula total y registra la compra PENDIENTE con su tipoEvento (una fila por lugar)
     MS3-->>C: 201 compra pendiente
     end
 
@@ -50,7 +50,7 @@ sequenceDiagram
                 end
                 alt entradas emitidas
                     MS5-->>MS3: idEntrada, idSector, fila, numero, codigoQr
-                    MS3->>MS3: guarda entradaId y compra a CONFIRMADA
+                    MS3->>MS3: guarda entradaId, compra a CONFIRMADA y, en la misma transacción, los avisos COMPRA_CONFIRMADA y ENTRADAS_DISPONIBLES (outbox)
                     MS3-->>C: 200 compra confirmada con sus entradas
                 else falla las 3 veces
                     MS3->>MS3: la compra queda PENDIENTE

@@ -88,10 +88,11 @@ public class PagoService {
     private final Duration esperaEntreIntentos;
     private final Duration plazoEnProceso;
     private final ReintegroService reintegroService;
+    private final AvisoService avisos;
 
     public PagoService(CompraRepository compras, ClaveIdempotenciaRepository claves,
                        ReservasCliente reservas, PagosCliente pagos, EntradasCliente entradas,
-                       ReintegroService reintegroService,
+                       ReintegroService reintegroService, AvisoService avisos,
                        TransactionTemplate transaccion, JsonMapper json,
                        @Value("${compras.emision.intentos:3}") int intentosEmision,
                        @Value("${compras.emision.espera-entre-intentos:200ms}") Duration esperaEntreIntentos,
@@ -107,6 +108,7 @@ public class PagoService {
         this.esperaEntreIntentos = esperaEntreIntentos;
         this.plazoEnProceso = plazoEnProceso;
         this.reintegroService = reintegroService;
+        this.avisos = avisos;
     }
 
     // ------------------------------------------------------------------ pedido de pago
@@ -282,9 +284,12 @@ public class PagoService {
         compras.saveAndFlush(compra);
 
         // 4. Recién con las entradas emitidas, la compra pasa a confirmada. Solo si sigue
-        // pendiente: una compra cerrada (por ejemplo, por la cancelación del evento) no se reabre
+        // pendiente: una compra cerrada (por ejemplo, por la cancelación del evento) no se reabre.
+        // Los avisos de compra confirmada y entradas disponibles se guardan en esta misma transacción
         if (compras.cambiarEstado(compraId, EstadoCompra.PENDIENTE, EstadoCompra.CONFIRMADA) == 0) {
             log.warn("La compra {} dejó de estar pendiente antes de confirmarla: no se confirma", compraId);
+        } else {
+            avisos.compraConfirmada(compraId);
         }
         return respuestaCompra(200, compraId);
     }

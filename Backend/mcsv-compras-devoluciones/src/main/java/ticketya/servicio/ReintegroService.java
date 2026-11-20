@@ -38,13 +38,15 @@ public class ReintegroService {
     private final CompraRepository compras;
     private final PagosCliente pagos;
     private final TransactionTemplate transaccion;
+    private final AvisoService avisos;
 
     public ReintegroService(ReintegroRepository reintegros, CompraRepository compras, PagosCliente pagos,
-                            TransactionTemplate transaccion) {
+                            TransactionTemplate transaccion, AvisoService avisos) {
         this.reintegros = reintegros;
         this.compras = compras;
         this.pagos = pagos;
         this.transaccion = transaccion;
+        this.avisos = avisos;
     }
 
     /** Los reintegros, de todos los clientes, opcionalmente de un estado. */
@@ -98,22 +100,28 @@ public class ReintegroService {
      * Pide el reintegro a Pagos sobre el pago de la compra. Con respuesta queda EXITOSO o
      * FALLIDO. Sin respuesta, o si Pagos lo rechaza al pedirlo (409/400), queda PENDIENTE
      * con el último error, y se puede volver a pedir con la misma clave.
+     * <p>
+     * La llamada a Pagos se hace fuera de la transacción que abre este método: la transacción
+     * cubre solo guardar el resultado y su aviso (ver {@link #guardarResultado}).
      */
     public Reintegro pedir(Reintegro r, String pagoId) {
         String clave = r.getRefundRequestId().toString();
+        PagosCliente.Reintegro respuesta = null;
+        String error = null;
         try {
-            aplicar(r, pagos.reintegrar(pagoId, clave, clave, r.getMonto(), r.getMotivo()));
+            respuesta = pagos.reintegrar(pagoId, clave, clave, r.getMonto(), r.getMotivo());
         } catch (ConflictoEnPagosException | ServicioExternoException e) {
             log.warn("Reintegro {} sin resolver al pedirlo: {}", r.getId(), e.getMessage());
-            r.setUltimoError(e.getMessage());
+            error = e.getMessage();
         }
-        return reintegros.saveAndFlush(r);
+        return guardarResultado(r, respuesta, error);
     }
 
     /**
      * Reintenta sin duplicar: exitoso no llama a Pagos; pendiente sin respuesta repite el
      * pedido con la misma clave; fallido usa el reintento de Pagos (/reintentar) y, si responde 409 (ya no
-     * está fallido), consulta el estado del reintegro.
+     * está fallido), consulta el estado del reintegro. Igual que {@link #pedir}, las llamadas a Pagos
+     * van fuera de la transacción que guarda el resultado.
      */
     public Reintegro reintentar(Reintegro r, String pagoId) {
         if (r.getEstado() == EstadoReintegro.EXITOSO) {
@@ -122,23 +130,47 @@ public class ReintegroService {
         if (r.getPagosReintegroId() == null) {
             return pedir(r, pagoId);
         }
+        PagosCliente.Reintegro respuesta = null;
+        String error = null;
         try {
-            aplicar(r, pagos.reintentarReintegro(r.getPagosReintegroId()));
+            respuesta = pagos.reintentarReintegro(r.getPagosReintegroId());
         } catch (ConflictoEnPagosException e) {
             try {
-                pagos.consultarReintegro(r.getPagosReintegroId()).ifPresentOrElse(
-                        actual -> aplicar(r, actual),
-                        () -> r.setUltimoError("Pagos rechazó el reintento y no informa el reintegro"));
+                respuesta = pagos.consultarReintegro(r.getPagosReintegroId()).orElse(null);
+                if (respuesta == null) {
+                    error = "Pagos rechazó el reintento y no informa el reintegro";
+                }
             } catch (ServicioExternoException sinRespuesta) {
-                r.setUltimoError(sinRespuesta.getMessage());
+                error = sinRespuesta.getMessage();
             }
         } catch (ServicioExternoException e) {
-            r.setUltimoError(e.getMessage());
+            error = e.getMessage();
         }
-        return reintegros.saveAndFlush(r);
+        return guardarResultado(r, respuesta, error);
     }
 
+    /**
+     * Guarda en una transacción el resultado de Pagos (o el error) y, si el estado cambió, el aviso
+     * de resultado del reintegro: los dos quedan juntos o no queda ninguno. Si quien llama ya tiene
+     * una transacción, se suma a ella (REQUIRED); si no, abre una corta, sin llamadas externas.
+     */
+    private Reintegro guardarResultado(Reintegro r, PagosCliente.Reintegro respuesta, String error) {
+        return transaccion.execute(estado -> {
+            if (respuesta != null) {
+                aplicar(r, respuesta);
+            } else {
+                r.setUltimoError(error);
+            }
+            return reintegros.saveAndFlush(r);
+        });
+    }
+
+    /**
+     * Aplica la respuesta de Pagos. Si el estado cambia (a EXITOSO o FALLIDO), guarda el aviso de
+     * resultado del reintegro. Se llama solo desde {@link #guardarResultado}, dentro de su transacción.
+     */
     private void aplicar(Reintegro r, PagosCliente.Reintegro respuesta) {
+        EstadoReintegro anterior = r.getEstado();
         r.setPagosReintegroId(respuesta.id());
         r.setIntentos(respuesta.attemptCount() != null ? respuesta.attemptCount() : r.getIntentos() + 1);
         if (respuesta.status() == EstadoReintegroPagos.EXITOSO) {
@@ -147,6 +179,9 @@ public class ReintegroService {
         } else {
             r.setEstado(EstadoReintegro.FALLIDO);
             r.setUltimoError("Pagos no logró el reintegro");
+        }
+        if (r.getEstado() != anterior) {
+            avisos.resultadoReintegro(r);
         }
     }
 }

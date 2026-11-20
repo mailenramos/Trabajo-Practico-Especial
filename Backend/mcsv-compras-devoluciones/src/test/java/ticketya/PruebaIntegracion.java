@@ -18,14 +18,18 @@ import ticketya.cliente.ReservasCliente.Reserva;
 import ticketya.dobles.DoblesConfig;
 import ticketya.dobles.EntradasFalso;
 import ticketya.dobles.EventosFalso;
+import ticketya.dobles.NotificacionesFalso;
 import ticketya.dobles.PagosFalso;
 import ticketya.dobles.ReservasFalso;
+import ticketya.repositorio.AvisoPendienteRepository;
 import ticketya.repositorio.CancelacionEventoRepository;
 import ticketya.repositorio.ClaveIdempotenciaRepository;
 import ticketya.repositorio.EntradaDeReintegroRepository;
+import ticketya.repositorio.ModificacionEventoRepository;
 import ticketya.repositorio.CompraRepository;
 import ticketya.repositorio.ReintegroRepository;
 import ticketya.repositorio.SolicitudDevolucionRepository;
+import ticketya.web.AutorizacionDeServicioFilter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,35 +52,47 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.jpa.show-sql=false",
         "compras.emision.espera-entre-intentos=0ms",
         // La reanudación automática de cancelaciones se prueba llamando al método directamente
-        "compras.cancelacion.reanudacion-activa=false"
+        "compras.cancelacion.reanudacion-activa=false",
+        "compras.avisos.envio-activo=false",
+        "compras.seguridad.token-servicio=" + PruebaIntegracion.TOKEN_SERVICIO
 })
 public abstract class PruebaIntegracion {
 
     protected static final String EVENTO_ID = "evento-1";
     protected static final String PLATEA = "platea";
     protected static final String CAMPO = "campo";
+    /** Token de servicio configurado en las pruebas para los endpoints /internal/**. */
+    protected static final String TOKEN_SERVICIO = "token-de-prueba";
 
     @Autowired WebApplicationContext contexto;
     @Autowired protected EventosFalso eventos;
     @Autowired protected ReservasFalso reservas;
     @Autowired protected PagosFalso pagos;
     @Autowired protected EntradasFalso entradas;
+    @Autowired protected NotificacionesFalso notificaciones;
     @Autowired protected CompraRepository compras;
     @Autowired protected ClaveIdempotenciaRepository claves;
     @Autowired protected SolicitudDevolucionRepository solicitudes;
     @Autowired protected ReintegroRepository reintegros;
     @Autowired protected CancelacionEventoRepository cancelaciones;
     @Autowired protected EntradaDeReintegroRepository entradasDeReintegro;
+    @Autowired protected AvisoPendienteRepository avisos;
+    @Autowired protected ModificacionEventoRepository modificacionesDeEvento;
 
     protected MockMvc mvc;
 
     @BeforeEach
     void prepararBase() {
-        mvc = MockMvcBuilders.webAppContextSetup(contexto).build();
+        mvc = MockMvcBuilders.webAppContextSetup(contexto)
+                .addFilters(contexto.getBean(AutorizacionDeServicioFilter.class))
+                .build();
         eventos.reiniciar();
         reservas.reiniciar();
         pagos.reiniciar();
         entradas.reiniciar();
+        notificaciones.reiniciar();
+        avisos.deleteAll();
+        modificacionesDeEvento.deleteAll();
         cancelaciones.deleteAll();
         entradasDeReintegro.deleteAll();
         solicitudes.deleteAll();
@@ -127,6 +143,11 @@ public abstract class PruebaIntegracion {
             pedido.header("Idempotency-Key", clave);
         }
         return mvc.perform(pedido);
+    }
+
+    /** GET a un endpoint interno con el token de servicio. */
+    protected ResultActions consultarInterno(String ruta, Object... variables) throws Exception {
+        return mvc.perform(get(ruta, variables).header(AutorizacionDeServicioFilter.ENCABEZADO, TOKEN_SERVICIO));
     }
 
     protected ResultActions consultar(String clienteId, String ruta, Object... variables) throws Exception {

@@ -11,7 +11,13 @@ public interface EventosCliente {
     /** Devuelve el evento en cualquier estado, o vacío si no existe. */
     Optional<Evento> obtenerEvento(String eventoId);
 
-    record Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores) {
+    /** {@code tipo} (RECITAL, TEATRO, ...) puede venir vacío: Eventos todavía no confirmó el campo. */
+    record Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores,
+                  String tipo) {
+
+        public Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores) {
+            this(eventoId, nombre, fechaInicio, estado, sectores, null);
+        }
 
         public Optional<Sector> sector(String sectorId) {
             return sectores == null ? Optional.empty()

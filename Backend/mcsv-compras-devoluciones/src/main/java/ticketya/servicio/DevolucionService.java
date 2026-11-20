@@ -54,11 +54,13 @@ public class DevolucionService {
     private final EventosCliente eventos;
     private final ReservasCliente reservas;
     private final TransactionTemplate transaccion;
+    private final AvisoService avisos;
 
     public DevolucionService(SolicitudDevolucionRepository solicitudes, DetalleCompraRepository detalles,
                              ReintegroRepository reintegros, CompraRepository compras,
                              ReintegroService reintegroService, EntradasCliente entradas,
-                             EventosCliente eventos, ReservasCliente reservas, TransactionTemplate transaccion) {
+                             EventosCliente eventos, ReservasCliente reservas, TransactionTemplate transaccion,
+                             AvisoService avisos) {
         this.solicitudes = solicitudes;
         this.detalles = detalles;
         this.reintegros = reintegros;
@@ -68,6 +70,7 @@ public class DevolucionService {
         this.eventos = eventos;
         this.reservas = reservas;
         this.transaccion = transaccion;
+        this.avisos = avisos;
     }
 
     /** Resultado de solicitar: una solicitud nueva (201) o la pendiente que ya existía (200). */
@@ -133,21 +136,26 @@ public class DevolucionService {
 
     /**
      * D-2: rechaza una solicitud pendiente con un motivo. No pide nada a otros servicios:
-     * la entrada sigue vigente y puede volver a solicitarse.
+     * la entrada sigue vigente y puede volver a solicitarse. El aviso de devolución rechazada
+     * se guarda en la misma transacción que el rechazo.
      */
     public SolicitudDevolucion rechazar(UsuarioActual administrador, UUID devolucionId, String motivo) {
         buscar(devolucionId);
-        if (solicitudes.rechazar(devolucionId, motivo.trim(), administrador.id(), Instant.now()) == 0) {
-            throw yaResuelta(devolucionId);
-        }
+        transaccion.executeWithoutResult(estado -> {
+            if (solicitudes.rechazar(devolucionId, motivo.trim(), administrador.id(), Instant.now()) == 0) {
+                throw yaResuelta(devolucionId);
+            }
+            avisos.devolucionRechazada(buscar(devolucionId));
+        });
         return buscar(devolucionId);
     }
 
     /**
      * D-2: aprueba una solicitud pendiente. Con la fila bloqueada, el cambio condicional a
      * aprobada y el registro del reintegro van en la misma transacción: una solicitud
-     * aprobada siempre tiene su reintegro y dos aprobaciones simultáneas no crean dos.
-     * Después coordina la devolución con los otros servicios.
+     * aprobada siempre tiene su reintegro y dos aprobaciones simultáneas no crean dos. El aviso
+     * de devolución aprobada va en esa misma transacción. Después coordina la devolución con los
+     * otros servicios.
      */
     public SolicitudDevolucion aprobar(UsuarioActual administrador, UUID devolucionId) {
         transaccion.executeWithoutResult(estado -> {
@@ -159,6 +167,7 @@ public class DevolucionService {
             }
             reintegroService.registrar(s.getCompraId(), s.getId(), s.getMonto(),
                     "Devolución de entrada " + s.getEntradaId(), OrigenReintegro.DEVOLUCION);
+            avisos.devolucionAprobada(s);
         });
         return coordinar(devolucionId);
     }
