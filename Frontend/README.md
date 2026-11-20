@@ -5,7 +5,7 @@ Aplicacion de demostracion hecha con Vue 3 y Vite. Permite buscar eventos, elegi
 ## Requisitos
 
 - Node.js 20.19+ o 22.12+ instalado. `npm` se instala junto con Node.js; `npm ci` descarga las dependencias del proyecto, no instala Node.js.
-- API Gateway en `http://localhost:8086` y los microservicios requeridos por el flujo encendidos.
+- API Gateway en `http://localhost:8086`, MS6 (Usuarios) para iniciar sesión y los microservicios requeridos por el flujo encendidos.
 
 En Windows, abre PowerShell desde esta carpeta. La primera vez que se descarga el proyecto, instala las dependencias:
 
@@ -23,15 +23,33 @@ Deja la terminal abierta y abre la URL que informa Vite (por defecto `http://loc
 
 Para cambiar la URL del Gateway, crear `.env.local` desde `.env.example` y ajustar `VITE_GATEWAY_URL`, o definir esa variable antes de iniciar Vite. Reiniciar el servidor de desarrollo luego de cambiarla.
 
-La identidad de Entrega 1 no usa autenticacion. La interfaz envia `X-User-Id` y `X-User-Role: CLIENTE`; el identificador de demo se puede editar en la barra superior y queda guardado en el navegador.
+## Sesión (Entrega 2: JWT)
+
+La aplicación arranca en la pantalla de acceso:
+
+- **Iniciar sesión** llama a `POST /auth/login` (MS6) y guarda el JWT recibido.
+- **Crear cuenta** llama a `POST /auth/registro`; la cuenta queda como `CLIENTE` y se inicia sesión automáticamente.
+- **Usuarios de prueba:** los botones completan el correo y la contraseña (`Prueba123`) de los usuarios que MS6 crea en desarrollo (`cliente@`, `organizador@`, `admin@` y `personal@ticketya.test`).
+
+Cada pedido envía `Authorization: Bearer <token>`. La aplicación ya no envía `X-User-Id` ni `X-User-Role`: el Gateway valida el token y propaga la identidad a los microservicios.
+
+- El token se guarda en `localStorage` (clave `ticketya.sesion`), así la sesión sobrevive a una recarga. Para una demo académica es suficiente; en producción convendría una cookie `HttpOnly` para reducir el riesgo ante XSS.
+- La sesión se cierra al presionar **Cerrar sesión**, cuando vence el token (una hora por defecto) o si el Gateway responde `401`. En esos casos se vuelve al login con un aviso.
+- La barra superior muestra el nombre (de `GET /usuarios/me`) y los roles del token.
+- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. Los demás roles pueden explorar eventos.
+
+La consulta pública de eventos no exige token en el Gateway, pero mientras MS1 siga exigiendo encabezados de identidad, la aplicación pide iniciar sesión antes de buscar.
+
+El código de la sesión está en `src/session.js` (estado, decodificación del token y vencimiento), `src/api.js` (envío del token y manejo del 401) y `src/LoginView.vue` (pantalla de acceso).
 
 ## Flujo de prueba
 
-1. Buscar un evento publicado y abrirlo para consultar sectores y disponibilidad.
-2. Elegir asientos disponibles de un sector numerado o una cantidad de un sector sin numerar y crear la reserva.
-3. Iniciar la compra usando esa reserva.
-4. Confirmar el pago simulado; MS4 no realiza un cobro real.
-5. Consultar las entradas emitidas desde la seccion **Mis entradas**.
+1. Iniciar sesión, por ejemplo con el usuario de prueba **Cliente**.
+2. Buscar un evento publicado y abrirlo para consultar sectores y disponibilidad.
+3. Elegir asientos disponibles de un sector numerado o una cantidad de un sector sin numerar y crear la reserva.
+4. Iniciar la compra usando esa reserva.
+5. Confirmar el pago simulado; MS4 no realiza un cobro real.
+6. Consultar las entradas emitidas desde la seccion **Mis entradas**.
 
 La reserva tiene una vigencia limitada. La compra y el pago son acciones separadas y solo se ejecutan al presionar sus botones.
 

@@ -5,9 +5,9 @@ spring:
   application:
     name: msvc-entradas
   datasource:
-    url: jdbc:postgresql://localhost:5433/entradas
-    username: entradas
-    password: entradas
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/entradas}
+    username: ${DB_USER:entradas}
+    password: ${DB_PASSWORD:entradas}
   jpa:
     open-in-view: false
     hibernate:

@@ -40,6 +40,27 @@ cd .\Backend\msvc-entradas
 
 La aplicación escucha en `http://localhost:8085`.
 
+### Ejecución con Docker
+
+Desde la carpeta `Backend\msvc-entradas`, construye la imagen:
+
+```powershell
+docker build -t ticketya/msvc-entradas:local .
+```
+
+Si PostgreSQL está publicado en el host en el puerto `5433`, ejecuta el servicio así:
+
+```powershell
+docker run --rm --name ticketya-entradas `
+  -p 8085:8085 `
+  -e DB_URL=jdbc:postgresql://host.docker.internal:5433/entradas `
+  -e DB_USER=entradas `
+  -e DB_PASSWORD=entradas `
+  ticketya/msvc-entradas:local
+```
+
+`host.docker.internal` permite que el contenedor alcance PostgreSQL publicado en Windows. El puerto `8085` queda disponible en `http://localhost:8085`.
+
 | Propiedad | Valor |
 |---|---|
 | Nombre | `msvc-entradas` |
@@ -50,6 +71,11 @@ La aplicación escucha en `http://localhost:8085`.
 | Estrategia de Hibernate | `validate` |
 
 La aplicación utiliza Flyway para mantener actualizada la estructura de la base de datos y Hibernate para validar que las entidades coincidan con el esquema existente.
+
+| Variable | Predeterminado | Descripción |
+|---|---|---|
+| `DB_URL` | `jdbc:postgresql://localhost:5433/entradas` | URL JDBC de PostgreSQL. En Docker, usa `host.docker.internal` si la base corre en el host. |
+| `DB_USER` / `DB_PASSWORD` | `entradas` / `entradas` | Credenciales de PostgreSQL. |
 
 ### Ejecución local en Windows (PowerShell)
 

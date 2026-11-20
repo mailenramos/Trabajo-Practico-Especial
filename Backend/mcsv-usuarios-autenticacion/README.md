@@ -32,6 +32,30 @@ Registra usuarios, verifica credenciales y emite tokens JWT (feature F12, US-12.
    .\mvnw.cmd test
    ```
 
+## Ejecución con Docker
+
+Desde `Backend\mcsv-usuarios-autenticacion`, construye la imagen:
+
+```powershell
+docker build -t ticketya/usuarios-autenticacion:local .
+```
+
+La base de datos debe estar levantada con `docker compose up -d postgres`. Para que el servicio en el contenedor llegue a PostgreSQL publicado en Windows, ejecuta:
+
+```powershell
+docker run --rm --name ticketya-usuarios `
+  -p 8087:8087 `
+  -e DB_URL=jdbc:postgresql://host.docker.internal:5436/usuarios `
+  -e DB_USER=usuarios `
+  -e DB_PASSWORD=usuarios `
+  -e JWT_SECRET='<la misma clave que usa el Gateway, al menos 32 caracteres>' `
+  -e ADMIN_EMAIL=admin@ticketya.local `
+  -e ADMIN_PASSWORD='<contraseña con 8+ caracteres, letras y números>' `
+  ticketya/usuarios-autenticacion:local
+```
+
+La aplicación queda disponible en `http://localhost:8087`. No incluyas secretos en la imagen: pásalos al iniciar el contenedor.
+
 ## Configuración
 
 | Variable | Predeterminado | Descripción |

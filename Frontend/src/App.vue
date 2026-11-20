@@ -2,8 +2,15 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { apiRequest, gatewayUrl } from './api'
+import LoginView from './LoginView.vue'
+import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
-const userId = 'cliente-demo'
+const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
+// Comprar es una operación de CLIENTE; consultar entradas, de CLIENTE o ADMIN (reglas del Gateway y de MS5).
+const canBuy = computed(() => hasRole('CLIENTE'))
+const canSeeTickets = computed(() => hasRole('CLIENTE') || hasRole('ADMIN'))
+const displayName = computed(() => session.value?.nombre || session.value?.email || '')
+const roleLabels = computed(() => (session.value?.roles || []).map((role) => ROLE_LABELS[role] || role).join(' · '))
 const activeTab = ref('eventos')
 const search = ref({ q: '', tipo: '', ciudad: '' })
 const events = ref([])
@@ -67,7 +74,8 @@ const reservationSeatLabels = computed(() => selectedSeats.value.map((seat) => {
   return `Fila ${fila} · Asiento ${numero}`
 }))
 const canReserve = computed(() => Boolean(
-  selectedEvent.value
+  canBuy.value
+  && selectedEvent.value
   && selectedSector.value?.disponibilidad
   && !selectedEvent.value.ventaSuspendida
   && !reservation.value
@@ -115,7 +123,7 @@ async function loadEvents(page = 0) {
     for (const [key, value] of Object.entries(search.value)) {
       if (value.trim()) query.set(key, value.trim())
     }
-    const result = await apiRequest(`/eventos?${query}`, userId)
+    const result = await apiRequest(`/eventos?${query}`)
     events.value = result?.contenido || []
     eventPage.value = result?.pagina ?? page
     totalPages.value = result?.totalPaginas ?? 0
@@ -129,7 +137,7 @@ async function loadEvents(page = 0) {
 async function loadSearchOptions() {
   try {
     const query = new URLSearchParams({ page: '0', size: '100', orden: 'fecha', direccion: 'asc' })
-    const result = await apiRequest(`/eventos?${query}`, userId)
+    const result = await apiRequest(`/eventos?${query}`)
     if (!Array.isArray(result?.contenido)) {
       throw new Error('MS1 devolvió un catálogo de eventos con un formato inesperado.')
     }
@@ -147,7 +155,7 @@ async function openEvent(event) {
   clearNotices()
   busy.value = 'detail'
   try {
-    selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(event.id)}`, userId)
+    selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(event.id)}`)
     selectedSectorId.value = ''
     selectedSeats.value = []
     generalQuantity.value = 1
@@ -166,7 +174,7 @@ async function openEvent(event) {
 async function refreshEventAvailability(eventId) {
   if (busy.value || selectedEvent.value?.id !== eventId || activeTab.value !== 'eventos') return
   try {
-    const updatedEvent = await apiRequest(`/eventos/${encodeURIComponent(eventId)}`, userId)
+    const updatedEvent = await apiRequest(`/eventos/${encodeURIComponent(eventId)}`)
     if (selectedEvent.value?.id !== eventId) return
 
     if (reservation.value && Date.parse(reservation.value.expiraEn) <= Date.now()) {
@@ -248,7 +256,6 @@ async function reservePlaces() {
     if (!reservationRequestId.value) reservationRequestId.value = createRequestId()
     reservation.value = await apiRequest(
       `/disponibilidad/eventos/${encodeURIComponent(selectedEvent.value.id)}/reservas`,
-      userId,
       {
         method: 'POST',
         body: JSON.stringify({ solicitudId: reservationRequestId.value, detalles }),
@@ -285,7 +292,7 @@ async function startPurchase() {
   clearNotices()
   busy.value = 'purchase'
   try {
-    purchase.value = await apiRequest('/compras', userId, {
+    purchase.value = await apiRequest('/compras', {
       method: 'POST',
       body: JSON.stringify({ reservaId: reservation.value.reservaId }),
     })
@@ -310,7 +317,7 @@ async function payPurchase() {
   }
   if (!paymentKey.value) paymentKey.value = createRequestId()
   try {
-    purchase.value = await apiRequest(`/compras/${encodeURIComponent(purchase.value.id)}/pago`, userId, {
+    purchase.value = await apiRequest(`/compras/${encodeURIComponent(purchase.value.id)}/pago`, {
       method: 'POST',
       headers: { 'Idempotency-Key': paymentKey.value },
       body: JSON.stringify({ medioDePago: paymentMethod.value }),
@@ -338,7 +345,7 @@ async function payPurchase() {
         generalQuantity.value = 1
         const eventId = selectedEvent.value?.id
         if (eventId) {
-          selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(eventId)}`, userId)
+          selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(eventId)}`)
         }
         successMessage.value = 'El pago fue rechazado y los lugares ya están disponibles nuevamente.'
       } else {
@@ -358,7 +365,7 @@ async function loadTickets(page = 0) {
   busy.value = 'tickets'
   try {
     const query = new URLSearchParams({ page: String(page), size: '50' })
-    const result = await apiRequest(`/entradas?${query}`, userId)
+    const result = await apiRequest(`/entradas?${query}`)
     tickets.value = result?.content || []
     ticketPage.value = result?.page ?? page
     ticketTotalPages.value = result?.totalPages ?? 0
@@ -406,7 +413,7 @@ async function showTicketQr(ticket) {
         color: { dark: '#17231f', light: '#ffffff' },
       }),
       ticket.evento?.id
-        ? apiRequest(`/eventos/${encodeURIComponent(ticket.evento.id)}`, userId)
+        ? apiRequest(`/eventos/${encodeURIComponent(ticket.evento.id)}`)
           .catch((error) => {
             console.warn('No se pudieron cargar los datos ampliados del evento para la entrada.', error)
             return null
@@ -438,8 +445,44 @@ function printTicket() {
   window.print()
 }
 
+/** Nombre para la barra superior: el token trae el correo; el nombre sale del perfil de MS6. */
+async function loadProfile() {
+  try {
+    const profile = await apiRequest('/usuarios/me')
+    if (profile?.nombre) setProfileName(`${profile.nombre} ${profile.apellido || ''}`.trim())
+  } catch (error) {
+    console.warn('No se pudo cargar el perfil del usuario.', error)
+  }
+}
+
+async function loadInitialData() {
+  const pending = [loadEvents(), loadSearchOptions(), loadProfile()]
+  if (canSeeTickets.value) pending.push(loadTickets())
+  await Promise.all(pending)
+}
+
+/** Al cerrar sesión no queda nada del usuario anterior en pantalla. */
+function resetUserState() {
+  closeEvent()
+  closeTicketQr()
+  activeTab.value = 'eventos'
+  events.value = []
+  tickets.value = []
+  ticketPage.value = 0
+  ticketTotalPages.value = 0
+}
+
+function logout() {
+  endSession()
+}
+
+watch(isLoggedIn, (loggedIn) => {
+  resetUserState()
+  if (loggedIn) loadInitialData()
+})
+
 onMounted(async () => {
-  await Promise.all([loadEvents(), loadTickets(), loadSearchOptions()])
+  if (isLoggedIn.value) await loadInitialData()
 })
 </script>
 
@@ -450,21 +493,27 @@ onMounted(async () => {
       <a class="brand" href="#" @click.prevent="resetSearch" aria-label="TicketYa inicio">
         <img class="brand-logo" src="/ticketya-logo.png" alt="" draggable="false" />
       </a>
-      <nav class="main-nav" aria-label="Navegacion principal">
+      <nav v-if="isLoggedIn" class="main-nav" aria-label="Navegacion principal">
         <button :class="{ active: activeTab === 'eventos' }" @click="activeTab = 'eventos'">Explorar</button>
-        <button :class="{ active: activeTab === 'entradas' }" @click="activeTab = 'entradas'; loadTickets(0)">
+        <button v-if="canSeeTickets" :class="{ active: activeTab === 'entradas' }" @click="activeTab = 'entradas'; loadTickets(0)">
           Mis entradas
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
       </nav>
-      <div class="identity-control" aria-label="Usuario demo">
+      <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
-        <span class="identity-label">Usuario demo</span>
+        <span class="identity-text">
+          <strong>{{ displayName }}</strong>
+          <small>{{ roleLabels }}</small>
+        </span>
+        <button class="logout-button" type="button" @click="logout">Cerrar sesión</button>
       </div>
     </header>
 
-    <main>
-      <section v-if="activeTab === 'eventos'" class="events-page">
+    <LoginView v-if="!isLoggedIn" />
+
+    <main v-else>
+      <section v-if="activeTab === 'eventos' || !canSeeTickets" class="events-page">
         <div v-if="!selectedEvent" class="hero">
           <div class="hero-copy">
             <p class="eyebrow"><span class="live-dot"></span> VIVI LO QUE VIENE</p>
@@ -652,7 +701,8 @@ onMounted(async () => {
 
             <div v-if="selectedSector && !reservation" class="order-summary">
               <div><small>{{ selectionCount }} lugar{{ selectionCount === 1 ? '' : 'es' }}</small><strong>{{ formatPrice(Number(selectedSector.precio || 0) * selectionCount) }}</strong></div>
-              <button class="button button-green" :disabled="!canReserve || busy !== ''" @click="reservePlaces">
+              <p v-if="!canBuy" class="role-note">Solo una cuenta de cliente puede comprar entradas.</p>
+              <button v-else class="button button-green" :disabled="!canReserve || busy !== ''" @click="reservePlaces">
                 {{ busy === 'reserve' ? 'Reservando...' : 'Reservar lugar' }} <span aria-hidden="true">→</span>
               </button>
             </div>
