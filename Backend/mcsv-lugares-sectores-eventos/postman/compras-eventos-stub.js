@@ -3,8 +3,8 @@
 // No se puede usar a la vez que compras-stub.js de MS8: ambos usan el puerto 8083 (cambialo con PORT).
 //
 // POST /eventos-cancelados  (también acepta /internal/eventos-cancelados)
-//   Body JSON con el aviso de cancelación (se registra tal cual). Deduplica por X-Aviso-Id.
-//   -> 202 la primera vez, 200 si ya se había recibido ese aviso.
+//   Body: {"eventoId","motivo","canceladoEn"}; los tres obligatorios, canceladoEn ISO-8601 en UTC (termina en Z).
+//   Deduplica por eventoId. -> 202 la primera vez, 200 si ya se había recibido, 400 si el body es inválido.
 // POST /internal/eventos-modificados     contrato acordado con MS3:
 //   Body: eventoId y version (entero >= 1) obligatorios; fechaHora (ISO-8601 UTC), lugar y ciudad opcionales,
 //   con al menos uno. Deduplica por eventoId + version; una versión menor a la ya procesada se ignora.
@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 8083;
 const TOKEN = process.env.SERVICIO_TOKEN || null;
 
 const avisos = [];
-const vistos = new Set();       // X-Aviso-Id de cancelaciones ya recibidas
+const vistos = new Set();       // eventoId de cancelaciones ya recibidas
 const versiones = new Map();    // eventoId -> última versión procesada
 let modo = 'ok';
 
@@ -66,7 +66,13 @@ const servidor = http.createServer((req, res) => {
       if (!tokenValido(req)) { registrar(req, ruta, cuerpo, '403'); return responder(res, 403, { codigo: 'ACCESO_DENEGADO' }); }
       if (modo === 'timeout') { registrar(req, ruta, cuerpo, 'sin respuesta'); return; }
       if (modo === 'error') { registrar(req, ruta, cuerpo, '500'); return responder(res, 500, { codigo: 'ERROR_INESPERADO' }); }
-      const id = req.headers['x-aviso-id'] || JSON.stringify(cuerpo);
+      const c = cuerpo || {};
+      const fechaOk = texto(c.canceladoEn) && /^\d{4}-\d{2}-\d{2}T.*Z$/.test(c.canceladoEn) && !Number.isNaN(Date.parse(c.canceladoEn));
+      if (!texto(c.eventoId) || !texto(c.motivo) || !fechaOk) {
+        registrar(req, ruta, cuerpo, '400');
+        return responder(res, 400, { codigo: 'VALIDACION', mensaje: 'eventoId y motivo (texto) y canceladoEn (ISO-8601 UTC, termina en Z) son obligatorios' });
+      }
+      const id = c.eventoId;
       const repetido = vistos.has(id);
       vistos.add(id);
       registrar(req, ruta, cuerpo, repetido ? '200 repetido' : '202');
