@@ -24,6 +24,13 @@ public class EntradasFalso implements EntradasCliente {
         fallasPendientes.set(n);
     }
 
+    private final AtomicInteger respuestasPerdidas = new AtomicInteger();
+
+    /** Las próximas {@code n} emisiones se hacen en Entradas, pero la respuesta no llega (timeout). */
+    public void perderProximasRespuestas(int n) {
+        respuestasPerdidas.set(n);
+    }
+
     public int llamadas() { return llamadas.get(); }
 
     public int emisiones() { return emitidas.size(); }
@@ -37,6 +44,8 @@ public class EntradasFalso implements EntradasCliente {
         eventoPorEntrada.clear();
         marcaciones.set(0);
         marcacionCaida = false;
+        cierreConfirmado = true;
+        eventosCerrados.clear();
         entradasPorId.clear();
         pasesAEnReintegro.set(0);
         pasesADevuelta.set(0);
@@ -48,6 +57,8 @@ public class EntradasFalso implements EntradasCliente {
         pedidos.clear();
         llamadas.set(0);
         fallasPendientes.set(0);
+        respuestasPerdidas.set(0);
+        consultasPorCompra.set(0);
     }
 
     // ------------------------------------------------------------------ estados (devoluciones)
@@ -94,7 +105,12 @@ public class EntradasFalso implements EntradasCliente {
 
     public void aceptarTransicion(String idEntrada) { transicionesRechazadas.remove(idEntrada); }
 
+    /** Como el servicio real: una entrada UTILIZADA no admite cambios de estado (409 ENTRADA_UTILIZADA). */
     private void verificarTransicion(String idEntrada, String operacion) {
+        Entrada actual = entradasPorId.get(idEntrada);
+        if (actual != null && actual.estado() == EstadoEntrada.UTILIZADA) {
+            throw new EstadoEntradaConflictoException(idEntrada, operacion, "ENTRADA_UTILIZADA", null);
+        }
         if (transicionesRechazadas.contains(idEntrada)) {
             throw new EstadoEntradaConflictoException(idEntrada, operacion, "TRANSICION_INVALIDA", null);
         }
@@ -143,9 +159,15 @@ public class EntradasFalso implements EntradasCliente {
 
     public int marcaciones() { return marcaciones.get(); }
 
+    /** Si Entradas confirma el cierre del evento al marcar (por defecto, sí). */
+    private volatile boolean cierreConfirmado = true;
+
+    /** false: la marcación responde sin confirmar el cierre (cerrado ausente o en false). */
+    public void setCierreConfirmado(boolean v) { this.cierreConfirmado = v; }
+
     /** Repetible: marca solo las vigentes del evento, así que la segunda vez responde 0. */
     @Override
-    public int marcarEntradasDelEvento(String idEvento) {
+    public ResultadoCierre marcarEntradasDelEvento(String idEvento) {
         verificarDisponible();
         marcaciones.incrementAndGet();
         if (marcacionCaida) {
@@ -161,13 +183,36 @@ public class EntradasFalso implements EntradasCliente {
                 }
             }
         }
-        return marcadas;
+        if (cierreConfirmado) {
+            eventosCerrados.add(idEvento);
+        }
+        return new ResultadoCierre(marcadas, cierreConfirmado);
     }
+
+    /** Eventos cerrados en Entradas: una emisión nueva responde 409 EVENTO_CERRADO. */
+    private final java.util.Set<String> eventosCerrados = ConcurrentHashMap.newKeySet();
+
+    /** Entradas registra el cierre del evento, sin que Compras haya recibido todavía la cancelación. */
+    public void cerrarEvento(String idEvento) { eventosCerrados.add(idEvento); }
 
     private void verificarDisponible() {
         if (caido) {
             throw new ServicioExternoException("Entradas", "Entradas no responde (doble)");
         }
+    }
+
+    // ------------------------------------------------------------------ consulta por compra
+
+    private final AtomicInteger consultasPorCompra = new AtomicInteger();
+
+    public int consultasPorCompra() { return consultasPorCompra.get(); }
+
+    /** Las entradas emitidas de la compra, o una lista vacía si no se emitieron. */
+    @Override
+    public List<EntradaEmitida> listarPorCompra(String idCompra) {
+        verificarDisponible();
+        consultasPorCompra.incrementAndGet();
+        return emitidas.getOrDefault(idCompra, List.of());
     }
 
     // ------------------------------------------------------------------ emisión
@@ -190,7 +235,16 @@ public class EntradasFalso implements EntradasCliente {
             throw new ticketya.cliente.ContratoInvalidoException("Entradas",
                     "Entradas devolvió fila = \"A\", que no es un número entero (doble)");
         }
-        return emitidas.computeIfAbsent(solicitud.idCompra(), id -> {
+        // Como el servicio real: repetir una emisión ya hecha devuelve las mismas entradas aunque
+        // el evento se haya cerrado después; una emisión nueva de un evento cerrado da 409
+        List<EntradaEmitida> previas = emitidas.get(solicitud.idCompra());
+        if (previas != null) {
+            return sinRespuestaSiCorresponde(previas);
+        }
+        if (eventosCerrados.contains(solicitud.evento().id())) {
+            throw new ticketya.cliente.EventoCerradoException(solicitud.evento().id(), null);
+        }
+        return sinRespuestaSiCorresponde(emitidas.computeIfAbsent(solicitud.idCompra(), id -> {
             List<EntradaEmitida> nuevas = new java.util.ArrayList<>();
             // Como el servicio real: cada entrada emitida queda vigente a nombre del cliente,
             // con el sector anidado (id y nombre), la fila y el número del lugar pedido
@@ -204,6 +258,13 @@ public class EntradasFalso implements EntradasCliente {
                 eventoPorEntrada.put(e.idEntrada(), solicitud.evento().id());
             }
             return List.copyOf(nuevas);
-        });
+        }));
+    }
+
+    private List<EntradaEmitida> sinRespuestaSiCorresponde(List<EntradaEmitida> resultado) {
+        if (respuestasPerdidas.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+            throw new ServicioExternoException("Entradas", "Sin respuesta de Entradas en emitir (doble)");
+        }
+        return resultado;
     }
 }

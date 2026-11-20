@@ -32,7 +32,7 @@ El microservicio 3 administra las compras de los clientes y las solicitudes de d
 | 1 · Lugares, sectores y eventos | Precios de los sectores, fecha de inicio y tipo del evento. Recibe de él los avisos de cancelación y de modificación. |
 | 2 · Disponibilidad y reservas | Estado de una reserva; confirmar la venta; liberar lugares. |
 | 4 · Pagos | Procesar un cobro; procesar un reintegro; reintentar un reintegro fallido; consultar un pago. |
-| 5 · Entradas | Emitir entradas; consultar titular, estado, evento y sector de una entrada; pasar a en reintegro y a devuelta. |
+| 5 · Entradas | Emitir entradas; consultar las entradas de una compra; consultar titular, estado, evento y sector de una entrada; pasar a en reintegro y a devuelta; marcar las entradas de un evento cancelado y confirmar su cierre. |
 | 8 · Preferencias y recomendaciones | Nada: es Recomendaciones quien consulta a este servicio (co-compras e historial de preferencias). |
 | 9 · Notificaciones | Recibir los avisos de compras, devoluciones, reintegros y eventos cancelados o modificados. |
 
@@ -56,7 +56,7 @@ Este servicio maneja tres máquinas de estado independientes: la de la compra, l
 | --- | --- | --- |
 | Compra | Pendiente | Compra iniciada cuyo pago todavía no se resolvió, o pagada con las entradas aún sin emitir. Estado inicial. |
 | Compra | Confirmada | Pago aprobado, venta confirmada y entradas emitidas. Desde pendiente. |
-| Compra | Fallida | Pago rechazado y lugares liberados; pago aprobado con la venta rechazada por Reservas y reintegro automático por el total; o compra pendiente cerrada por la cancelación de su evento (con reintegro por el total si estaba cobrada). Desde pendiente. |
+| Compra | Fallida | Pago rechazado y lugares liberados; pago aprobado con la venta rechazada por Reservas y reintegro automático por el total; compra pendiente cerrada por la cancelación de su evento (con reintegro por el total si estaba cobrada); o pago aprobado con la emisión rechazada por `EVENTO_CERRADO`, con reintegro automático por el total. Desde pendiente. |
 | Solicitud de devolución | Pendiente | Registrada por el cliente, a la espera de un administrador. Estado inicial. |
 | Solicitud de devolución | Aprobada | Un administrador la aprobó. Desde pendiente; no vuelve a resolverse. |
 | Solicitud de devolución | Rechazada | Un administrador la rechazó con un motivo. Desde pendiente; no vuelve a resolverse. |
@@ -73,7 +73,7 @@ Este servicio maneja tres máquinas de estado independientes: la de la compra, l
 | Entidad (servicio) | Estados | Lo que importa a este servicio |
 | --- | --- | --- |
 | Reserva (2) | Vigente, confirmada, liberada | Solo se paga una reserva vigente; al aprobarse el pago pasa a confirmada; si el pago falla, a liberada. |
-| Entrada (5) | Vigente, en reintegro, devuelta | Solo una entrada vigente admite una solicitud de devolución. Al aprobarse pasa a en reintegro; con el reintegro exitoso, a devuelta. |
+| Entrada (5) | Vigente, en reintegro, devuelta, utilizada | Solo una entrada vigente admite una solicitud de devolución. Al aprobarse pasa a en reintegro; con el reintegro exitoso, a devuelta. Pasa a utilizada cuando se valida su QR en el acceso (Entrega 2) y desde ahí no admite cambios. |
 | Pago (4) | Aprobado, rechazado | Define si la compra se confirma o falla. Pagos responde siempre en el momento; nunca informa un pago en proceso. |
 | Reintegro (4) | Exitoso, fallido | Pagos termina cada reintegro como exitoso o fallido en la misma llamada. |
 
@@ -114,6 +114,8 @@ Esta verificación es preventiva: la confirmación de la venta (C-3) es la valid
 - **Dado** que el servicio de disponibilidad y reservas rechaza la confirmación (la reserva venció o se liberó), **cuando** ocurre, **entonces** la compra queda fallida, no se piden entradas y el servicio pide a Pagos un reintegro automático por el total cobrado, con un identificador de solicitud propio. Si el reintegro falla o no tiene respuesta, la compra queda fallida igual y el reintegro queda registrado para reintentarlo.
 - **Dado** que el pago está aprobado y la venta confirmada pero el servicio de entradas falla, **cuando** se agotan 3 intentos de emisión, **entonces** la compra queda pendiente y no se vuelve a cobrar.
 - **Dado** una compra pagada cuya emisión falló, **cuando** el cliente repite el pago con la misma clave, **entonces** el servicio solo repite la emisión, sin cobrar ni confirmar la venta de nuevo.
+- **Dado** una emisión que quedó sin respuesta (en un intento anterior o en un pedido anterior), **cuando** el servicio va a repetirla, **entonces** primero consulta las entradas de la compra en Entradas: si ya se emitieron, las asigna sin volver a emitir; si la lista está vacía, emite como siempre (Entrega 2).
+- **Dado** un pago aprobado cuyo evento ya cerró Entradas, **cuando** la emisión responde 409 `EVENTO_CERRADO`, **entonces** no se reintenta: la compra queda fallida, sin entradas, con un único reintegro automático por el total (`reason` "Evento cancelado", origen cancelación de evento) y el aviso `EVENTO_CANCELADO` para el comprador, guardados en la misma transacción. Repetir el pago no crea otro reintegro ni otro aviso. Si las entradas ya se habían emitido antes del cierre, Entradas devuelve las mismas y la compra se confirma (Entrega 2).
 
 ### C-4 · Pago rechazado: liberar los lugares
 
@@ -154,7 +156,7 @@ El cliente solicita la devolución de una entrada hasta 72 horas antes del inici
 
 - **Dado** una entrada vigente propia y un evento que empieza en más de 72 horas, **cuando** solicito la devolución, **entonces** el servicio valida la titularidad y el estado de la entrada con el servicio de entradas y la fecha de inicio con el servicio de eventos, y registra una solicitud en estado pendiente con un `devolucionId` (UUID).
 - **Dado** un evento que empieza en 72 horas o menos, **cuando** solicito la devolución, **entonces** el servicio la rechaza indicando que venció el plazo.
-- **Dado** una entrada que ya no está vigente (en reintegro o devuelta) o que pertenece a otro cliente, **cuando** solicito la devolución, **entonces** el servicio la rechaza.
+- **Dado** una entrada que ya no está vigente (en reintegro, devuelta o utilizada) o que pertenece a otro cliente, **cuando** solicito la devolución, **entonces** el servicio la rechaza; si no está vigente, con 409 `ENTRADA_NO_VIGENTE` y un mensaje que nombra su estado.
 - **Dado** una solicitud pendiente para una entrada, **cuando** solicito otra para la misma entrada, **entonces** el servicio no crea un duplicado.
 
 ### D-2 · Aprobar o rechazar una devolución
@@ -162,6 +164,7 @@ El cliente solicita la devolución de una entrada hasta 72 horas antes del inici
 **Origen:** US-6.2. **Como** administrador, **quiero** aprobar o rechazar las solicitudes de devolución, **para** controlar los reintegros.
 
 - **Dado** una solicitud pendiente, **cuando** un administrador la aprueba, **entonces** la solicitud queda aprobada y el servicio, en este orden, (a) pide al servicio de entradas pasar la entrada a en reintegro, invalidando su QR, (b) pide al servicio de disponibilidad y reservas liberar el lugar (con el `devolucionId`, para no liberarlo dos veces) y (c) pide al servicio de pagos el reintegro del precio unitario de esa entrada.
+- **Dado** una solicitud pendiente cuya entrada se usó después de solicitarla (Entradas responde 409 `ENTRADA_UTILIZADA` al pasarla a en reintegro), **cuando** el administrador la aprueba, **entonces** la solicitud queda aprobada con ese código en su último error y no se pide el reintegro a Pagos (Entrega 2).
 - **Dado** una solicitud pendiente, **cuando** el administrador la rechaza indicando un motivo, **entonces** la solicitud queda rechazada, la entrada sigue vigente y el motivo queda registrado.
 - **Dado** una solicitud ya resuelta, **cuando** intento resolverla de nuevo, **entonces** el servicio lo rechaza.
 - **Dado** un usuario que no es administrador, **cuando** intenta aprobar o rechazar, **entonces** el servicio le deniega el acceso.
@@ -196,6 +199,7 @@ Cuando un administrador cancela un evento, el servicio de eventos avisa a este s
 - **Dado** un evento que se cancela, **cuando** el servicio de eventos notifica la cancelación, **entonces** el servicio coordina la devolución de todas las compras confirmadas de ese evento, sin requerir aprobación del administrador.
 - **Dado** una compra confirmada de ese evento, **cuando** se coordina su devolución, **entonces** el servicio pide al servicio de entradas pasar las entradas del evento a en reintegro y al servicio de pagos un único reintegro por la compra, con un identificador de solicitud propio que genera este servicio (también es la clave de idempotencia) y `reason` "Evento cancelado", que Pagos exige.
 - **Dado** una compra confirmada con alguna entrada que ya tiene una devolución aprobada, **cuando** se coordina su devolución, **entonces** el monto del reintegro es solo el precio unitario de las entradas que seguían vigentes; si no queda ninguna, no se pide reintegro.
+- **Dado** que se procesa la cancelación, **cuando** el servicio pide a Entradas marcar las entradas del evento, **entonces** la cancelación se da por completa solo si Entradas confirma el cierre del evento (`cerrado: true`), aunque haya marcado 0 entradas. Si el campo no viene, viene en `false` o Entradas no responde, la cancelación queda en proceso con el error guardado y se reintenta al retomarla, sin duplicar reintegros (Entrega 2).
 - **Dado** una solicitud de devolución pendiente de una entrada del evento, **cuando** se procesa la cancelación, **entonces** la solicitud queda rechazada con el motivo "Evento cancelado: reintegro automático" y su entrada entra en el reintegro por la cancelación.
 - **Dado** una notificación de cancelación recibida más de una vez, **cuando** se procesa de nuevo, **entonces** no se duplican los reintegros: se responde 200 si el evento ya se procesó y 202 si todavía se está procesando. Aunque la marcación de Entradas responda `entradasMarcadas: 0`, no se pide otro reintegro por las compras que ya tienen el suyo.
 - **Dado** una cancelación que quedó en proceso porque el servicio se cayó después de responder 202 (o porque una compra falló), **cuando** pasa el plazo (`compras.cancelacion.plazo-en-proceso`, 5 minutos), **entonces** el servicio la retoma solo, sin esperar otro aviso de Eventos (que no reenvía el aviso después de un 202): no duplica reintegros ni vuelve a pedir a Entradas una marcación ya hecha. Si un aviso repetido llega a la vez, la toma es atómica y solo uno de los dos la procesa.
@@ -358,7 +362,12 @@ Servicio interno, sin encabezados de usuario, con rutas internas (`/internal/pag
 - `POST /internal/entradas/{id}/reintegro` y `POST /internal/entradas/{id}/devolucion`: 200, también al repetirse. Una transición inválida responde 409 `TRANSICION_INVALIDA`, que este servicio registra como conflicto de estado de la entrada, distinto de una caída de Entradas: el paso queda pendiente y un administrador lo retoma.
 - Errores: Entradas adopta el formato del grupo, con el código de negocio en `error`. Mientras termina el cambio, este servicio también lo lee de `codigo`.
 - `fila` es un entero, como en el resto de los servicios.
-- `POST /internal/eventos/{idEvento}/entradas/reintegro`: pasa a en reintegro las entradas vigentes de un evento cancelado y responde cuántas marcó en `entradasMarcadas`, sin sus IDs. No formó parte de la confirmación: se mantiene como en la propuesta (repetirla responde `entradasMarcadas: 0`). El dato es solo informativo: el monto de cada reintegro se calcula con los datos de este servicio.
+- `POST /internal/eventos/{idEvento}/entradas/reintegro`: pasa a en reintegro las entradas vigentes de un evento cancelado, registra el cierre del evento y responde `entradasMarcadas` (sin los IDs) y `cerrado` (Entrega 2). Repetirla es seguro y responde `entradasMarcadas: 0`. `entradasMarcadas` es solo informativo: el monto de cada reintegro se calcula con los datos de este servicio. La cancelación se da por completa solo con `cerrado: true`.
+- **Entrega 2:**
+  - Todas las llamadas a Entradas llevan `X-Service-Token` (`SERVICIO_TOKEN`) y `X-Correlation-Id`: el del Gateway o, si no hay (tareas programadas), uno generado. Sin token configurado no se envía y el 403 de Entradas se trata como falla técnica.
+  - Una entrada pasa a `UTILIZADA` cuando se valida su QR. Pasarla a en reintegro responde 409 `ENTRADA_UTILIZADA`.
+  - Con el evento cerrado, `POST /internal/entradas/emision` responde 409 `EVENTO_CERRADO`, salvo que repita una emisión ya hecha, que devuelve las mismas entradas.
+  - `GET /internal/compras/{idCompra}/entradas`: las entradas emitidas de una compra, sin emitir. Una lista vacía (nunca 404) significa que no se emitió.
 
 ## Decisiones tomadas y puntos abiertos
 

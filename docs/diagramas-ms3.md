@@ -6,7 +6,7 @@ Diagramas de las Entregas 1 y 2, generados a partir de las entidades y los servi
 
 ![Secuencia de la compra](diagramas-ms3/secuencia-compra.png)
 
-Cubre el camino feliz y sus ramas: reserva no vigente, pago rechazado, venta rechazada después del cobro (con reintegro automático) y emisión de entradas fallida (la compra queda pendiente y el pago responde 202).
+Cubre el camino feliz y sus ramas: reserva no vigente, pago rechazado, venta rechazada después del cobro (con reintegro automático), evento cerrado al emitir (Entrega 2: compra fallida con reintegro automático y aviso de evento cancelado) y emisión de entradas fallida (la compra queda pendiente y el pago responde 202). Antes de repetir una emisión sin respuesta, se consultan las entradas de la compra.
 
 <details><summary>Fuente Mermaid</summary>
 
@@ -58,13 +58,23 @@ sequenceDiagram
                 MS3->>MS4: POST /internal/pagos/{pagoId}/reintegros (total, "Reserva vencida")
                 MS3-->>C: 200 compra fallida con su reintegro
             else venta confirmada (204)
+                Note over MS3,MS5: Toda llamada a Entradas lleva X-Service-Token y X-Correlation-Id
                 loop hasta 3 intentos
+                    opt la emisión anterior quedó sin respuesta
+                        MS3->>MS5: GET /internal/compras/{idCompra}/entradas
+                        MS5-->>MS3: entradas ya emitidas (si hay, se asignan sin emitir)
+                    end
                     MS3->>MS5: POST /internal/entradas/emision (idCompra)
                 end
                 alt entradas emitidas
                     MS5-->>MS3: idEntrada, idSector, fila, numero, codigoQr
                     MS3->>MS3: guarda entradaId, compra a CONFIRMADA y, en la misma transacción, los avisos COMPRA_CONFIRMADA y ENTRADAS_DISPONIBLES (outbox)
                     MS3-->>C: 200 compra confirmada con sus entradas
+                else evento cerrado (409 EVENTO_CERRADO, sin reintentos)
+                    MS5-->>MS3: 409 EVENTO_CERRADO
+                    MS3->>MS3: compra PENDIENTE a FALLIDA y, en la misma transacción, el reintegro por el total (CANCELACION_EVENTO) y el aviso EVENTO_CANCELADO (outbox)
+                    MS3->>MS4: POST /internal/pagos/{pagoId}/reintegros (total, "Evento cancelado")
+                    MS3-->>C: 200 compra fallida con su reintegro
                 else falla las 3 veces
                     MS3->>MS3: la compra queda PENDIENTE
                     MS3-->>C: 202 operación no terminada (repetir el pago con la misma clave)

@@ -10,6 +10,12 @@ public interface EntradasCliente {
     /** Emite una entrada por lugar. Repetirla con el mismo idCompra devuelve las mismas entradas. */
     List<EntradaEmitida> emitir(SolicitudEmision solicitud);
 
+    /**
+     * Las entradas ya emitidas de una compra, sin emitir. Una lista vacía significa "no se emitió"
+     * (Entradas nunca responde 404 a esta consulta).
+     */
+    List<EntradaEmitida> listarPorCompra(String idCompra);
+
     /** Titular, estado y fecha de inicio del evento de una entrada, o vacío si no existe. */
     Optional<Entrada> consultar(String idEntrada);
 
@@ -20,13 +26,25 @@ public interface EntradasCliente {
     void pasarADevuelta(String idEntrada);
 
     /**
-     * Pasa a en reintegro las entradas vigentes de un evento cancelado. Devuelve cuántas
-     * marcó (sin sus IDs); repetirla responde 0 porque ya no quedan vigentes.
+     * Pasa a en reintegro las entradas vigentes de un evento cancelado y registra el cierre del
+     * evento en Entradas. Devuelve cuántas marcó (sin sus IDs; repetirla responde 0 porque ya no
+     * quedan vigentes) y si Entradas confirmó el cierre.
      */
-    int marcarEntradasDelEvento(String idEvento);
+    ResultadoCierre marcarEntradasDelEvento(String idEvento);
 
+    /**
+     * Respuesta de la marcación por evento.
+     *
+     * @param entradasMarcadas entradas que pasaron a en reintegro en esta llamada (solo informativo)
+     * @param cerrado          true solo si Entradas confirmó el cierre del evento; si el campo no
+     *                         viene, es false
+     */
+    record ResultadoCierre(int entradasMarcadas, boolean cerrado) {
+    }
+
+    /** Estados de una entrada en Entradas. UTILIZADA: se validó su QR en el acceso al evento. */
     enum EstadoEntrada {
-        VIGENTE, EN_REINTEGRO, DEVUELTA, DESCONOCIDO;
+        VIGENTE, EN_REINTEGRO, DEVUELTA, UTILIZADA, DESCONOCIDO;
 
         /** Interpreta el estado sin depender de mayúsculas, espacios ni guiones. */
         public static EstadoEntrada de(String texto) {

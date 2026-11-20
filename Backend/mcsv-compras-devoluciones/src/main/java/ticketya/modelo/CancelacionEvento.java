@@ -38,7 +38,8 @@ public class CancelacionEvento implements Persistable<String> {
     // cada reintegro se calcula con los datos propios.
     private Integer entradasMarcadas;
 
-    // La marcación de Entradas ya se hizo con éxito: al retomar no se vuelve a pedir
+    // Entradas marcó las entradas y confirmó el cierre del evento (cerrado: true): al retomar no se
+    // vuelve a pedir. Sin esto la cancelación no se da por completa
     @Column(nullable = false)
     private boolean marcacionHecha;
 
