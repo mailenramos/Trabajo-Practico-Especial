@@ -68,6 +68,7 @@ public class CancelacionService {
     private final TransactionTemplate transaccion;
     private final TaskExecutor ejecutor;
     private final Duration plazoEnProceso;
+    private final AvisoService avisos;
 
     public CancelacionService(CancelacionEventoRepository cancelaciones, CompraRepository compras,
                               SolicitudDevolucionRepository solicitudes, ReintegroRepository reintegros,
@@ -75,7 +76,8 @@ public class CancelacionService {
                               EntradasCliente entradas, PagosCliente pagos,
                               TransactionTemplate transaccion,
                               @Qualifier("applicationTaskExecutor") TaskExecutor ejecutor,
-                              @Value("${compras.cancelacion.plazo-en-proceso:5m}") Duration plazoEnProceso) {
+                              @Value("${compras.cancelacion.plazo-en-proceso:5m}") Duration plazoEnProceso,
+                              AvisoService avisos) {
         this.cancelaciones = cancelaciones;
         this.compras = compras;
         this.solicitudes = solicitudes;
@@ -87,6 +89,7 @@ public class CancelacionService {
         this.transaccion = transaccion;
         this.ejecutor = ejecutor;
         this.plazoEnProceso = plazoEnProceso;
+        this.avisos = avisos;
     }
 
     /** Respuesta al aviso: aceptado (202) o ya procesado (200). */
@@ -97,10 +100,16 @@ public class CancelacionService {
      * segundo plano. Un aviso repetido no lanza otro procesamiento, salvo que la cancelación
      * haya quedado en proceso más allá del plazo: entonces la retoma si gana la toma atómica
      * a la reanudación automática, que de todos modos la retomaría sin ese aviso.
+     * <p>
+     * En la misma transacción que el registro se guarda un aviso EVENTO_CANCELADO por cada
+     * cliente con una compra confirmada del evento; un aviso repetido no los vuelve a generar.
      */
     public ResultadoAviso recibir(String eventoId, String motivo, Instant canceladoEn) {
         try {
-            cancelaciones.saveAndFlush(new CancelacionEvento(eventoId, motivo, canceladoEn));
+            transaccion.executeWithoutResult(estado -> {
+                cancelaciones.saveAndFlush(new CancelacionEvento(eventoId, motivo, canceladoEn));
+                avisos.eventoCancelado(eventoId);
+            });
             lanzar(eventoId);
             return ResultadoAviso.ACEPTADO;
         } catch (DataIntegrityViolationException yaRecibido) {

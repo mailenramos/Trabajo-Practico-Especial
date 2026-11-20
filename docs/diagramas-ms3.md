@@ -1,6 +1,6 @@
 # TicketYa — Microservicio 3 (Compras y Devoluciones): diagramas
 
-Diagramas de la Entrega 1, generados a partir de las entidades y los servicios del código en `compras/`. Los archivos fuente (`.mmd`) y las imágenes (`.png`) están en esta carpeta; GitHub y VS Code (con una extensión de Mermaid) muestran los bloques de abajo directamente.
+Diagramas de las Entregas 1 y 2, generados a partir de las entidades y los servicios del código en `Backend/mcsv-compras-devoluciones/`. Los archivos fuente (`.mmd`) y las imágenes (`.png`) están en esta carpeta; GitHub y VS Code (con una extensión de Mermaid) muestran los bloques de abajo directamente.
 
 ## 1. Diagrama de secuencia de la compra
 
@@ -30,8 +30,8 @@ sequenceDiagram
     MS3->>MS2: GET /disponibilidad/reservas/{reservaId}
     MS2-->>MS3: reserva (clienteId, estado, expiraEn, detalles)
     MS3->>MS1: GET /internal/eventos/{eventoId}
-    MS1-->>MS3: evento y precios de sectores
-    MS3->>MS3: calcula total y registra la compra PENDIENTE (una fila por lugar)
+    MS1-->>MS3: evento, tipo y precios de sectores
+    MS3->>MS3: calcula total y registra la compra PENDIENTE con su tipoEvento (una fila por lugar)
     MS3-->>C: 201 compra pendiente
     end
 
@@ -63,7 +63,7 @@ sequenceDiagram
                 end
                 alt entradas emitidas
                     MS5-->>MS3: idEntrada, idSector, fila, numero, codigoQr
-                    MS3->>MS3: guarda entradaId y compra a CONFIRMADA
+                    MS3->>MS3: guarda entradaId, compra a CONFIRMADA y, en la misma transacción, los avisos COMPRA_CONFIRMADA y ENTRADAS_DISPONIBLES (outbox)
                     MS3-->>C: 200 compra confirmada con sus entradas
                 else falla las 3 veces
                     MS3->>MS3: la compra queda PENDIENTE
@@ -77,7 +77,63 @@ sequenceDiagram
 
 </details>
 
-## 2. Diagrama entidad-relación
+## 2. Diagrama de secuencia de la modificación de un evento y del envío de avisos (Entrega 2)
+
+![Secuencia de la modificación de un evento y del envío de avisos](diagramas-ms3/secuencia-modificacion-y-avisos.png)
+
+Eventos avisa el cambio de fecha, horario o lugar; este servicio lo aplica en una sola transacción, idempotente por evento y versión, y deja un aviso por comprador en el outbox. La tarea de envío reparte después esos avisos (y los de compras, devoluciones, reintegros y cancelaciones) a Notificaciones, con reintentos.
+
+<details><summary>Fuente Mermaid</summary>
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant MS1 as Eventos (MS1)
+    participant MS3 as Compras (MS3)
+    participant BD as Base de MS3
+    participant MS9 as Notificaciones (MS9)
+
+    rect rgb(235, 242, 250)
+    Note over MS1,BD: 1. Modificación de un evento (Entrega 2)
+    MS1->>MS3: POST /internal/eventos-modificados (X-Service-Token) {eventoId, version, fechaHora?, lugar?, ciudad?}
+    alt token ausente o incorrecto
+        MS3-->>MS1: 403 SERVICIO_NO_AUTORIZADO
+    else cuerpo inválido
+        MS3-->>MS1: 400 VALIDACION (campos)
+    else versión ya procesada o anterior a la mayor procesada
+        MS3-->>MS1: 200 YA_PROCESADA o VERSION_ANTERIOR (no cambia nada)
+    else versión nueva
+        Note over MS3,BD: una sola transacción (todo o nada)
+        MS3->>BD: inserta modificaciones_evento (evento_id, version) único
+        opt vino fechaHora
+            MS3->>BD: UPDATE eventoFechaInicio en compras y solicitudes_devolucion del evento
+        end
+        MS3->>BD: un aviso EVENTO_MODIFICADO por cliente con compra CONFIRMADA
+        MS3-->>MS1: 202 ACEPTADA
+    end
+    end
+
+    rect rgb(238, 247, 238)
+    Note over MS3,MS9: 2. Envío de avisos (tarea programada, cada 10 s)
+    MS3->>BD: recupera los PROCESANDO vencidos (a PENDIENTE o ERROR_FINAL)
+    MS3->>BD: toma cada aviso listo: PENDIENTE a PROCESANDO si nadie lo tomó (toma condicional)
+    MS3->>MS9: POST /internal/notificaciones (X-Service-Token) {acontecimientoId, tipo, versionEsquema, ...}
+    alt 2xx (nuevo o duplicado)
+        MS9-->>MS3: 202
+        MS3->>BD: ENVIADO
+    else 400, 415 o 422 (rechazo definitivo)
+        MS9-->>MS3: error de validación
+        MS3->>BD: ERROR_FINAL
+    else sin respuesta, 403 u otro error
+        MS3->>BD: PENDIENTE con intentos + 1 y espera creciente (30 s, 60 s, 120 s...), o ERROR_FINAL si agotó los 5 intentos
+    end
+    Note over MS3,MS9: La operación que generó el aviso ya terminó: una falla de Notificaciones nunca la revierte
+    end
+```
+
+</details>
+
+## 3. Diagrama entidad-relación
 
 ![Entidad-relación del microservicio 3](diagramas-ms3/er-ms3.png)
 
@@ -89,6 +145,9 @@ Notas de lectura:
 - `solicitudes_devolucion.entradaActiva` tiene restricción única: es la copia del `entradaId` mientras la solicitud está pendiente o aprobada, y queda `NULL` al rechazarse. Así una entrada tiene a lo sumo una solicitud activa.
 - `reintegros.origen` distingue una devolución, una cancelación de evento y una venta rechazada después del cobro. En una cancelación, `entradas_de_reintegro` guarda qué entradas cubre cada reintegro y si ya pasaron a devueltas.
 - `fila` y `numero` son enteros y quedan nulos en los sectores no numerados.
+- `compras.tipoEvento` (Entrega 2) se copia de Eventos al iniciar la compra; las compras anteriores quedan con el tipo nulo y no cuentan en el historial de preferencias.
+- `modificaciones_evento` tiene restricción única (`evento_id`, `version`): la misma modificación se aplica una sola vez.
+- `avisos_pendientes` es el outbox hacia Notificaciones. Su restricción única (`acontecimiento_id`, `tipo`, `usuario_id`) es la misma clave con la que Notificaciones deduplica: los avisos de un evento a cada comprador comparten `acontecimiento_id`. `recurso_id` apunta a la compra, la devolución, el reintegro o el evento, según el tipo.
 
 <details><summary>Fuente Mermaid</summary>
 
@@ -101,6 +160,8 @@ erDiagram
     solicitudes_devolucion ||--o| reintegros : "id = refundRequestId"
     reintegros ||--o{ entradas_de_reintegro : "reintegroId"
     cancelaciones_evento ||--o{ compras : "eventoId"
+    modificaciones_evento ||--o{ compras : "eventoId"
+    compras ||--o{ avisos_pendientes : "recursoId (o el de la devolución, reintegro o evento)"
 
     compras {
         UUID id PK
@@ -109,7 +170,8 @@ erDiagram
         string reservaId UK
         string eventoId
         string eventoNombre
-        datetime eventoFechaInicio
+        datetime eventoFechaInicio "se actualiza si el evento cambia de fecha"
+        string tipoEvento "copiado de Eventos; nulo en compras anteriores"
         decimal total
         string medioDePago
         string pagoId "ID del pago en Pagos"
@@ -190,6 +252,29 @@ erDiagram
         datetime tomadaEn
         int entradasMarcadas
         string ultimoError
+    }
+    modificaciones_evento {
+        long id PK
+        string evento_id "UK junto a version"
+        int version "UK junto a evento_id"
+        datetime recibida_en
+    }
+    avisos_pendientes {
+        long id PK
+        string acontecimiento_id "UK con tipo y usuario_id"
+        string tipo "UK; COMPRA_CONFIRMADA, EVENTO_MODIFICADO, ..."
+        string usuario_id "UK; destinatario"
+        string recurso_id
+        string correlacion_id
+        json datos
+        string estado "PENDIENTE, PROCESANDO, ENVIADO, ERROR_FINAL"
+        int intentos
+        datetime proximo_intento
+        string ultimo_error
+        datetime creado_en
+        string toma "ejecución que lo tomó"
+        datetime vence_en "límite de PROCESANDO"
+        datetime enviado_en
     }
 ```
 

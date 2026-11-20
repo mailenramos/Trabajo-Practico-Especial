@@ -1,0 +1,261 @@
+openapi: 3.0.3
+info:
+  title: TicketYa - Notificaciones
+  version: 0.1.0
+  description: |
+    Microservicio de Gestión de notificaciones de TicketYa (numeración y puerto a confirmar
+    por el grupo). Recibe avisos de acontecimientos de otros servicios y envía correos al
+    cliente de forma asíncrona.
+
+    **Solo uso interno.** El API Gateway no publica `/internal/**`. Lo llaman los workers de
+    outbox de Compras y devoluciones, Lugares, sectores y eventos (vía Compras) y Preferencias
+    y recomendaciones.
+
+    **Recepción separada del envío:** el `POST` solo registra la notificación en estado
+    `PENDIENTE` y responde `202`. El correo lo envía después una tarea programada, que obtiene
+    el correo del destinatario en Gestión de usuarios (`GET /internal/usuarios/{id}/contacto`)
+    y lo envía por SMTP. Si Gestión de usuarios o SMTP no están disponibles, la recepción sigue
+    funcionando y la notificación se reintenta.
+
+    **Idempotencia:** la clave es acontecimiento + tipo + destinatario
+    (`acontecimientoId`, `tipo`, `usuarioId`). Reenviar el mismo aviso devuelve la notificación
+    ya registrada (`duplicado: true`) sin crear otra.
+
+    **Sin entrega exactamente una vez:** si SMTP acepta el correo y se pierde la confirmación,
+    un reintento puede enviarlo dos veces.
+
+    **Autorización entre servicios (provisoria, a acordar con el grupo):** cada llamada lleva el
+    encabezado `X-Service-Token` con el token compartido (variable `SERVICIO_TOKEN`). Sin token,
+    con un token incorrecto o si el servicio no tiene token configurado, responde `403`.
+
+    **Formato de error:** `{"timestamp","status","error","mensaje","campos"?}`. El campo
+    `error` lleva un código y `campos` solo aparece en los errores de validación.
+
+    | Código | HTTP | Cuándo |
+    |---|---|---|
+    | `VALIDACION` | 400 | Falta un campo obligatorio o el tipo es desconocido (detalle en `campos`) |
+    | `CUERPO_INVALIDO` | 400 | El cuerpo no es un JSON válido o un campo tiene un formato inesperado |
+    | `ESQUEMA_NO_SOPORTADO` | 400 | La `versionEsquema` no es una de las soportadas (hoy, 1) |
+    | `ACCESO_DENEGADO` | 403 | La llamada no viene de un servicio autorizado |
+    | `RUTA_NO_ENCONTRADA` | 404 | La ruta no existe |
+    | `METODO_NO_PERMITIDO` | 405 | Método HTTP no admitido en la ruta |
+    | `TIPO_DE_CONTENIDO_NO_SOPORTADO` | 415 | El cuerpo no se envió como `application/json` |
+    | `ERROR_INTERNO` | 500 | Error inesperado |
+
+    **Contrato a acordar:** forma exacta del aviso, campos de `datos` por tipo (abajo, la
+    propuesta), mecanismo de autorización entre servicios, servidor SMTP y remitente, motor de
+    base de datos y puerto.
+servers:
+  - url: http://localhost:8090
+    description: Local (puerto a confirmar)
+tags:
+  - name: Notificaciones
+paths:
+  /internal/notificaciones:
+    post:
+      tags: [Notificaciones]
+      summary: Recibir el aviso de un acontecimiento
+      description: |
+        Registra la notificación en estado `PENDIENTE` y confirma la recepción. No envía el
+        correo durante la solicitud. Si el aviso ya se había recibido (misma clave), responde
+        lo mismo con la notificación existente y `duplicado: true`; no se compara el resto del
+        cuerpo.
+      security:
+        - TokenDeServicio: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Aviso'
+            examples:
+              compraConfirmada:
+                summary: Compra confirmada (desde Compras)
+                value:
+                  acontecimientoId: compra-confirmada-3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+                  tipo: COMPRA_CONFIRMADA
+                  versionEsquema: 1
+                  ocurridoEn: '2026-11-17T12:00:00Z'
+                  recursoId: 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718
+                  usuarioId: u-123
+                  correlacionId: 9d1c2b3a-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+                  datos:
+                    evento: Recital de verano
+                    fecha: 20/12/2026 21:00
+                    cantidad: 2
+                    total: '30000.00'
+              eventoModificado:
+                summary: Evento modificado (desde Eventos, vía Compras)
+                value:
+                  acontecimientoId: evento-modificado-evento-1-v3
+                  tipo: EVENTO_MODIFICADO
+                  versionEsquema: 1
+                  ocurridoEn: '2026-11-17T12:00:00Z'
+                  recursoId: evento-1
+                  usuarioId: u-123
+                  correlacionId: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+                  datos:
+                    evento: Recital de verano
+                    nuevaFecha: 21/12/2026
+                    nuevoHorario: '22:00'
+                    nuevoLugar: Estadio Norte
+      responses:
+        '202':
+          description: Aviso registrado (nuevo o reentregado). El correo se envía después
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recepcion'
+              examples:
+                nuevo:
+                  value:
+                    id: 5e8b2d1c-7a4f-4c3e-9b6d-2f1a0e9c8b7a
+                    estado: PENDIENTE
+                    duplicado: false
+                reentrega:
+                  summary: El aviso ya se había recibido; el estado puede haber avanzado
+                  value:
+                    id: 5e8b2d1c-7a4f-4c3e-9b6d-2f1a0e9c8b7a
+                    estado: ENVIADA
+                    duplicado: true
+        '400':
+          description: Aviso inválido; no se guarda nada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                validacion:
+                  value:
+                    timestamp: '2026-11-17T12:00:00Z'
+                    status: 400
+                    error: VALIDACION
+                    mensaje: El aviso tiene datos inválidos
+                    campos:
+                      tipo: tipo de notificación desconocido
+                      usuarioId: es obligatorio
+                esquemaNoSoportado:
+                  value:
+                    timestamp: '2026-11-17T12:00:00Z'
+                    status: 400
+                    error: ESQUEMA_NO_SOPORTADO
+                    mensaje: 'La versión de esquema 2 no está soportada. Versiones soportadas: [1]'
+        '403':
+          description: La llamada no viene de un servicio autorizado; no se guarda nada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-17T12:00:00Z'
+                status: 403
+                error: ACCESO_DENEGADO
+                mensaje: Solo los servicios autorizados pueden llamar a este endpoint
+        '415':
+          description: El cuerpo no es application/json
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: Error inesperado. El productor debe reintentar con el mismo aviso (es idempotente)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  securitySchemes:
+    TokenDeServicio:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Token compartido entre servicios (provisorio, a acordar con el grupo)
+  schemas:
+    Aviso:
+      type: object
+      required: [acontecimientoId, tipo, versionEsquema, ocurridoEn, recursoId, usuarioId, correlacionId, datos]
+      properties:
+        acontecimientoId:
+          type: string
+          maxLength: 100
+          description: Identificador estable del acontecimiento; el mismo en cada reentrega
+        tipo:
+          $ref: '#/components/schemas/TipoNotificacion'
+        versionEsquema:
+          type: integer
+          enum: [1]
+          description: Versión del esquema del aviso
+        ocurridoEn:
+          type: string
+          format: date-time
+          description: Fecha y hora del acontecimiento (ISO-8601 con zona)
+        recursoId:
+          type: string
+          maxLength: 100
+          description: Recurso relacionado (compra, evento, devolución o reintegro)
+        usuarioId:
+          type: string
+          maxLength: 100
+          description: Usuario destinatario. El correo se obtiene de Gestión de usuarios al enviar
+        correlacionId:
+          type: string
+          maxLength: 100
+          description: Identificador de correlación para seguir el pedido entre servicios
+        datos:
+          type: object
+          additionalProperties: true
+          description: |
+            Datos para generar el correo. Campos propuestos por tipo (contrato a acordar); si
+            falta alguno, el correo usa un texto genérico:
+
+            | Tipo | Campos |
+            |---|---|
+            | `COMPRA_CONFIRMADA` | evento, fecha, cantidad, total |
+            | `ENTRADAS_DISPONIBLES` | evento, fecha |
+            | `EVENTO_CANCELADO` | evento, fecha |
+            | `EVENTO_MODIFICADO` | evento y al menos uno de nuevaFecha, nuevoHorario, nuevoLugar |
+            | `NUEVO_EVENTO_DE_INTERES` | evento, fecha, lugar |
+            | `DEVOLUCION_APROBADA` | evento, monto |
+            | `DEVOLUCION_RECHAZADA` | evento, motivo |
+            | `RESULTADO_REINTEGRO` | monto, resultado (`EXITOSO` o `FALLIDO`) |
+    TipoNotificacion:
+      type: string
+      enum:
+        - COMPRA_CONFIRMADA
+        - ENTRADAS_DISPONIBLES
+        - EVENTO_CANCELADO
+        - EVENTO_MODIFICADO
+        - NUEVO_EVENTO_DE_INTERES
+        - DEVOLUCION_APROBADA
+        - DEVOLUCION_RECHAZADA
+        - RESULTADO_REINTEGRO
+    Recepcion:
+      type: object
+      required: [id, estado, duplicado]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador de la notificación
+        estado:
+          type: string
+          enum: [PENDIENTE, PROCESANDO, ENVIADA, ERROR_FINAL]
+          description: Estado actual de la notificación
+        duplicado:
+          type: boolean
+          description: true si el aviso ya se había recibido antes (reentrega)
+    Error:
+      type: object
+      required: [timestamp, status, error, mensaje]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+          description: Código del error
+        mensaje:
+          type: string
+        campos:
+          type: object
+          additionalProperties:
+            type: string
+          description: Solo en errores de validación, mensaje por campo

@@ -40,6 +40,27 @@ class DocumentacionOpenApiTest extends PruebaIntegracion {
         assertThat(paths.get("/reintegros")).containsKey("get");
         assertThat(paths.get("/reintegros/{reintegroId}/reintento")).containsKey("post");
 
+        // Entrega 2: identidad del Gateway con X-User-Roles; X-User-Role queda obsoleto
+        Map<String, Map<String, Object>> parametros = (Map<String, Map<String, Object>>)
+                ((Map<String, Object>) doc.get("components")).get("parameters");
+        assertThat(parametros.get("XUserRoles")).containsEntry("name", "X-User-Roles");
+        assertThat(parametros.get("XUserRole")).containsEntry("deprecated", true);
+        assertThat(paths.get("/devoluciones/{devolucionId}/aprobacion").get("post").toString())
+                .contains("#/components/parameters/XUserRolesAdmin");
+
+        // Entrega 2: consultas internas con X-Service-Token
+        Map<String, Object> coCompras = (Map<String, Object>) paths.get("/internal/eventos/{eventoId}/co-compras").get("get");
+        assertThat((Map<Object, Object>) coCompras.get("responses")).containsKeys("200", "400", "403");
+        assertThat((List<Object>) coCompras.get("security")).isNotEmpty();
+        Map<String, Object> historial = (Map<String, Object>)
+                paths.get("/internal/usuarios/{usuarioId}/historial-preferencias").get("get");
+        assertThat((Map<Object, Object>) historial.get("responses")).containsKeys("200", "403");
+        assertThat((List<Object>) historial.get("security")).isNotEmpty();
+        Map<String, Object> modificacion = (Map<String, Object>) paths.get("/internal/eventos-modificados").get("post");
+        assertThat(modificacion).containsKey("requestBody");
+        assertThat((Map<Object, Object>) modificacion.get("responses")).containsKeys("200", "202", "400", "403");
+        assertThat((List<Object>) modificacion.get("security")).isNotEmpty();
+
         // E-1: aviso de cancelación con sus tres respuestas y el origen del reintegro
         Map<String, Object> aviso = (Map<String, Object>) paths.get("/eventos-cancelados").get("post");
         assertThat(aviso).containsKey("requestBody");

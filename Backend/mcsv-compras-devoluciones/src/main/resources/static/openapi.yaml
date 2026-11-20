@@ -6,11 +6,25 @@ info:
     Microservicio 3 de TicketYa: compra de entradas a partir de una reserva, pago,
     consulta de compras, devoluciones de entradas, reintegros y cancelación de eventos.
 
-    **Identificación (Entrega 1):** cada pedido lleva los encabezados `X-User-Id` y
-    `X-User-Role`. Sin `X-User-Id` se responde 401. El administrador se identifica con
-    `X-User-Role: ADMIN` (confirmado por el grupo; se compara sin distinguir mayúsculas).
+    **Identificación (Entrega 2):** el API Gateway valida el JWT, descarta los encabezados de
+    identidad que manda el cliente y propaga `X-User-Id` (el `sub` del token) y `X-User-Roles`
+    (roles separados por coma; puede haber varios o ninguno). Este servicio no recibe ni
+    valida el token. Sin `X-User-Id` se responde 401. Los roles se comparan sin distinguir
+    mayúsculas ni espacios, y es administrador quien tiene `ADMIN` entre sus roles (confirmado
+    por el grupo; configurable con `compras.rol-administrador`), aunque tenga otros.
+    Compatibilidad: si no llega `X-User-Roles`, se toma el encabezado anterior `X-User-Role`
+    (obsoleto) como un único rol; si llegan los dos, manda `X-User-Roles`. El servicio confía
+    en estos encabezados, así que solo debe ser alcanzable a través del Gateway: en la
+    configuración de entrega el puerto 8083 no debe publicarse fuera de la red de Docker
+    (`ticketya-net`).
     `POST /eventos-cancelados` es una llamada interna del servicio de eventos y no lleva
     esos encabezados.
+
+    **Endpoints internos (Entrega 2):** las rutas `/internal/**` no pasan por el API Gateway
+    ni llevan encabezados de usuario. Exigen el encabezado `X-Service-Token` con el token
+    compartido entre servicios (variable de entorno `SERVICIO_TOKEN`; mecanismo provisorio
+    hasta JWT). Sin el encabezado, con un valor incorrecto o si el servicio no tiene token
+    configurado, responden `403` con el código `SERVICIO_NO_AUTORIZADO`.
 
     **Formato de error:** todos los errores usan
     `{"timestamp","status","error","mensaje","campos"?}`. El campo `error` lleva un código
@@ -20,7 +34,7 @@ info:
     |---|---|---|
     | `VALIDACION` | 400 | Falta un campo obligatorio del cuerpo (detalle en `campos`) |
     | `CUERPO_INVALIDO` | 400 | El cuerpo no es un JSON válido |
-    | `PARAMETRO_INVALIDO` | 400 | El ID de la ruta no es un UUID |
+    | `PARAMETRO_INVALIDO` | 400 | El ID de la ruta no es un UUID, o el `limite` no es un entero mayor a 0 |
     | `CLAVE_IDEMPOTENCIA_INVALIDA` | 400 | Falta `Idempotency-Key` o supera los 100 caracteres |
     | `MEDIO_DE_PAGO_INVALIDO` | 400 | El medio de pago no es uno de los cuatro admitidos |
     | `USUARIO_NO_IDENTIFICADO` | 401 | Falta el encabezado `X-User-Id` |
@@ -28,6 +42,7 @@ info:
     | `ACCESO_DENEGADO` | 403 | La compra o la devolución es de otro cliente |
     | `ENTRADA_AJENA` | 403 | La entrada es de otro cliente |
     | `SOLO_ADMINISTRADOR` | 403 | La operación es solo para administradores |
+    | `SERVICIO_NO_AUTORIZADO` | 403 | Llamada a `/internal/**` sin un `X-Service-Token` válido |
     | `RESERVA_NO_ENCONTRADA` | 404 | La reserva no existe |
     | `COMPRA_NO_ENCONTRADA` | 404 | La compra no existe |
     | `ENTRADA_NO_ENCONTRADA` | 404 | La entrada no corresponde a ninguna compra |
@@ -59,6 +74,10 @@ tags:
   - name: Devoluciones
   - name: Reintegros
   - name: Cancelación de eventos
+  - name: Modificación de eventos (interno)
+    description: Aviso de Eventos (MS1) cuando un evento cambia de fecha, horario o lugar
+  - name: Recomendaciones (interno)
+    description: Consultas sobre compras confirmadas para Gestión de preferencias y recomendaciones (MS8)
 paths:
   /compras:
     post:
@@ -72,6 +91,7 @@ paths:
         la compra sigue pendiente, recibe esa compra (200) sin que se registre otra.
       parameters:
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
       requestBody:
         required: true
@@ -172,6 +192,7 @@ paths:
         fecha y estado.
       parameters:
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
       responses:
         '200':
@@ -201,6 +222,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/CompraId'
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
       responses:
         '200':
@@ -251,6 +273,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/CompraId'
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
         - name: Idempotency-Key
           in: header
@@ -366,6 +389,7 @@ paths:
         solicitud pendiente, recibe esa misma (200).
       parameters:
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
       requestBody:
         required: true
@@ -460,6 +484,7 @@ paths:
         estado de la solicitud y, por separado, el de su reintegro.
       parameters:
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
         - name: estado
           in: query
@@ -486,6 +511,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DevolucionId'
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
         - $ref: '#/components/parameters/XUserRole'
       responses:
         '200':
@@ -533,7 +559,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DevolucionId'
         - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XUserRoleAdmin'
+        - $ref: '#/components/parameters/XUserRolesAdmin'
+        - $ref: '#/components/parameters/XUserRole'
       responses:
         '200':
           description: Aprobada y coordinación completa
@@ -568,7 +595,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DevolucionId'
         - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XUserRoleAdmin'
+        - $ref: '#/components/parameters/XUserRolesAdmin'
+        - $ref: '#/components/parameters/XUserRole'
       requestBody:
         required: true
         content:
@@ -613,7 +641,8 @@ paths:
       description: Para encontrar los reintegros pendientes o fallidos que hay que reintentar.
       parameters:
         - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XUserRoleAdmin'
+        - $ref: '#/components/parameters/XUserRolesAdmin'
+        - $ref: '#/components/parameters/XUserRole'
         - name: estado
           in: query
           required: false
@@ -669,7 +698,8 @@ paths:
           required: true
           schema: { type: string, format: uuid }
         - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XUserRoleAdmin'
+        - $ref: '#/components/parameters/XUserRolesAdmin'
+        - $ref: '#/components/parameters/XUserRole'
       responses:
         '200':
           description: >-
@@ -782,20 +812,219 @@ paths:
                 campos:
                   eventoId: es obligatorio
 
+  /internal/eventos/{eventoId}/co-compras:
+    get:
+      tags: [Recomendaciones (interno)]
+      summary: Co-compras de un evento (llamada interna de Recomendaciones)
+      description: |
+        Otros eventos que compraron los clientes con una compra **confirmada** del evento
+        indicado, con la cantidad de esos clientes que los compraron (cada cliente cuenta una
+        vez aunque tenga varias compras). Ordenado de mayor a menor cantidad y, a igual
+        cantidad, por `eventoId`. No incluye al evento consultado. Las compras pendientes o
+        fallidas no cuentan.
+
+        Si el evento no tiene compras confirmadas o ningún cliente compró otro evento,
+        responde `200` con `coCompras: []` (no `404`).
+      security:
+        - TokenDeServicio: []
+      parameters:
+        - name: eventoId
+          in: path
+          required: true
+          schema: { type: string }
+          example: evento-1
+        - name: limite
+          in: query
+          required: false
+          description: Cantidad máxima de eventos. 10 si no se indica; un valor mayor a 20 se trata como 20
+          schema: { type: integer, minimum: 1, default: 10 }
+          example: 5
+      responses:
+        '200':
+          description: Co-compras del evento (puede ser una lista vacía)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoCompras' }
+              examples:
+                conResultados:
+                  value:
+                    eventoId: evento-1
+                    coCompras:
+                      - { eventoId: evento-7, cantidad: 12 }
+                      - { eventoId: evento-3, cantidad: 4 }
+                sinResultados:
+                  value:
+                    eventoId: evento-9
+                    coCompras: []
+        '400':
+          description: El `limite` no es un entero mayor a 0
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-20T12:00:00Z'
+                status: 400
+                error: PARAMETRO_INVALIDO
+                mensaje: El parámetro limite debe ser un entero mayor a 0
+        '403': { $ref: '#/components/responses/ServicioNoAutorizado' }
+
+  /internal/usuarios/{usuarioId}/historial-preferencias:
+    get:
+      tags: [Recomendaciones (interno)]
+      summary: Historial de preferencias de un cliente (llamada interna de Recomendaciones)
+      description: |
+        A partir de las compras **confirmadas** del cliente:
+
+        - `tipos`: los tipos de evento, sin repetir, con la cantidad de compras de cada uno,
+          de mayor a menor (a igual cantidad, por tipo). El tipo se copia de Eventos al
+          iniciar la compra; las compras anteriores a la Entrega 2 no tienen tipo y no
+          cuentan acá.
+        - `eventosComprados`: los `eventoId` distintos de esas compras, del comprado más
+          recientemente al más antiguo, como máximo 20. Incluye las compras sin tipo.
+
+        Las compras pendientes o fallidas no cuentan. Un cliente sin compras confirmadas
+        recibe `200` con las dos listas vacías (no `404`).
+      security:
+        - TokenDeServicio: []
+      parameters:
+        - name: usuarioId
+          in: path
+          required: true
+          schema: { type: string }
+          example: cliente-1
+      responses:
+        '200':
+          description: Historial del cliente (las listas pueden estar vacías)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HistorialPreferencias' }
+              examples:
+                conCompras:
+                  value:
+                    usuarioId: cliente-1
+                    tipos:
+                      - { tipo: RECITAL, cantidad: 3 }
+                      - { tipo: TEATRO, cantidad: 1 }
+                    eventosComprados: [evento-7, evento-3, evento-1]
+                sinCompras:
+                  value:
+                    usuarioId: cliente-2
+                    tipos: []
+                    eventosComprados: []
+        '403': { $ref: '#/components/responses/ServicioNoAutorizado' }
+
+  /internal/eventos-modificados:
+    post:
+      tags: [Modificación de eventos (interno)]
+      summary: Aviso de modificación de un evento (llamada interna de Eventos)
+      description: |
+        Eventos avisa que un evento cambió de fecha, horario o lugar. Idempotente por
+        `eventoId` + `version` (contador que Eventos incrementa en cada modificación). En una
+        sola transacción:
+
+        1. Registra la modificación.
+        2. Si viene `fechaHora`, actualiza la fecha de inicio guardada en **todas** las compras
+           y solicitudes de devolución del evento.
+        3. Genera un aviso `EVENTO_MODIFICADO` a Notificaciones por cada cliente con una compra
+           **confirmada** del evento (uno por cliente, aunque tenga varias compras), con
+           `acontecimientoId` `evento-modificado-{eventoId}-v{version}`. Lleva `nuevaFecha`
+           (dd/MM/yyyy) y `nuevoHorario` (HH:mm, en hora de Argentina) si vino `fechaHora`, y
+           `nuevoLugar` (lugar y ciudad) si vino alguno de los dos.
+
+        Si algo falla no queda nada guardado, y Eventos puede reintentar con la misma versión.
+        Una versión ya procesada, o menor que la mayor ya procesada del evento, responde `200`
+        sin cambiar nada. No genera reintegros ni cambia el estado de las entradas.
+      security:
+        - TokenDeServicio: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ModificacionEventoPedido' }
+            examples:
+              fechaYLugar:
+                value:
+                  eventoId: evento-1
+                  version: 3
+                  fechaHora: '2026-12-15T23:30:00Z'
+                  lugar: Estadio Norte
+                  ciudad: Rosario
+              soloLugar:
+                value:
+                  eventoId: evento-1
+                  version: 4
+                  lugar: Teatro Sur
+      responses:
+        '202':
+          description: Modificación nueva aplicada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AvisoModificacion' }
+              example:
+                eventoId: evento-1
+                version: 3
+                resultado: ACEPTADA
+        '200':
+          description: Esa versión ya se procesó, o es anterior a la mayor ya procesada; no se cambia nada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AvisoModificacion' }
+              examples:
+                yaProcesada:
+                  value:
+                    eventoId: evento-1
+                    version: 3
+                    resultado: YA_PROCESADA
+                versionAnterior:
+                  value:
+                    eventoId: evento-1
+                    version: 2
+                    resultado: VERSION_ANTERIOR
+        '400':
+          description: |
+            Falta `eventoId` o `version`, `version` es menor a 1, no viene ninguno de
+            `fechaHora`, `lugar` o `ciudad`, o `fechaHora` no es una fecha ISO-8601 válida.
+            No se guarda nada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                timestamp: '2026-11-20T12:00:00Z'
+                status: 400
+                error: VALIDACION
+                mensaje: El pedido tiene datos inválidos
+                campos:
+                  fechaHora: debe venir al menos uno de fechaHora, lugar o ciudad
+        '403': { $ref: '#/components/responses/ServicioNoAutorizado' }
+
 components:
+  securitySchemes:
+    TokenDeServicio:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Token compartido entre servicios (variable SERVICIO_TOKEN; provisorio hasta JWT)
   parameters:
     XUserId:
       name: X-User-Id
       in: header
       required: true
-      description: ID del usuario (lo completa el Gateway en la Entrega 1)
+      description: ID del usuario, el `sub` del JWT que valida el Gateway
       schema: { type: string }
       example: cliente-1
+    XUserRoles:
+      name: X-User-Roles
+      in: header
+      required: false
+      description: Roles del usuario separados por coma, propagados por el Gateway desde el JWT. Sin distinguir mayúsculas ni espacios
+      schema: { type: string }
+      example: CLIENTE,PERSONAL_ACCESO
     XUserRole:
       name: X-User-Role
       in: header
       required: false
-      description: Rol del usuario
+      deprecated: true
+      description: Obsoleto. Rol único de la Entrega 1; solo se usa si no llega `X-User-Roles`, durante la transición
       schema: { type: string }
       example: CLIENTE
     CompraId:
@@ -810,13 +1039,13 @@ components:
       required: true
       schema: { type: string, format: uuid }
       example: 8a1f2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
-    XUserRoleAdmin:
-      name: X-User-Role
+    XUserRolesAdmin:
+      name: X-User-Roles
       in: header
-      required: true
-      description: Debe ser el rol de administrador (ADMIN por defecto)
+      required: false
+      description: Roles del usuario separados por coma; debe incluir el rol de administrador (ADMIN por defecto), aunque tenga otros. Sin él, 403 SOLO_ADMINISTRADOR
       schema: { type: string }
-      example: ADMIN
+      example: CLIENTE,ADMIN
 
   schemas:
     IniciarCompraPedido:
@@ -945,6 +1174,53 @@ components:
         eventoId: { type: string }
         motivo: { type: string, description: Motivo de la cancelación en Eventos (informativo) }
         canceladoEn: { type: string, format: date-time }
+    ModificacionEventoPedido:
+      type: object
+      required: [eventoId, version]
+      description: Debe venir al menos uno de fechaHora, lugar o ciudad
+      properties:
+        eventoId: { type: string }
+        version: { type: integer, minimum: 1, description: Contador de modificaciones del evento en Eventos }
+        fechaHora: { type: string, format: date-time, description: Nueva fecha y hora de inicio, ISO-8601 en UTC }
+        lugar: { type: string, description: Nuevo lugar }
+        ciudad: { type: string, description: Nueva ciudad }
+    AvisoModificacion:
+      type: object
+      properties:
+        eventoId: { type: string }
+        version: { type: integer }
+        resultado: { type: string, enum: [ACEPTADA, YA_PROCESADA, VERSION_ANTERIOR] }
+    CoCompras:
+      type: object
+      required: [eventoId, coCompras]
+      properties:
+        eventoId: { type: string, description: Evento consultado }
+        coCompras:
+          type: array
+          items:
+            type: object
+            required: [eventoId, cantidad]
+            properties:
+              eventoId: { type: string, description: Otro evento comprado }
+              cantidad: { type: integer, description: Clientes distintos que compraron los dos eventos }
+    HistorialPreferencias:
+      type: object
+      required: [usuarioId, tipos, eventosComprados]
+      properties:
+        usuarioId: { type: string }
+        tipos:
+          type: array
+          items:
+            type: object
+            required: [tipo, cantidad]
+            properties:
+              tipo: { type: string, description: Tipo de evento tal como lo informa Eventos }
+              cantidad: { type: integer, description: Compras confirmadas de ese tipo }
+        eventosComprados:
+          type: array
+          maxItems: 20
+          description: eventoId distintos de las compras confirmadas, del más reciente al más antiguo
+          items: { type: string }
     AvisoCancelacion:
       type: object
       properties:
@@ -979,6 +1255,16 @@ components:
           description: Solo en errores de validación
 
   responses:
+    ServicioNoAutorizado:
+      description: Falta el encabezado `X-Service-Token`, su valor no coincide o el servicio no tiene token configurado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-20T12:00:00Z'
+            status: 403
+            error: SERVICIO_NO_AUTORIZADO
+            mensaje: Solo los servicios autorizados pueden llamar a este endpoint
     SoloAdministrador:
       description: La operación es solo para administradores
       content:

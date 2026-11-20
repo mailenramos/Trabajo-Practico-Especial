@@ -7,22 +7,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Permiso de administrador por pertenencia del rol configurado al conjunto de roles. */
 class PermisosTest {
 
     private final Permisos permisos = new Permisos("ADMIN");
 
+    private static UsuarioActual conRoles(String roles) {
+        return UsuarioActual.conRolesSeparadosPorComa("u-1", roles);
+    }
+
     @Test
     void elRolDeAdministradorSeComparaSinDistinguirMayusculas() {
-        assertThat(permisos.esAdministrador(new UsuarioActual("u-1", "ADMIN"))).isTrue();
-        assertThat(permisos.esAdministrador(new UsuarioActual("u-1", "admin"))).isTrue();
-        assertThatCode(() -> permisos.exigirAdministrador(new UsuarioActual("u-1", "Admin")))
+        assertThat(permisos.esAdministrador(conRoles("ADMIN"))).isTrue();
+        assertThat(permisos.esAdministrador(conRoles("admin"))).isTrue();
+        assertThatCode(() -> permisos.exigirAdministrador(conRoles("Admin")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void unAdministradorConOtrosRolesEsAdministrador() {
+        assertThat(permisos.esAdministrador(conRoles("CLIENTE,ADMIN"))).isTrue();
+        assertThat(permisos.esAdministrador(conRoles("ADMIN, PERSONAL_ACCESO, CLIENTE"))).isTrue();
+        assertThatCode(() -> permisos.exigirAdministrador(conRoles("cliente, admin")))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void unUsuarioSinElRolRecibe403() {
-        for (String rol : new String[]{"CLIENTE", null, "ADMINISTRADOR"}) {
-            assertThatThrownBy(() -> permisos.exigirAdministrador(new UsuarioActual("u-1", rol)))
+        for (String roles : new String[]{"CLIENTE", null, "", "ADMINISTRADOR", "CLIENTE,PERSONAL_ACCESO"}) {
+            assertThatThrownBy(() -> permisos.exigirAdministrador(conRoles(roles)))
                     .isInstanceOfSatisfying(ApiException.class, e -> {
                         assertThat(e.getStatus().value()).isEqualTo(403);
                         assertThat(e.getCodigo()).isEqualTo("SOLO_ADMINISTRADOR");
@@ -32,9 +45,10 @@ class PermisosTest {
 
     @Test
     void elRolEsConfigurable() {
-        Permisos otro = new Permisos("ROLE_ADMIN");
+        Permisos otro = new Permisos("ORGANIZADOR");
 
-        assertThat(otro.esAdministrador(new UsuarioActual("u-1", "role_admin"))).isTrue();
-        assertThat(otro.esAdministrador(new UsuarioActual("u-1", "ADMIN"))).isFalse();
+        assertThat(otro.esAdministrador(conRoles("ORGANIZADOR"))).isTrue();
+        assertThat(otro.esAdministrador(conRoles("cliente,organizador"))).isTrue();
+        assertThat(otro.esAdministrador(conRoles("ADMIN"))).isFalse();
     }
 }

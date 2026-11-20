@@ -63,4 +63,13 @@ public interface SolicitudDevolucionRepository extends JpaRepository<SolicitudDe
             where s.id = :id and s.estado = ticketya.modelo.EstadoSolicitud.PENDIENTE""")
     int rechazar(@Param("id") UUID id, @Param("motivo") String motivo,
                  @Param("administrador") String administrador, @Param("ahora") Instant ahora);
+
+    /**
+     * El evento cambió de fecha u horario: actualiza la fecha de inicio copiada en todas sus
+     * solicitudes de devolución, en cualquier estado. Devuelve cuántas cambió.
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update SolicitudDevolucion s set s.eventoFechaInicio = :fechaInicio where s.eventoId = :eventoId")
+    int actualizarFechaDelEvento(@Param("eventoId") String eventoId, @Param("fechaInicio") Instant fechaInicio);
 }

@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:mysql://localhost:3306/ticketya_compras_test?createDatabaseIfNotExist=true&serverTimezone=UTC",
         "spring.jpa.hibernate.ddl-auto=create-drop",
-        "compras.cancelacion.reanudacion-activa=false"
+        "compras.cancelacion.reanudacion-activa=false",
+        "compras.avisos.envio-activo=false"
 })
 class CompraRepositoryTest {
 
