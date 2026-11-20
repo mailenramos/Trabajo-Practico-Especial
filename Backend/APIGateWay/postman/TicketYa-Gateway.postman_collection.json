@@ -5,17 +5,21 @@
     "description": "Smoke tests manuales del API Gateway local. Importar junto con el environment TicketYa-Gateway-Local. Las solicitudes de negocio se envían al Gateway (8086), nunca a MS4. Completar los IDs del environment antes de ejecutar reserva/compra.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
   "item": [
     {
-      "name": "01 - Consultas públicas",
+      "name": "01 - Consultas autenticadas",
       "item": [
         {
           "name": "Buscar eventos publicados",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{userId}}" },
-              { "key": "X-User-Role", "value": "CLIENTE" },
               { "key": "Accept", "value": "application/json" }
             ],
             "url": {
@@ -47,8 +51,6 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{organizerId}}" },
-              { "key": "X-User-Role", "value": "ORGANIZADOR" },
               { "key": "Accept", "value": "application/json" }
             ],
             "url": {
@@ -56,7 +58,7 @@
               "host": ["{{gatewayUrl}}"],
               "path": ["lugares"]
             },
-            "description": "MS1. Consulta los lugares de ejemplo cargados por el perfil dev. Requiere el usuario organizador de prueba."
+            "description": "MS1. Consulta los lugares de ejemplo cargados por el perfil dev. Requiere un JWT válido."
           },
           "event": [
             {
@@ -75,8 +77,6 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{userId}}" },
-              { "key": "X-User-Role", "value": "CLIENTE" },
               { "key": "Accept", "value": "application/json" }
             ],
             "url": {
@@ -104,16 +104,17 @@
       "name": "02 - Identidad y allowlist",
       "item": [
         {
-          "name": "MS3 rechaza consulta sin identidad",
+          "name": "Gateway rechaza consulta sin JWT",
           "request": {
             "method": "GET",
             "header": [{ "key": "Accept", "value": "application/json" }],
+            "auth": { "type": "noauth" },
             "url": {
               "raw": "{{gatewayUrl}}/compras",
               "host": ["{{gatewayUrl}}"],
               "path": ["compras"]
             },
-            "description": "Con MS3 levantado, valida que el Gateway no inventa X-User-Id y devuelve la respuesta 401 del servicio."
+            "description": "Valida que el Gateway responda 401 antes de reenviar la solicitud cuando falta el JWT."
           },
           "event": [
             {
@@ -121,7 +122,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"MS3 exige identidad (HTTP 401)\", function () { pm.response.to.have.status(401); });"
+                  "pm.test(\"El Gateway exige JWT (HTTP 401)\", function () { pm.response.to.have.status(401); });"
                 ]
               }
             }
@@ -137,7 +138,7 @@
               "host": ["{{gatewayUrl}}"],
               "path": ["internal", "eventos", "{{eventoId}}"]
             },
-            "description": "Debe responder con error de ruta y no alcanzar MS1; no se exige una forma de error específica."
+            "description": "Debe responder 404 sin reenviar la solicitud; no requiere autenticación porque la ruta no está publicada."
           },
           "event": [
             {
@@ -186,7 +187,6 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-User-Id", "value": "{{userId}}" },
               { "key": "Accept", "value": "application/json" }
             ],
             "body": {
@@ -228,8 +228,6 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-User-Id", "value": "{{userId}}" },
-              { "key": "X-User-Role", "value": "CLIENTE" },
               { "key": "Accept", "value": "application/json" }
             ],
             "body": {
@@ -266,8 +264,6 @@
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-User-Id", "value": "{{userId}}" },
-              { "key": "X-User-Role", "value": "CLIENTE" },
               { "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" },
               { "key": "Accept", "value": "application/json" }
             ],
@@ -309,8 +305,6 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{userId}}" },
-              { "key": "X-User-Role", "value": "CLIENTE" },
               { "key": "Accept", "value": "application/json" }
             ],
             "url": {
@@ -337,6 +331,7 @@
   ],
   "variable": [
     { "key": "gatewayUrl", "value": "http://localhost:8086" },
+    { "key": "accessToken", "value": "" },
     { "key": "userId", "value": "cliente-demo" },
     { "key": "organizerId", "value": "organizador-demo" },
     { "key": "eventoId", "value": "" },

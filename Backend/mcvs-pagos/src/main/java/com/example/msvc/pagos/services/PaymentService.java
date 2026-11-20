@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -20,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class PaymentService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(PaymentService.class);
     private final PaymentRepository paymentRepository;
     private final PaymentTransactionService transactionService;
     private final RequestFingerprintService fingerprints;
@@ -45,7 +48,10 @@ public class PaymentService {
             String idempotencyKey) {
         PaymentCreateRequest request = new PaymentCreateRequest(purchaseId, amount, paymentMethod);
         try {
-            return transactionService.create(idempotencyKey, request);
+            PaymentCreationResult result = transactionService.create(idempotencyKey, request);
+            LOGGER.info("operacion=pago paymentId={} purchaseId={} status={} replayed={}",
+                    result.payment().getId(), purchaseId, result.payment().getStatus(), result.replayed());
+            return result;
         } catch (DataIntegrityViolationException exception) {
             String fingerprint = fingerprints.paymentFingerprint(purchaseId, amount, paymentMethod);
             Payment winner = recoveryTransaction.execute(
@@ -56,6 +62,8 @@ public class PaymentService {
             if (!winner.getRequestFingerprint().equals(fingerprint)) {
                 throw new ConflictException("La Idempotency-Key ya fue utilizada con otros datos");
             }
+            LOGGER.info("operacion=pago paymentId={} purchaseId={} status={} replayed=true",
+                    winner.getId(), purchaseId, winner.getStatus());
             return new PaymentCreationResult(winner, true);
         }
     }

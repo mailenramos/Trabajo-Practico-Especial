@@ -1,6 +1,6 @@
-# TicketYa API Gateway — Entrega 1
+# TicketYa API Gateway — Entrega 2
 
-Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones y Entradas. Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto.
+Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones y Entradas. Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto. Valida JWT, aplica autorización por rol y propaga una identidad derivada exclusivamente del token.
 
 ## Requisitos y ejecución
 
@@ -10,7 +10,8 @@ Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/R
 Desde esta carpeta:
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+$env:JWT_SECRET = "<clave aleatoria compartida con el emisor JWT, mínimo 32 bytes UTF-8>"
+mvn spring-boot:run
 ```
 
 Para ejecutar toda la suite automatizada (pruebas unitarias y de integración):
@@ -19,7 +20,7 @@ Para ejecutar toda la suite automatizada (pruebas unitarias y de integración):
 .\mvnw.cmd clean verify
 ```
 
-Las pruebas usan servidores HTTP falsos y no requieren levantar MS1–MS5, MongoDB, MySQL ni Docker. Cubren el encaminamiento por servicio, preservación de la solicitud/respuesta, exclusión de rutas internas, identidad, CORS y fallos de conexión.
+Las pruebas usan servidores HTTP falsos y no requieren levantar MS1–MS5, MongoDB, MySQL ni Docker. Cubren el encaminamiento por servicio, preservación de la solicitud/respuesta, exclusión de rutas internas, autenticación JWT, autorización, propagación segura de identidad, CORS y fallos de conexión.
 
 ## Pruebas manuales con Postman
 
@@ -28,7 +29,7 @@ Importá estos dos archivos en Postman:
 - `postman/TicketYa-Gateway.postman_collection.json`
 - `postman/TicketYa-Gateway-Local.postman_environment.json`
 
-Seleccioná el environment **TicketYa - Gateway local**. Por defecto, `gatewayUrl` es `http://localhost:8086`. La carpeta **01 - Consultas públicas** permite probar la búsqueda de eventos y el listado de lugares. La carpeta **02 - Identidad y allowlist** prueba que MS3 rechace una consulta sin identidad y que una ruta interna y un método no permitidos no respondan con éxito. Las carpetas **03 - Reserva** y **04 - Compra y entradas** requieren completar IDs y levantar los servicios/dependencias indicados en sus descripciones.
+Seleccioná el environment **TicketYa - Gateway local**. Por defecto, `gatewayUrl` es `http://localhost:8086`. Pegá el JWT del emisor configurado en la variable secreta `accessToken`; las solicitudes protegidas requieren un usuario/rol habilitado. Las carpetas **03 - Reserva** y **04 - Compra y entradas** requieren completar IDs y levantar los servicios/dependencias indicados en sus descripciones.
 
 Para una reserva, completá `eventoId` con un evento publicado con disponibilidad y `sectorId` con un sector numerado libre; ajustá también `fila` y `numero`. El request guarda `reservaId` si MS2 lo devuelve. Para continuar, usá esa reserva al iniciar la compra; al crearla se guarda `compraId`. El pago usa una clave de idempotencia nueva por request. Ejecutá cada operación de escritura deliberadamente: crea datos y puede reservar lugares o procesar un pago.
 
@@ -38,7 +39,7 @@ Iniciá MongoDB/MySQL y los microservicios necesarios siguiendo el README de cad
 .\mvnw.cmd spring-boot:run
 ```
 
-Si un request público responde `503`, comprobá que su servicio destino esté escuchando en el puerto configurado y, para una compra, que estén disponibles también las dependencias directas de MS3. Un `404` para una ruta interna o no publicada es esperado. Postman no aplica CORS: ese comportamiento se verifica con la suite automatizada o desde un navegador.
+Si un request público responde `503`, comprobá que su servicio destino esté escuchando en el puerto configurado y, para una compra, que estén disponibles también las dependencias directas de MS3. Un `401` indica que falta un JWT válido; un `403`, que el rol no está autorizado. Un `404` para una ruta interna o no publicada es esperado. Postman no aplica CORS: ese comportamiento se verifica con la suite automatizada o desde un navegador.
 
 ## Configuración
 
@@ -50,6 +51,25 @@ Si un request público responde `503`, comprobá que su servicio destino esté e
 | `MS3_URL` | `http://localhost:8083` | Compras y Devoluciones. |
 | `MS5_URL` | `http://localhost:8085` | Entradas. |
 | `GATEWAY_CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Orígenes web permitidos para CORS, separados por coma. |
+| `JWT_SECRET` | Obligatoria | Clave compartida con el emisor; JWT HS256; mínimo 32 bytes UTF-8. No se incluye una clave predeterminada. |
+| `GATEWAY_CONNECT_TIMEOUT_MS` | `2000` | Tiempo máximo para conectar con el servicio destino. |
+| `GATEWAY_RESPONSE_TIMEOUT` | `5s` | Tiempo máximo de respuesta del servicio destino. |
+
+## JWT y roles
+
+El Gateway funciona como resource server: **no emite tokens ni implementa inicio de sesión**. El emisor debe firmar JWT con HS256 y la misma `JWT_SECRET`, incluir `sub` (ID del usuario), `role` y `exp`, y usar uno de los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` o `PERSONAL_ACCESO`. La clave se debe inyectar desde un gestor de secretos/entorno, nunca versionar.
+
+| Operación | Roles admitidos |
+|---|---|
+| Consultar eventos y lugares | `CLIENTE`, `ORGANIZADOR`, `ADMIN`, `PERSONAL_ACCESO` |
+| Crear lugares/eventos/sectores, configurar y publicar eventos | `ORGANIZADOR`, `ADMIN` |
+| Suspender, reactivar o cancelar eventos | `ADMIN` |
+| Reservar, comprar, pagar y solicitar devoluciones | `CLIENTE` |
+| Consultar compras/devoluciones | `CLIENTE`, `ADMIN` |
+| Aprobar/rechazar devoluciones y operar reintegros | `ADMIN` |
+| Consultar entradas | `CLIENTE`, `ADMIN`, `PERSONAL_ACCESO` |
+
+El Gateway elimina cualquier `X-User-Id` y `X-User-Role` entrante y los reconstruye desde los claims verificados. Los servicios mantienen la autorización de negocio que ya implementan; el Gateway no verifica propiedad de recursos. Las rutas desconocidas, métodos no permitidos y rutas internas siguen sin reenviarse. La búsqueda pública sin autenticación de Entrega 1 ahora requiere JWT.
 
 ## Rutas públicas
 
@@ -62,8 +82,10 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 | Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
 | Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`. |
 
-No se enrutan `/internal/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían. Los permisos de rol y la validación de identidad siguen siendo responsabilidad de los microservicios.
+No se enrutan `/internal/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
 
-## Identidad de Entrega 1
+## Trazabilidad y despliegue
 
-El Gateway propaga `X-User-Id` y `X-User-Role` cuando los recibe. No autentica, no crea una identidad predeterminada ni valida que el usuario sea quien declara ser. Esta limitación corresponde al esquema de identificación sin autenticación de la Entrega 1; no debe considerarse una configuración segura para producción.
+Cada solicitud recibe o genera un `X-Request-Id` UUID, se devuelve al cliente y se propaga al servicio destino. El log de consola registra ID, método, path, usuario, rol, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
+
+Para construir la imagen desde esta carpeta: `docker build -t ticketya/api-gateway .`. El contenedor requiere la clave JWT y las URLs destino por variables de entorno. Este Dockerfile no reemplaza el `docker-compose.yml` de la plataforma, que queda fuera del alcance de este cambio.

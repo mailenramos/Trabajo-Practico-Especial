@@ -29,7 +29,7 @@ public class GatewayCorsConfiguration {
                 .toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
-                "Accept", "Content-Type", "X-User-Id", "X-User-Role", "Idempotency-Key"));
+                "Accept", "Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
         configuration.setMaxAge(3600L);
         return configuration;
     }
