@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:usuarios;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+usuarios:
+  jwt:
+    secret: secreto-de-pruebas-con-al-menos-32-bytes
+    issuer: ticketya-usuarios
+    expiracion: PT1H
+  admin-inicial:
+    email: Admin.Inicial@TicketYa.test
+    password: AdminInicial1
+  datos-prueba:
+    habilitados: true

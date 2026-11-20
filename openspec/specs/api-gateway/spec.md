@@ -7,7 +7,7 @@ Define el acceso a las APIs públicas de TicketYa a través de un API Gateway, v
 
 ### Requirement: Enrutar operaciones públicas permitidas
 
-El Gateway SHALL enrutar únicamente las operaciones públicas acordadas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones y Entradas al servicio correspondiente, conservando método, path, parámetros de consulta, cuerpo y headers requeridos por el contrato backend.
+El Gateway SHALL enrutar únicamente las operaciones públicas acordadas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones, Entradas y Usuarios (MS6) al servicio correspondiente, conservando método, path, parámetros de consulta, cuerpo y headers requeridos por el contrato backend.
 
 #### Scenario: Cliente consulta eventos a través del Gateway
 - **WHEN** un cliente solicita una operación pública de eventos por el Gateway
@@ -23,6 +23,10 @@ El Gateway SHALL enrutar únicamente las operaciones públicas acordadas de Even
 - **WHEN** un cliente usa una ruta pública de Compras o Entradas por el Gateway
 - **THEN** el Gateway reenvía la solicitud al servicio dueño de esa ruta sin modificar el contrato
 - **AND** conserva headers de idempotencia y de identidad cuando corresponda
+
+#### Scenario: Usuario se registra, inicia sesión o administra usuarios
+- **WHEN** se solicita `POST /auth/registro`, `POST /auth/login`, `GET|PUT /usuarios/me`, `GET /usuarios`, `GET /usuarios/{id}`, `PUT /usuarios/{id}/roles` o `PUT /usuarios/{id}/estado`
+- **THEN** el Gateway reenvía la solicitud a Usuarios (MS6) sin modificar el contrato
 
 #### Scenario: Ruta pública no documentada
 - **WHEN** se solicita un path o método que no está en la allowlist pública
@@ -44,23 +48,35 @@ El Gateway SHALL NOT enrutar callbacks, operaciones internas entre microservicio
 
 ### Requirement: Autenticar y autorizar solicitudes públicas con JWT
 
-El Gateway SHALL validar JWT HS256 firmados con una clave externa de al menos 32 bytes UTF-8, exigir `sub`, `role` y `exp`, y permitir únicamente los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. Las rutas públicas SHALL aplicar autorización por rol; `X-User-Id` y `X-User-Role` SHALL derivarse de los claims validados y los valores entrantes SHALL descartarse.
+(Entrega 2, US-12.1.) El Gateway SHALL validar JWT HS256 emitidos por Usuarios (MS6) y firmados con una clave externa de al menos 32 bytes UTF-8 compartida con ese servicio. SHALL verificar firma, vigencia (`exp`) y emisor (`iss` igual a `JWT_ISSUER`), y exigir `sub` y `roles`: una lista no vacía con valores entre `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. Un usuario SHALL poder tener varios roles. Las rutas protegidas SHALL aplicar autorización por rol; `X-User-Id` (= `sub`) y `X-User-Roles` (roles separados por coma) SHALL derivarse de los claims validados, y los encabezados de identidad entrantes SHALL descartarse en todas las rutas, también en las públicas. Mientras los servicios migran, `X-User-Role` SHALL enviarse solo si el usuario tiene exactamente un rol. El Gateway SHALL mantener una lista explícita de rutas públicas: `POST /auth/registro`, `POST /auth/login`, `GET /eventos` y `GET /eventos/{id}`.
 
-#### Scenario: Solicitud sin token válido
-- **WHEN** se solicita una ruta pública sin bearer token, con firma incorrecta, vencido o con claims/rol inválidos
-- **THEN** el Gateway responde HTTP 401 y no llama al servicio destino
+#### Scenario: Solicitud sin token
+- **WHEN** se solicita una ruta protegida sin bearer token
+- **THEN** el Gateway responde HTTP 401 con `error` `NO_AUTENTICADO` y no llama al servicio destino
+
+#### Scenario: Token inválido
+- **WHEN** se solicita una ruta con un token vencido, con firma incorrecta, de otro emisor, mal formado o sin `roles` válidos
+- **THEN** el Gateway responde HTTP 401 con `error` `TOKEN_INVALIDO` en el formato de error estándar y no llama al servicio destino
 
 #### Scenario: Rol sin permiso
-- **WHEN** un token válido solicita una operación que no está autorizada para su rol
-- **THEN** el Gateway responde HTTP 403 y no llama al servicio destino
+- **WHEN** un token válido solicita una operación que no está autorizada para ninguno de sus roles
+- **THEN** el Gateway responde HTTP 403 con `error` `ACCESO_DENEGADO` y no llama al servicio destino
 
 #### Scenario: Identidad enviada por el cliente
-- **WHEN** una solicitud autenticada contiene `X-User-Id` o `X-User-Role` distintos a los claims del token
-- **THEN** el Gateway reemplaza ambos headers por `sub` y `role` validados antes del reenvío
+- **WHEN** una solicitud contiene `X-User-Id`, `X-User-Roles` o `X-User-Role` enviados por el cliente
+- **THEN** el Gateway los elimina y, si hay token válido, los reemplaza por los valores derivados del token antes del reenvío
+
+#### Scenario: Usuario con varios roles
+- **WHEN** un token válido trae más de un rol
+- **THEN** el Gateway reenvía todos en `X-User-Roles` y no envía `X-User-Role`, para no elegir un rol arbitrariamente
+
+#### Scenario: Ruta pública sin token
+- **WHEN** se invoca registro, inicio de sesión o la consulta pública de eventos sin token
+- **THEN** el Gateway reenvía la solicitud sin encabezados de identidad
 
 ### Requirement: Permitir consumo desde el frontend local
 
-El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Request-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
+El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Request-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
 
 #### Scenario: Preflight desde origen configurado
 - **WHEN** el navegador envía un preflight desde un origen permitido para un método y headers públicos admitidos
@@ -85,7 +101,7 @@ El Gateway SHALL obtener el puerto de escucha, las URLs de los servicios destino
 
 ### Requirement: Trazar solicitudes y limitar espera de servicios
 
-El Gateway SHALL registrar método, path, usuario autenticado cuando exista, rol, status y duración de cada solicitud. SHALL aceptar o generar un UUID `X-Request-Id`, devolverlo al cliente y propagarlo al destino. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
+El Gateway SHALL registrar método, path, usuario autenticado cuando exista, sus roles, status y duración de cada solicitud. SHALL aceptar o generar un UUID `X-Request-Id`, devolverlo al cliente y propagarlo al destino. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
 
 #### Scenario: Solicitud procesada
 - **WHEN** una solicitud llega al Gateway

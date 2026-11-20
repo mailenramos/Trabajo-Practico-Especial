@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: ticketya-usuarios-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: usuarios
+      POSTGRES_USER: usuarios
+      POSTGRES_PASSWORD: usuarios
+    ports:
+      - "5436:5432"
+    volumes:
+      - usuarios-data:/var/lib/postgresql/data
+
+volumes:
+  usuarios-data:

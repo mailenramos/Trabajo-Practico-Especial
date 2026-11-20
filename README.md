@@ -62,6 +62,16 @@ Inicia las bases de datos antes que sus microservicios:
 
    En siguientes ejecuciones, usa `docker start ticketya-entradas-postgres`. La base, el usuario y la contraseña de desarrollo son `entradas`; más detalles en [Backend/msvc-entradas/Documentacion/README.md](Backend/msvc-entradas/Documentacion/README.md).
 
+6. **PostgreSQL de MS6 (Usuarios)**:
+
+   ```powershell
+   cd .\Backend\mcsv-usuarios-autenticacion
+   docker compose up -d postgres
+   cd ..\..
+   ```
+
+   Publica el puerto `5436`. La base, el usuario y la contraseña de desarrollo son `usuarios`; más detalles en [Backend/mcsv-usuarios-autenticacion/README.md](Backend/mcsv-usuarios-autenticacion/README.md).
+
 Espera a que Docker indique que las bases están iniciadas antes de lanzar los microservicios.
 
 ### Inicia los servicios
@@ -114,10 +124,23 @@ cd .\Backend\msvc-entradas
 .\mvnw.cmd spring-boot:run
 ```
 
-**API Gateway**:
+**MS6 - Usuarios y autenticación** (emite los JWT; `JWT_SECRET` debe ser el mismo valor en MS6 y en el Gateway, de al menos 32 caracteres; `ADMIN_EMAIL` y `ADMIN_PASSWORD` crean el administrador inicial y son obligatorias):
+
+```powershell
+cd .\Backend\mcsv-usuarios-autenticacion
+$env:JWT_SECRET = '<clave compartida con el Gateway, al menos 32 caracteres>'
+$env:ADMIN_EMAIL = 'admin@ticketya.local'
+$env:ADMIN_PASSWORD = '<contraseña con 8+ caracteres, letras y números>'
+.\mvnw.cmd spring-boot:run
+```
+
+En desarrollo, MS6 crea un usuario de prueba por rol (`cliente@ticketya.test`, `organizador@ticketya.test`, `admin@ticketya.test` y `personal@ticketya.test`, contraseña `Prueba123`). Para obtener un token: `POST http://localhost:8086/auth/login` con `{"correo": "...", "password": "..."}`.
+
+**API Gateway** (con el mismo `JWT_SECRET` que MS6):
 
 ```powershell
 cd .\Backend\APIGateWay
+$env:JWT_SECRET = '<la misma clave que en MS6>'
 .\mvnw.cmd spring-boot:run
 ```
 
@@ -155,12 +178,14 @@ Deja esa terminal abierta y abre `http://localhost:5173` en el navegador. En sig
 | MS4 - Pagos | 8084 |
 | MS5 - Entradas | 8085 |
 | API Gateway | 8086 |
+| MS6 - Usuarios y autenticación | 8087 |
 | Frontend | 5173 |
 | MongoDB de MS1 | 27017 |
 | MySQL de MS2 | 3307 |
 | MySQL de MS3 | 3306 |
 | PostgreSQL de MS5 | 5433 |
 | PostgreSQL de MS4 | 5435 |
+| PostgreSQL de MS6 | 5436 |
 
 Si un puerto ya esta ocupado, detén el proceso o contenedor que lo usa antes de iniciar el servicio. No elimines volúmenes de Docker para resolver problemas de conexión: pueden contener datos persistentes.
 

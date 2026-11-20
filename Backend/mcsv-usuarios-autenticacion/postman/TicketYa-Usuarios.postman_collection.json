@@ -1,0 +1,176 @@
+{
+  "info": {
+    "name": "TicketYa - MS6 Usuarios y autenticación",
+    "description": "Requests a través del API Gateway. Primero ejecutá los logins de la carpeta 01: guardan el token de cada rol en variables de la colección. Los usuarios de prueba usan la contraseña Prueba123 (ver README de MS6).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8086" },
+    { "key": "passwordPrueba", "value": "Prueba123" },
+    { "key": "tokenCliente", "value": "" },
+    { "key": "tokenOrganizador", "value": "" },
+    { "key": "tokenAdmin", "value": "" },
+    { "key": "tokenPersonal", "value": "" },
+    { "key": "usuarioId", "value": "00000000-0000-4000-8000-000000000001" }
+  ],
+  "item": [
+    {
+      "name": "01 - Login por rol",
+      "item": [
+        {
+          "name": "Login cliente",
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.collectionVariables.set('tokenCliente', pm.response.json().token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"cliente@ticketya.test\",\n  \"password\": \"{{passwordPrueba}}\"\n}" }
+          }
+        },
+        {
+          "name": "Login organizador",
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.collectionVariables.set('tokenOrganizador', pm.response.json().token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"organizador@ticketya.test\",\n  \"password\": \"{{passwordPrueba}}\"\n}" }
+          }
+        },
+        {
+          "name": "Login admin",
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.collectionVariables.set('tokenAdmin', pm.response.json().token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"admin@ticketya.test\",\n  \"password\": \"{{passwordPrueba}}\"\n}" }
+          }
+        },
+        {
+          "name": "Login personal de acceso",
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.collectionVariables.set('tokenPersonal', pm.response.json().token);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"personal@ticketya.test\",\n  \"password\": \"{{passwordPrueba}}\"\n}" }
+          }
+        },
+        {
+          "name": "Login con contraseña incorrecta (401)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"cliente@ticketya.test\",\n  \"password\": \"Incorrecta1\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Registro y perfil",
+      "item": [
+        {
+          "name": "Registrarse (rol enviado se ignora)",
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 201) pm.collectionVariables.set('usuarioId', pm.response.json().id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/auth/registro",
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Ana\",\n  \"apellido\": \"Pérez\",\n  \"correo\": \"ana.{{$timestamp}}@ticketya.test\",\n  \"password\": \"Secreta123\",\n  \"roles\": [\"ADMIN\"]\n}" }
+          }
+        },
+        {
+          "name": "Mi perfil",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }],
+            "url": "{{gatewayUrl}}/usuarios/me"
+          }
+        },
+        {
+          "name": "Actualizar mi perfil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCliente}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/usuarios/me",
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Cliente\",\n  \"apellido\": \"Actualizado\"\n}" }
+          }
+        },
+        {
+          "name": "Mi perfil sin token (401)",
+          "request": { "method": "GET", "header": [], "url": "{{gatewayUrl}}/usuarios/me" }
+        }
+      ]
+    },
+    {
+      "name": "03 - Administración (ADMIN)",
+      "item": [
+        {
+          "name": "Listar organizadores",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }],
+            "url": "{{gatewayUrl}}/usuarios?rol=ORGANIZADOR&page=0&size=20"
+          }
+        },
+        {
+          "name": "Consultar usuario",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }],
+            "url": "{{gatewayUrl}}/usuarios/{{usuarioId}}"
+          }
+        },
+        {
+          "name": "Asignar roles",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenAdmin}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/usuarios/{{usuarioId}}/roles",
+            "body": { "mode": "raw", "raw": "{\n  \"roles\": [\"CLIENTE\", \"ORGANIZADOR\"]\n}" }
+          }
+        },
+        {
+          "name": "Desactivar usuario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenAdmin}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/usuarios/{{usuarioId}}/estado",
+            "body": { "mode": "raw", "raw": "{\n  \"activo\": false\n}" }
+          }
+        },
+        {
+          "name": "Reactivar usuario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenAdmin}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{gatewayUrl}}/usuarios/{{usuarioId}}/estado",
+            "body": { "mode": "raw", "raw": "{\n  \"activo\": true\n}" }
+          }
+        },
+        {
+          "name": "Listar usuarios como cliente (403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }],
+            "url": "{{gatewayUrl}}/usuarios"
+          }
+        }
+      ]
+    }
+  ]
+}
