@@ -15,7 +15,7 @@ import com.ticketya.usuarios.web.dto.Dtos.UsuarioRespuesta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import com.ticketya.usuarios.config.RequestIdFilter;
+import com.ticketya.usuarios.config.CorrelationIdFilter;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -101,8 +101,8 @@ public class UsuarioService {
         }
         usuario.reemplazarRoles(nuevos, clock.instant());
         repositorio.saveAndFlush(usuario);
-        LOG.info("cambio_roles requestId={} adminId={} usuarioId={} rolesAnteriores={} rolesNuevos={}",
-                MDC.get(RequestIdFilter.CLAVE_MDC), actual.id(), usuario.getId(),
+        LOG.info("cambio_roles correlationId={} adminId={} usuarioId={} rolesAnteriores={} rolesNuevos={}",
+                MDC.get(CorrelationIdFilter.CLAVE_MDC), actual.id(), usuario.getId(),
                 ordenados(anteriores), ordenados(nuevos));
         return UsuarioRespuesta.de(usuario);
     }
@@ -123,8 +123,8 @@ public class UsuarioService {
         }
         usuario.cambiarEstado(activo, clock.instant());
         repositorio.saveAndFlush(usuario);
-        LOG.info("cambio_estado requestId={} adminId={} usuarioId={} activo={}",
-                MDC.get(RequestIdFilter.CLAVE_MDC), actual.id(), usuario.getId(), activo);
+        LOG.info("cambio_estado correlationId={} adminId={} usuarioId={} activo={}",
+                MDC.get(CorrelationIdFilter.CLAVE_MDC), actual.id(), usuario.getId(), activo);
         return UsuarioRespuesta.de(usuario);
     }
 

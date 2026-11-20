@@ -142,6 +142,11 @@ spring:
               predicates:
                 - Path=/usuarios/{usuarioId}/roles,/usuarios/{usuarioId}/estado
                 - Method=PUT
+            - id: ms5-validar-ingreso
+              uri: ${gateway.services.ms5-url:${MS5_URL:http://localhost:8085}}
+              predicates:
+                - Path=/eventos/{eventoId}/ingresos
+                - Method=POST
             - id: ms5-entradas-lista
               uri: ${gateway.services.ms5-url:${MS5_URL:http://localhost:8085}}
               predicates:

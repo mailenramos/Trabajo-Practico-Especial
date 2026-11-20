@@ -29,6 +29,10 @@ public interface EntradaRepository extends JpaRepository<Entrada, UUID>, JpaSpec
     Optional<Entrada> buscarConDetalle(@Param("id") UUID id);
 
     @EntityGraph(attributePaths = {"evento", "sector"})
+    @Query("select e from Entrada e where e.codigoQr = :codigoQr")
+    Optional<Entrada> buscarPorCodigoQr(@Param("codigoQr") UUID codigoQr);
+
+    @EntityGraph(attributePaths = {"evento", "sector"})
     @Query("select e from Entrada e where e.idCompra = :idCompra order by e.creadoEl, e.id")
     List<Entrada> buscarPorCompra(@Param("idCompra") UUID idCompra);
 

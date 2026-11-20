@@ -14,6 +14,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -222,6 +223,23 @@ class UsuariosTest extends PruebaApi {
                 .andExpect(status().isForbidden());
         mvc.perform(conJson(como(put("/usuarios/" + otro + "/estado"), ADMIN_PRUEBA, "ADMIN"), Map.of()))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---------- Correlación entre servicios ----------
+
+    @Test
+    void devuelveElIdentificadorDeCorrelacionRecibidoOGeneraUnoNuevo() throws Exception {
+        String correlationId = UUID.randomUUID().toString();
+        mvc.perform(get("/internal/usuarios/por-correo").param("correo", "cliente@ticketya.test")
+                        .header("X-Correlation-Id", correlationId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Correlation-Id", correlationId));
+
+        String generado = mvc.perform(get("/internal/usuarios/por-correo").param("correo", "cliente@ticketya.test")
+                        .header("X-Correlation-Id", "no-es-uuid\nlinea-falsa"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getHeader("X-Correlation-Id");
+        assertThat(UUID.fromString(generado)).isNotNull();
     }
 
     // ---------- US-12.7 Consultas internas ----------

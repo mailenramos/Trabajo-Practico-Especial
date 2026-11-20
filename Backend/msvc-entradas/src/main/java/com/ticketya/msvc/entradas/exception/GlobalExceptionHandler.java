@@ -31,7 +31,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccesoDenegadoException.class)
     public ResponseEntity<ErrorResponseDTO> accesoDenegado(AccesoDenegadoException ex) {
-        return error(HttpStatus.FORBIDDEN, "ACCESO_DENEGADO", ex.getMessage(), null);
+        return error(HttpStatus.FORBIDDEN, ex.getCodigo(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(NoAutenticadoException.class)
+    public ResponseEntity<ErrorResponseDTO> noAutenticado(NoAutenticadoException ex) {
+        return error(HttpStatus.UNAUTHORIZED, ex.getCodigo(), ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(ServicioNoDisponibleException.class)
+    public ResponseEntity<ErrorResponseDTO> servicioNoDisponible(ServicioNoDisponibleException ex) {
+        log.warn("{}: {}", ex.getCodigo(), ex.getMessage());
+        return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getCodigo(), ex.getMessage(), null);
     }
 
     @ExceptionHandler(BusinessConflictException.class)

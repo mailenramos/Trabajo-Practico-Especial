@@ -76,7 +76,7 @@ El Gateway SHALL NOT enrutar callbacks, operaciones internas entre microservicio
 
 ### Requirement: Permitir consumo desde el frontend local
 
-El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Request-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
+El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Correlation-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
 
 #### Scenario: Preflight desde origen configurado
 - **WHEN** el navegador envía un preflight desde un origen permitido para un método y headers públicos admitidos
@@ -101,12 +101,12 @@ El Gateway SHALL obtener el puerto de escucha, las URLs de los servicios destino
 
 ### Requirement: Trazar solicitudes y limitar espera de servicios
 
-El Gateway SHALL registrar método, path, usuario autenticado cuando exista, sus roles, status y duración de cada solicitud. SHALL aceptar o generar un UUID `X-Request-Id`, devolverlo al cliente y propagarlo al destino. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
+El Gateway SHALL registrar método, path, usuario autenticado cuando exista, sus roles, status y duración de cada solicitud. SHALL aceptar o generar un UUID `X-Correlation-Id` (identificador de correlación acordado por el grupo), devolverlo al cliente y propagarlo al destino. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
 
 #### Scenario: Solicitud procesada
 - **WHEN** una solicitud llega al Gateway
-- **THEN** queda un log HTTP con método, path, status, duración y `X-Request-Id`
-- **AND** la respuesta y el destino reciben el mismo `X-Request-Id`
+- **THEN** queda un log HTTP con método, path, status, duración y `X-Correlation-Id`
+- **AND** la respuesta y el destino reciben el mismo `X-Correlation-Id`
 
 #### Scenario: Destino excede el timeout
 - **WHEN** el servicio destino no responde dentro del plazo configurado

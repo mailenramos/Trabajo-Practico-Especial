@@ -4,7 +4,7 @@
 MS6 registra usuarios, verifica credenciales, emite JWT y administra roles y estado de las cuentas (feature F12, US-12.3 a US-12.8). El API Gateway valida los tokens; este servicio recibe la identidad por `X-User-Id` y `X-User-Roles`.
 
 ## Status
-- **Implementado y probado** (tests HTTP con MockMvc sobre H2 en modo PostgreSQL; 33 tests): todos los requisitos de esta spec.
+- **Implementado y probado** (tests HTTP con MockMvc sobre H2 en modo PostgreSQL; 34 tests): todos los requisitos de esta spec.
 - **No verificado automáticamente:** ejecución contra PostgreSQL real y flujo de punta a punta con el Gateway.
 
 ## Requirements
@@ -71,7 +71,7 @@ MS6 SHALL devolver con `GET /usuarios/me` el perfil del usuario de `X-User-Id` y
 
 ### Requirement: Administrar usuarios y roles (US-12.6)
 
-Solo un usuario con `ADMIN` en `X-User-Roles` SHALL listar usuarios (paginado, filtrable por rol y correo parcial), consultarlos y reemplazar sus roles con `PUT /usuarios/{id}/roles`. MS6 SHALL rechazar dejar el sistema sin administradores activos y SHALL registrar cada cambio de roles con el administrador y el `X-Request-Id`. Al primer arranque sin administradores activos SHALL crear el ADMIN inicial con `ADMIN_EMAIL` y `ADMIN_PASSWORD`; sin esas variables el servicio SHALL NOT arrancar.
+Solo un usuario con `ADMIN` en `X-User-Roles` SHALL listar usuarios (paginado, filtrable por rol y correo parcial), consultarlos y reemplazar sus roles con `PUT /usuarios/{id}/roles`. MS6 SHALL rechazar dejar el sistema sin administradores activos y SHALL registrar cada cambio de roles con el administrador y el `X-Correlation-Id`. Al primer arranque sin administradores activos SHALL crear el ADMIN inicial con `ADMIN_EMAIL` y `ADMIN_PASSWORD`; sin esas variables el servicio SHALL NOT arrancar.
 
 #### Scenario: Sin rol ADMIN
 - **WHEN** un usuario sin `ADMIN` lista, consulta o asigna roles
@@ -122,4 +122,4 @@ MS6 SHALL exponer `GET /internal/usuarios/{id}/contacto` (`{correo}`, también p
 - **THEN** MS6 devuelve su correo
 
 ## Verification Evidence
-- `AutenticacionTest` (11 tests), `UsuariosTest` (17) e `InicializacionTest` (5): `.\mvnw.cmd test`, sin Docker.
+- `AutenticacionTest` (11 tests), `UsuariosTest` (18) e `InicializacionTest` (5): `.\mvnw.cmd test`, sin Docker.

@@ -75,7 +75,8 @@ Sin token, una ruta protegida responde `401 NO_AUTENTICADO`. Un token vencido, c
 | Reservar, comprar, pagar y solicitar devoluciones | `CLIENTE` |
 | Consultar compras/devoluciones | `CLIENTE`, `ADMIN` |
 | Aprobar/rechazar devoluciones y operar reintegros | `ADMIN` |
-| Consultar entradas | `CLIENTE`, `ADMIN`, `PERSONAL_ACCESO` |
+| Consultar entradas | `CLIENTE`, `ADMIN` |
+| Validar el QR de una entrada (`POST /eventos/{id}/ingresos`) | `PERSONAL_ACCESO`, `ADMIN` (MS5 verifica además la asignación al evento) |
 
 El Gateway elimina siempre (también en rutas públicas) cualquier `X-User-Id`, `X-User-Roles` y `X-User-Role` entrante. Con un token válido los reconstruye desde los claims verificados: `X-User-Id` = `sub` y `X-User-Roles` = todos los roles separados por coma (ordenados alfabéticamente). Por compatibilidad con la Entrega 1, `X-User-Role` se sigue enviando **solo** cuando el usuario tiene un único rol; con varios roles no se envía, para no elegir uno arbitrariamente. Los servicios deben migrar a `X-User-Roles`.
 
@@ -90,13 +91,13 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 | Eventos/Lugares (MS1) | `GET, POST /lugares`; `GET /lugares/{id}`; `GET, POST /lugares/{id}/sectores`; `GET, POST /eventos`; `GET /eventos/{eventoId}`; `PUT /eventos/{eventoId}/sectores/{sectorId}/precio`; `PUT /eventos/{eventoId}/limite-entradas-por-cliente`; `PUT /eventos/{eventoId}/publicar`; `PUT /eventos/{eventoId}/venta/suspender`; `PUT /eventos/{eventoId}/venta/reactivar`; `PUT /eventos/{eventoId}/cancelar`. |
 | Disponibilidad/Reservas (MS2) | `POST /disponibilidad/eventos/{eventoId}/reservas`. |
 | Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
-| Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`. |
+| Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`; `POST /eventos/{eventoId}/ingresos`. |
 | Usuarios (MS6) | `POST /auth/registro`; `POST /auth/login`; `GET, PUT /usuarios/me`; `GET /usuarios`; `GET /usuarios/{id}`; `PUT /usuarios/{id}/roles`; `PUT /usuarios/{id}/estado`. |
 
 No se enrutan `/internal/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
 
 ## Trazabilidad y despliegue
 
-Cada solicitud recibe o genera un `X-Request-Id` UUID, se devuelve al cliente y se propaga al servicio destino. El log de consola registra ID, método, path, usuario, roles, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
+Cada solicitud recibe o genera un `X-Correlation-Id` UUID (identificador de correlación acordado por el grupo), se devuelve al cliente y se propaga al servicio destino. El log de consola registra ID, método, path, usuario, roles, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
 
 Para construir la imagen desde esta carpeta: `docker build -t ticketya/api-gateway .`. El contenedor requiere la clave JWT y las URLs destino por variables de entorno. Este Dockerfile no reemplaza el `docker-compose.yml` de la plataforma, que queda fuera del alcance de este cambio.

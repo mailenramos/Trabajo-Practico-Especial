@@ -93,7 +93,7 @@ HS256 firmado con `JWT_SECRET`. Claims: `sub` (id del usuario), `email`, `roles`
 ### Logs
 
 - `login correo=... resultado=EXITOSO|CREDENCIALES_INVALIDAS|USUARIO_INACTIVO` (nunca la contraseña).
-- `cambio_roles requestId=... adminId=... usuarioId=... rolesAnteriores=... rolesNuevos=...`, con el `X-Request-Id` que propaga el Gateway como identificador de correlación.
+- `cambio_roles correlationId=... adminId=... usuarioId=... rolesAnteriores=... rolesNuevos=...`, con el `X-Correlation-Id` que propaga el Gateway. Si falta o no es un UUID, se genera uno; siempre se devuelve en la respuesta.
 
 Especificación (requisitos y escenarios): [openspec/specs/usuarios-autenticacion/spec.md](openspec/specs/usuarios-autenticacion/spec.md). Registro del cambio: [openspec/changes/archive/2026-11-20-usuarios-y-jwt](../../openspec/changes/archive/2026-11-20-usuarios-y-jwt).
 

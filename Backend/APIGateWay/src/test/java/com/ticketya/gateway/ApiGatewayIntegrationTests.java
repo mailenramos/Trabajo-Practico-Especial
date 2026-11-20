@@ -91,14 +91,14 @@ class ApiGatewayIntegrationTests {
     void forwardsEventSearchAndIdentityHeaders() throws Exception {
         String requestId = "45feec1c-77bb-4a01-9a10-0d19063a7772";
         HttpResponse<String> response = sendAs("GET", "/eventos?q=rock&page=0", null,
-                "CLIENTE", "cliente-1", "X-Request-Id", requestId,
+                "CLIENTE", "cliente-1", "X-Correlation-Id", requestId,
                 "X-User-Id", "spoofed-user", "X-User-Role", "ADMIN");
 
         assertEquals(200, response.statusCode());
         assertEquals("{\"ok\":true}", response.body());
         CapturedRequest forwarded = MS1.take();
-        assertEquals(requestId, response.headers().firstValue("X-Request-Id").orElseThrow());
-        assertEquals(requestId, forwarded.header("X-Request-Id"));
+        assertEquals(requestId, response.headers().firstValue("X-Correlation-Id").orElseThrow());
+        assertEquals(requestId, forwarded.header("X-Correlation-Id"));
         assertEquals("GET", forwarded.method());
         assertEquals("/eventos?q=rock&page=0", forwarded.path());
         assertEquals("cliente-1", forwarded.header("X-User-Id"));
@@ -225,7 +225,9 @@ class ApiGatewayIntegrationTests {
                 new RouteCase("GET", "/usuarios", MS6, "ADMIN"),
                 new RouteCase("GET", "/usuarios/usuario-1", MS6, "ADMIN"),
                 new RouteCase("PUT", "/usuarios/usuario-1/roles", MS6, "ADMIN"),
-                new RouteCase("PUT", "/usuarios/usuario-1/estado", MS6, "ADMIN"));
+                new RouteCase("PUT", "/usuarios/usuario-1/estado", MS6, "ADMIN"),
+                new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "PERSONAL_ACCESO"),
+                new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "ADMIN"));
 
         for (RouteCase route : routes) {
             MS1.clear();
@@ -285,7 +287,7 @@ class ApiGatewayIntegrationTests {
         HttpResponse<String> allowed = send("OPTIONS", "/eventos", null,
                 "Origin", corsAllowedOrigins,
                 "Access-Control-Request-Method", "DELETE",
-                "Access-Control-Request-Headers", "authorization,x-request-id,idempotency-key");
+                "Access-Control-Request-Headers", "authorization,x-correlation-id,idempotency-key");
 
         assertTrue(allowed.statusCode() < 400);
         assertEquals(corsAllowedOrigins, allowed.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
@@ -358,6 +360,23 @@ class ApiGatewayIntegrationTests {
             assertTrue(response.body().contains("\"mensaje\""), response.body());
         }
         assertNull(MS5.poll());
+    }
+
+    @Test
+    @Order(15)
+    void restrictsTicketValidationAndQueriesByRole() throws Exception {
+        HttpResponse<String> clienteValida = sendAs("POST", "/eventos/evento-1/ingresos", "{}", "CLIENTE", "u-1",
+                "Content-Type", "application/json");
+        assertEquals(403, clienteValida.statusCode());
+
+        HttpResponse<String> personalConsulta = sendAs("GET", "/entradas", null, "PERSONAL_ACCESO", "u-2");
+        assertEquals(403, personalConsulta.statusCode());
+
+        HttpResponse<String> sinToken = send("POST", "/eventos/evento-1/ingresos", "{}",
+                "Content-Type", "application/json");
+        assertEquals(401, sinToken.statusCode());
+        assertNull(MS5.poll());
+        assertNull(MS1.poll());
     }
 
     @Test

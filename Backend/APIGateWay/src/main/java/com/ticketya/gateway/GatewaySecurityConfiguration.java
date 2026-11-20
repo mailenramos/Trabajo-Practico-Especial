@@ -140,7 +140,10 @@ public class GatewaySecurityConfiguration {
                         .pathMatchers(HttpMethod.POST, "/reintegros/*/reintento")
                         .hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/entradas", "/entradas/*")
-                        .hasAnyRole("CLIENTE", "ADMIN", "PERSONAL_ACCESO")
+                        .hasAnyRole("CLIENTE", "ADMIN")
+                        // MS5 - Validación de QR en el acceso (MS5 verifica además la asignación al evento)
+                        .pathMatchers(HttpMethod.POST, "/eventos/*/ingresos")
+                        .hasAnyRole("PERSONAL_ACCESO", "ADMIN")
                         // Cualquier otra ruta no está enrutada: el Gateway responde 404 (incluidas /internal/**).
                         .anyExchange().permitAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer

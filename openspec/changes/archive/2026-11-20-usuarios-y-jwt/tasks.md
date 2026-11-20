@@ -4,7 +4,7 @@
 
 - [x] 1.1 Crear el proyecto Spring Boot (Java 17, Spring Boot 3.5.0, wrapper Maven) con PostgreSQL, Flyway y H2 para tests.
 - [x] 1.2 Migración `V1__crear_usuarios.sql` con unicidad del correo normalizado y roles válidos.
-- [x] 1.3 Formato de error común y propagación de `X-Request-Id` a los logs.
+- [x] 1.3 Formato de error común y propagación de `X-Correlation-Id` a los logs.
 
 ## 2. MS6 - Autenticación (US-12.3, US-12.4)
 

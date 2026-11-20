@@ -1,17 +1,25 @@
 openapi: 3.0.3
 info:
   title: TicketYa - Gestión de entradas (Microservicio 5)
-  version: 1.1.0
+  version: 2.0.0
   description: |
-    Emite y administra las entradas con código QR correspondientes a compras confirmadas.
-    Los endpoints públicos requieren `X-User-Id`; los de `/internal` son para el servicio de
-    Compras y devoluciones. Estados: `VIGENTE` -> `EN_REINTEGRO` -> `DEVUELTA`.
+    Emite y administra las entradas con código QR de compras confirmadas, valida el QR en el
+    acceso al evento y registra el ingreso.
+
+    Los endpoints públicos llegan por el API Gateway con `X-User-Id` y `X-User-Roles` derivados
+    del JWT. Los de `/internal` son para Compras y devoluciones; si `SERVICE_TOKEN` está
+    configurado, exigen `X-Service-Token`. Todos aceptan y devuelven `X-Correlation-Id`.
+
+    Estados: `VIGENTE` -> `UTILIZADA` (validación de QR) o `VIGENTE` -> `EN_REINTEGRO` ->
+    `DEVUELTA`. Solo una de las transiciones que salen de `VIGENTE` puede completarse.
 servers:
   - url: http://localhost:8085
     description: Ejecución local del microservicio
 tags:
   - name: Entradas
-    description: Consultas del cliente vía API Gateway
+    description: Consultas del cliente o del administrador vía API Gateway
+  - name: Acceso
+    description: Validación del QR en el ingreso (personal de acceso o administrador)
   - name: Interno
     description: Operaciones del servicio de Compras y devoluciones
 
@@ -19,9 +27,12 @@ paths:
   /entradas:
     get:
       tags: [Entradas]
-      summary: Listar mis entradas
-      operationId: listarMisEntradas
-      security: [{UserId: []}]
+      summary: Listar entradas
+      description: |
+        `CLIENTE`: solo las propias (`idCliente` se ignora). `ADMIN`: todas, con filtro opcional
+        por `idCliente`. Un usuario con solo `PERSONAL_ACCESO` recibe `403`.
+      operationId: listarEntradas
+      security: [{UserId: [], UserRoles: []}]
       parameters:
         - name: estado
           in: query
@@ -29,6 +40,10 @@ paths:
         - name: idEvento
           in: query
           description: Identificador textual del evento.
+          schema: {type: string}
+        - name: idCliente
+          in: query
+          description: Solo para `ADMIN`.
           schema: {type: string}
         - name: page
           in: query
@@ -38,20 +53,21 @@ paths:
           schema: {type: integer, minimum: 1, maximum: 100, default: 20}
       responses:
         '200':
-          description: Página de entradas del usuario, que puede estar vacía.
+          description: Página de entradas, que puede estar vacía.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/PaginaEntradas'}
         '400': {$ref: '#/components/responses/Validacion'}
         '401': {$ref: '#/components/responses/NoIdentificado'}
+        '403': {$ref: '#/components/responses/AccesoDenegado'}
 
   /entradas/{id}:
     get:
       tags: [Entradas]
       summary: Ver una entrada con su QR
-      description: Solo el titular de la entrada puede consultarla.
-      operationId: obtenerMiEntrada
-      security: [{UserId: []}]
+      description: El titular (`CLIENTE`) o un `ADMIN`.
+      operationId: obtenerEntrada
+      security: [{UserId: [], UserRoles: []}]
       parameters: [{$ref: '#/components/parameters/IdEntrada'}]
       responses:
         '200':
@@ -64,16 +80,79 @@ paths:
         '403': {$ref: '#/components/responses/AccesoDenegado'}
         '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
 
+  /eventos/{idEvento}/ingresos:
+    post:
+      tags: [Acceso]
+      summary: Validar el QR de una entrada y registrar el ingreso
+      description: |
+        1. Rol `PERSONAL_ACCESO` o `ADMIN`.
+        2. Sin `ADMIN`: consulta a MS1, en cada validación, si el usuario tiene una asignación
+           activa al evento. Un `ADMIN` valida sin asignación y el ingreso queda `excepcional`.
+        3. La entrada debe existir, ser del evento y estar `VIGENTE`, y el evento no debe estar
+           cerrado. El cambio `VIGENTE` -> `UTILIZADA` y el registro del ingreso son atómicos:
+           de varios escaneos simultáneos del mismo QR, solo uno tiene éxito.
+      operationId: validarIngreso
+      security: [{UserId: [], UserRoles: []}]
+      parameters: [{$ref: '#/components/parameters/IdEvento'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IngresoRequest'}
+            example: {codigoQr: 3f2b8c1e-9a4d-4e6f-8b21-5c7d9e0f1a2b}
+      responses:
+        '201':
+          description: Ingreso registrado; la entrada quedó `UTILIZADA`.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IngresoResponse'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/NoIdentificado'}
+        '403':
+          description: Rol insuficiente o sin asignación activa al evento.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              examples:
+                rol:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 403, error: ACCESO_DENEGADO, mensaje: Solo el personal de acceso o un administrador puede validar entradas}
+                asignacion:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 403, error: PERSONAL_NO_AUTORIZADO, mensaje: No tenés una asignación activa para validar entradas de este evento}
+        '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+        '409':
+          description: La entrada no puede usarse para ingresar.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              examples:
+                yaUtilizada:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_YA_UTILIZADA, mensaje: La entrada ya se utilizó para ingresar el 2026-12-15T20:10:00Z}
+                noHabilitada:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_NO_HABILITADA, mensaje: La entrada no está habilitada para ingresar (EN_REINTEGRO)}
+                otroEvento:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_DE_OTRO_EVENTO, mensaje: La entrada corresponde a otro evento}
+                eventoCerrado:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: EVENTO_CERRADO, mensaje: 'El evento está cerrado: no se validan entradas'}
+        '503':
+          description: No se pudo verificar la asignación con MS1 (rechazo temporal; se puede reintentar).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {timestamp: '2026-12-15T20:30:00Z', status: 503, error: AUTORIZACION_NO_DISPONIBLE, mensaje: No se pudo verificar la asignación del personal al evento; reintentá la validación}
+
   /internal/entradas/emision:
     post:
       tags: [Interno]
       summary: Emitir las entradas de una compra
       description: |
         Genera una entrada por cada lugar comprado, cada una con un QR único.
-        Es idempotente por `idCompra`: si se procesó con los mismos datos devuelve `200`; con
-        datos distintos devuelve `409`. Si `numero` tiene valor, `fila` es obligatoria. La misma
-        combinación de sector, fila y número no puede repetirse dentro de una solicitud.
+        Es idempotente por `idCompra`: si se procesó con los mismos datos devuelve `200` (aunque
+        el evento se haya cerrado después); con datos distintos devuelve `409`. Una compra nueva
+        para un evento cerrado devuelve `409 EVENTO_CERRADO` y no crea entradas. Si `numero`
+        tiene valor, `fila` es obligatoria. Un asiento con una entrada `VIGENTE` o `UTILIZADA`
+        no puede volver a emitirse.
       operationId: emitirEntradas
+      security: [{ServiceToken: []}]
       requestBody:
         required: true
         content:
@@ -108,6 +187,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/EmisionResponse'}
         '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
         '409': {$ref: '#/components/responses/ConflictoEmision'}
 
   /internal/entradas/{id}:
@@ -115,6 +195,7 @@ paths:
       tags: [Interno]
       summary: Consultar una entrada
       operationId: consultarEntradaInterna
+      security: [{ServiceToken: []}]
       parameters: [{$ref: '#/components/parameters/IdEntrada'}]
       responses:
         '200':
@@ -123,14 +204,42 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Entrada'}
         '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
         '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
+
+  /internal/compras/{idCompra}/entradas:
+    get:
+      tags: [Interno]
+      summary: Consultar las entradas emitidas para una compra
+      description: |
+        Devuelve las entradas de la compra y sus estados, sin emitir nada. Una lista vacía
+        significa que no se emitió ninguna. Sirve para recuperar emisiones de resultado incierto.
+      operationId: consultarEntradasDeCompra
+      security: [{ServiceToken: []}]
+      parameters:
+        - name: idCompra
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Entradas de la compra (puede estar vacía).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EntradasCompra'}
+        '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
 
   /internal/entradas/{id}/reintegro:
     post:
       tags: [Interno]
-      summary: Pasar una entrada a EN_REINTEGRO
-      description: Idempotente para una entrada ya `EN_REINTEGRO`; una `DEVUELTA` devuelve `409`.
+      summary: Bloquear una entrada por devolución (VIGENTE -> EN_REINTEGRO)
+      description: |
+        Compite con la validación de QR: solo una de las dos transiciones se completa.
+        Idempotente para una entrada ya `EN_REINTEGRO`. Una `UTILIZADA` devuelve
+        `409 ENTRADA_UTILIZADA`; una `DEVUELTA`, `409 TRANSICION_INVALIDA`.
       operationId: marcarEnReintegro
+      security: [{ServiceToken: []}]
       parameters: [{$ref: '#/components/parameters/IdEntrada'}]
       responses:
         '200':
@@ -139,15 +248,26 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Entrada'}
         '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
         '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
-        '409': {$ref: '#/components/responses/TransicionInvalida'}
+        '409':
+          description: La entrada ya se utilizó o no puede pasar a reintegro.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              examples:
+                utilizada:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_UTILIZADA, mensaje: La entrada ya se utilizó para ingresar al evento y no puede devolverse}
+                transicion:
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: TRANSICION_INVALIDA, mensaje: La entrada no puede pasar a EN_REINTEGRO desde DEVUELTA}
 
   /internal/entradas/{id}/devolucion:
     post:
       tags: [Interno]
       summary: Pasar una entrada a DEVUELTA
-      description: Idempotente para una entrada ya `DEVUELTA`; una `VIGENTE` devuelve `409`.
+      description: Idempotente para una entrada ya `DEVUELTA`; una `VIGENTE` o `UTILIZADA` devuelve `409`.
       operationId: marcarDevuelta
+      security: [{ServiceToken: []}]
       parameters: [{$ref: '#/components/parameters/IdEntrada'}]
       responses:
         '200':
@@ -156,28 +276,29 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Entrada'}
         '400': {$ref: '#/components/responses/Validacion'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
         '404': {$ref: '#/components/responses/EntradaNoEncontrada'}
         '409': {$ref: '#/components/responses/TransicionInvalida'}
 
   /internal/eventos/{idEvento}/entradas/reintegro:
     post:
       tags: [Interno]
-      summary: Pasar a EN_REINTEGRO las entradas vigentes de un evento
-      description: "Es idempotente; si no quedan entradas vigentes, devuelve `entradasMarcadas: 0`."
-      operationId: marcarEventoEnReintegro
-      parameters:
-        - name: idEvento
-          in: path
-          required: true
-          description: Identificador textual del evento cancelado.
-          schema: {type: string}
-          example: evento-rock-2026
+      summary: Cerrar un evento cancelado
+      description: |
+        Registra el cierre del evento de forma persistente (aunque no tenga entradas) y pasa a
+        `EN_REINTEGRO` sus entradas `VIGENTE` en la misma transacción; las `UTILIZADA` conservan
+        su estado. Desde el cierre no se emiten ni se validan entradas del evento. Es idempotente:
+        al repetirlo responde `cerrado: true` y `entradasMarcadas: 0`.
+      operationId: cerrarEvento
+      security: [{ServiceToken: []}]
+      parameters: [{$ref: '#/components/parameters/IdEvento'}]
       responses:
         '200':
-          description: Resultado de la operación.
+          description: Evento cerrado.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ReintegroEventoResponse'}
+        '401': {$ref: '#/components/responses/ServicioNoAutenticado'}
 
 components:
   securitySchemes:
@@ -185,7 +306,17 @@ components:
       type: apiKey
       in: header
       name: X-User-Id
-      description: Identificador del usuario remitido por el API Gateway.
+      description: Identificador del usuario (sub del JWT), escrito por el API Gateway.
+    UserRoles:
+      type: apiKey
+      in: header
+      name: X-User-Roles
+      description: Roles separados por coma, escritos por el API Gateway. Si falta, se usa X-User-Role.
+    ServiceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Credencial de servicio para /internal/** (exigida si SERVICE_TOKEN está configurado).
 
   parameters:
     IdEntrada:
@@ -195,6 +326,13 @@ components:
       description: Identificador UUID de la entrada.
       schema: {type: string, format: uuid}
       example: 11111111-aaaa-4bbb-8ccc-000000000001
+    IdEvento:
+      name: idEvento
+      in: path
+      required: true
+      description: Identificador textual del evento.
+      schema: {type: string}
+      example: evento-rock-2026
 
   responses:
     Validacion:
@@ -214,14 +352,20 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
           example: {timestamp: '2026-11-08T14:30:00Z', status: 401, error: FALTA_IDENTIFICACION, mensaje: Falta el encabezado X-User-Id}
+    ServicioNoAutenticado:
+      description: Falta o es incorrecto X-Service-Token (solo si SERVICE_TOKEN está configurado).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {timestamp: '2026-11-08T14:30:00Z', status: 401, error: SERVICIO_NO_AUTENTICADO, mensaje: Falta o es incorrecta la credencial de servicio X-Service-Token}
     AccesoDenegado:
-      description: El usuario no es el titular de la entrada.
+      description: El rol no permite la operación o la entrada no pertenece al usuario.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
           example: {timestamp: '2026-11-08T14:30:00Z', status: 403, error: ACCESO_DENEGADO, mensaje: La entrada no pertenece al usuario}
     EntradaNoEncontrada:
-      description: No existe una entrada con ese identificador.
+      description: No existe una entrada con ese identificador o código QR.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
@@ -233,7 +377,7 @@ components:
           schema: {$ref: '#/components/schemas/Error'}
           example: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: TRANSICION_INVALIDA, mensaje: La entrada no puede pasar al estado solicitado desde su estado actual}
     ConflictoEmision:
-      description: La compra fue procesada con datos distintos o algún lugar ya tiene una entrada vigente.
+      description: La compra fue procesada con datos distintos, algún lugar ya está ocupado o el evento está cerrado.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
@@ -242,12 +386,16 @@ components:
               value: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: IDEMPOTENCIA_CONFLICTO, mensaje: La compra ya fue procesada con datos diferentes}
             lugarDuplicado:
               value: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: ENTRADA_VIGENTE_DUPLICADA, mensaje: Ya existe una entrada vigente para alguno de los lugares indicados}
+            eventoCerrado:
+              value: {timestamp: '2026-11-08T14:30:00Z', status: 409, error: EVENTO_CERRADO, mensaje: 'El evento evento-rock-2026 está cerrado: no se emiten nuevas entradas'}
 
   schemas:
     EstadoEntrada:
       type: string
-      enum: [VIGENTE, EN_REINTEGRO, DEVUELTA]
-      description: VIGENTE tiene QR válido; EN_REINTEGRO lo invalida; DEVUELTA confirma el reintegro.
+      enum: [VIGENTE, UTILIZADA, EN_REINTEGRO, DEVUELTA]
+      description: |
+        VIGENTE tiene QR válido; UTILIZADA ya se usó para ingresar; EN_REINTEGRO está bloqueada por
+        una devolución o una cancelación; DEVUELTA confirma el reintegro.
     EventoResumen:
       type: object
       required: [id, nombre, comienzaEn]
@@ -266,7 +414,7 @@ components:
       required: [idEntrada, codigoQr, estado, evento, sector, idCompra, idCliente]
       properties:
         idEntrada: {type: string, format: uuid}
-        codigoQr: {type: string, format: uuid, description: Solo es válido para ingresar si la entrada está VIGENTE.}
+        codigoQr: {type: string, format: uuid, description: Solo permite ingresar si la entrada está VIGENTE.}
         estado: {$ref: '#/components/schemas/EstadoEntrada'}
         evento: {$ref: '#/components/schemas/EventoResumen'}
         sector: {$ref: '#/components/schemas/SectorResumen'}
@@ -283,6 +431,30 @@ components:
         size: {type: integer}
         totalElements: {type: integer, format: int64}
         totalPages: {type: integer}
+    EntradasCompra:
+      type: object
+      required: [idCompra, entradas]
+      properties:
+        idCompra: {type: string, format: uuid}
+        entradas: {type: array, items: {$ref: '#/components/schemas/Entrada'}, description: Vacía si no se emitió ninguna.}
+    IngresoRequest:
+      type: object
+      required: [codigoQr]
+      properties:
+        codigoQr: {type: string, format: uuid, description: Código leído del QR de la entrada.}
+    IngresoResponse:
+      type: object
+      required: [idIngreso, idEntrada, idEvento, sector, validadoPor, excepcional, validadoEl]
+      properties:
+        idIngreso: {type: string, format: uuid}
+        idEntrada: {type: string, format: uuid}
+        idEvento: {type: string}
+        sector: {$ref: '#/components/schemas/SectorResumen'}
+        fila: {type: integer, nullable: true}
+        numero: {type: integer, nullable: true}
+        validadoPor: {type: string, description: X-User-Id de quien validó.}
+        excepcional: {type: boolean, description: true si lo validó un ADMIN sin asignación al evento.}
+        validadoEl: {type: string, format: date-time}
     LugarAEmitir:
       type: object
       required: [idSector, nombreSector]
@@ -317,10 +489,11 @@ components:
         entradas: {type: array, items: {$ref: '#/components/schemas/EntradaEmitida'}}
     ReintegroEventoResponse:
       type: object
-      required: [idEvento, entradasMarcadas]
+      required: [idEvento, entradasMarcadas, cerrado]
       properties:
         idEvento: {type: string, description: Identificador textual del evento.}
-        entradasMarcadas: {type: integer, description: Cantidad de entradas que pasaron a EN_REINTEGRO.}
+        entradasMarcadas: {type: integer, description: Entradas que pasaron a EN_REINTEGRO en esta llamada (0 al repetirla).}
+        cerrado: {type: boolean, description: Siempre true; Compras no termina la cancelación hasta recibirlo.}
     Error:
       type: object
       required: [timestamp, status, error, mensaje]

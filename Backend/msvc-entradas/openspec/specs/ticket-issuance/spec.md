@@ -66,7 +66,7 @@ El servicio MUST ejecutar la emisión dentro de una transacción, crear una entr
 
 ## Technical Decisions and Constraints
 - `idCompra` es un UUID con una restricción única en `solicitudes_emision.id_compra`. El servicio usa deliberadamente `TransactionTemplate` en lugar de un único método envolvente `@Transactional`, para que la búsqueda tras una colisión se ejecute en una transacción nueva.
-- El índice PostgreSQL `uk_entrada_lugar_vigente` es único para `(id_evento, id_sector, fila, numero)` únicamente cuando `estado = 'VIGENTE' AND numero IS NOT NULL`. Las entradas que ya no están vigentes no reservan el asiento. Los lugares no numerados quedan fuera del índice y estas migraciones no definen una restricción de capacidad para ellos.
+- El índice PostgreSQL `uk_entrada_lugar_ocupado` (V4) es único para `(id_evento, id_sector, fila, numero)` cuando `estado IN ('VIGENTE', 'UTILIZADA') AND numero IS NOT NULL`. Un asiento usado sigue ocupado; las entradas en reintegro o devueltas no lo reservan. Los lugares no numerados quedan fuera del índice y estas migraciones no definen una restricción de capacidad para ellos.
 - Los identificadores de eventos y sectores se almacenan como texto. `insertarSiNoExiste` usa `ON CONFLICT DO NOTHING` de PostgreSQL; los nombres/detalles de copias existentes se conservan en vez de actualizarse.
 - La comparación de reintentos verifica el cliente, el identificador del evento y las tuplas de ubicación ordenadas. No compara el nombre/horario del evento ni el nombre del sector.
 - La restricción agregada por la migración V2 requiere que `fila` y `numero` sean ambos nulos o ambos no nulos. El servicio también valida que no se repitan ubicaciones numeradas dentro de una solicitud.
@@ -75,3 +75,8 @@ El servicio MUST ejecutar la emisión dentro de una transacción, crear una entr
 ## Verification Evidence
 - `EntradaServiceImplTest`: pasan 15 tests; los de emisión cubren creación exitosa, reintento coincidente, reintento conflictivo y los tres casos de ubicación inválida.
 - `EntradaConcurrencyIntegrationTest` usa el servicio Spring real y PostgreSQL mediante Testcontainers. Comprueba las migraciones Flyway, la emisión concurrente de distintas compras para el mismo asiento y el resultado persistido de una única entrada `VIGENTE`; no prueba endpoints HTTP ni todas las restricciones de la base de datos.
+
+## Entrega 2: emisión y cierre del evento
+- Una emisión nueva toma un bloqueo compartido sobre la fila de `control_eventos` del evento. Si el evento está cerrado, responde `409 EVENTO_CERRADO` y no crea entradas; Compras trata esa compra como la de un evento cancelado y pide el reintegro.
+- Una compra ya emitida devuelve sus entradas (HTTP 200) aunque el evento se haya cerrado después: la búsqueda idempotente se hace antes del bloqueo.
+- Ver `ticket-lifecycle` (cierre) y `IngresoConcurrencyIntegrationTest.emisionesSimultaneasConElCierre_ningunaQuedaVigenteDespuesDelCierre`.

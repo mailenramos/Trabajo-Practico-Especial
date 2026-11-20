@@ -19,6 +19,9 @@ import com.ticketya.msvc.entradas.exception.AccesoDenegadoException;
 import com.ticketya.msvc.entradas.exception.BusinessConflictException;
 import com.ticketya.msvc.entradas.exception.ResourceNotFoundException;
 import com.ticketya.msvc.entradas.exception.ValidacionException;
+import com.ticketya.msvc.entradas.dto.EntradasCompraResponseDTO;
+import com.ticketya.msvc.entradas.repositories.ControlEventoRepository;
+import com.ticketya.msvc.entradas.seguridad.UsuarioActual;
 import com.ticketya.msvc.entradas.repositories.CopiaEventoRepository;
 import com.ticketya.msvc.entradas.repositories.CopiaSectorRepository;
 import com.ticketya.msvc.entradas.repositories.EntradaRepository;
@@ -33,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashSet;
@@ -50,7 +55,9 @@ public class EntradaServiceImpl implements EntradaService {
     private final SolicitudEmisionRepository solicitudEmisionRepository;
     private final CopiaEventoRepository copiaEventoRepository;
     private final CopiaSectorRepository copiaSectorRepository;
+    private final ControlEventoRepository controlEventoRepository;
     private final TransactionTemplate transactionTemplate;
+    private final Clock clock;
 
     // =====================================================================
     // Consultas del cliente
@@ -58,12 +65,25 @@ public class EntradaServiceImpl implements EntradaService {
 
     @Override
     @Transactional(readOnly = true)
-    public PaginaEntradasResponseDTO getEntradas(String idUsuario,
+    public PaginaEntradasResponseDTO getEntradas(UsuarioActual usuario,
                                                  EstadoEntrada estado,
                                                  String idEvento,
+                                                 String idCliente,
                                                  int page,
                                                  int size) {
-        Specification<Entrada> spec = (root, query, cb) -> cb.equal(root.get("idCliente"), idUsuario);
+        Specification<Entrada> spec;
+        if (usuario.esAdmin()) {
+            // El administrador ve todas; puede filtrar por cliente.
+            spec = (root, query, cb) -> null;
+            if (idCliente != null && !idCliente.isBlank()) {
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("idCliente"), idCliente));
+            }
+        } else if (usuario.tieneRol(UsuarioActual.CLIENTE)) {
+            // El cliente solo ve las propias: cualquier idCliente enviado se ignora.
+            spec = (root, query, cb) -> cb.equal(root.get("idCliente"), usuario.id());
+        } else {
+            throw new AccesoDenegadoException("Solo un cliente o un administrador puede consultar entradas");
+        }
         if (estado != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("estado"), estado));
         }
@@ -84,12 +104,12 @@ public class EntradaServiceImpl implements EntradaService {
 
     @Override
     @Transactional(readOnly = true)
-    public EntradaResponseDTO getEntrada(
-            String idUsuario,
-            UUID id) {
-
+    public EntradaResponseDTO getEntrada(UsuarioActual usuario, UUID id) {
+        if (!usuario.esAdmin() && !usuario.tieneRol(UsuarioActual.CLIENTE)) {
+            throw new AccesoDenegadoException("Solo un cliente o un administrador puede consultar entradas");
+        }
         Entrada entrada = obtenerEntrada(id);
-        if (!entrada.getIdCliente().equals(idUsuario)) {
+        if (!usuario.esAdmin() && !entrada.getIdCliente().equals(usuario.id())) {
             throw new AccesoDenegadoException("La entrada no pertenece al usuario");
         }
         return toDto(entrada);
@@ -122,9 +142,17 @@ public class EntradaServiceImpl implements EntradaService {
     }
 
     private ResultadoEmisionDTO emitirEnTransaccion(EmisionRequestDTO request) {
+        // Una compra ya emitida devuelve sus entradas aunque el evento se haya cerrado después.
         ResultadoEmisionDTO existente = buscarEmisionExistente(request);
         if (existente != null) {
             return existente;
+        }
+
+        // Bloqueo compartido del evento: compite con el cierre (bloqueo exclusivo).
+        controlEventoRepository.asegurar(request.evento().id());
+        if (controlEventoRepository.bloquearCompartido(request.evento().id())) {
+            throw new BusinessConflictException("EVENTO_CERRADO",
+                    "El evento " + request.evento().id() + " está cerrado: no se emiten nuevas entradas");
         }
 
         // Copia mínima del evento y de los sectores (si ya existen, se conservan)
@@ -236,7 +264,18 @@ public class EntradaServiceImpl implements EntradaService {
         return toDto(obtenerEntrada(id));
     }
 
-    /** VIGENTE -> EN_REINTEGRO. Repetirla no cambia nada. Sobre una DEVUELTA es un conflicto. */
+    @Override
+    @Transactional(readOnly = true)
+    public EntradasCompraResponseDTO consultarEntradasDeCompra(UUID idCompra) {
+        return new EntradasCompraResponseDTO(idCompra,
+                entradaRepository.buscarPorCompra(idCompra).stream().map(this::toDto).toList());
+    }
+
+    /**
+     * VIGENTE -> EN_REINTEGRO (bloqueo por devolución). Compite con la validación de QR: la
+     * actualización condicional deja ganar a una sola. Repetirla no cambia nada. Sobre una
+     * UTILIZADA responde ENTRADA_UTILIZADA; sobre una DEVUELTA, TRANSICION_INVALIDA.
+     */
     @Override
     @Transactional
     public EntradaResponseDTO marcarEnReintegro(UUID id) {
@@ -247,6 +286,10 @@ public class EntradaServiceImpl implements EntradaService {
         }
         if (entrada.getEstado() == EstadoEntrada.EN_REINTEGRO) {
             return toDto(entrada);
+        }
+        if (entrada.getEstado() == EstadoEntrada.UTILIZADA) {
+            throw new BusinessConflictException("ENTRADA_UTILIZADA",
+                    "La entrada ya se utilizó para ingresar al evento y no puede devolverse");
         }
         throw transicionInvalida(entrada, EstadoEntrada.EN_REINTEGRO);
     }
@@ -266,13 +309,21 @@ public class EntradaServiceImpl implements EntradaService {
         throw transicionInvalida(entrada, EstadoEntrada.DEVUELTA);
     }
 
-    /** Evento cancelado: todas las entradas VIGENTES pasan a EN_REINTEGRO. Repetirlo da 0. */
+    /**
+     * Evento cancelado: registra el cierre de forma persistente (aunque no haya entradas) y pasa
+     * las entradas VIGENTE a EN_REINTEGRO en la misma transacción. Las UTILIZADA conservan su
+     * estado. El bloqueo exclusivo espera a las emisiones y validaciones en curso; las posteriores
+     * ven el evento cerrado. Repetirlo responde cerrado=true y 0 marcadas.
+     */
     @Override
     @Transactional
     public ReintegroEventoResponseDTO reintegroPorCancelacionEvento(String idEvento) {
+        controlEventoRepository.asegurar(idEvento);
+        controlEventoRepository.bloquearExclusivo(idEvento);
+        controlEventoRepository.cerrar(idEvento, Instant.now(clock));
         int marcadas = entradaRepository.cambiarEstadoPorEvento(
                 idEvento, EstadoEntrada.VIGENTE, EstadoEntrada.EN_REINTEGRO, ahora());
-        return new ReintegroEventoResponseDTO(idEvento, marcadas);
+        return new ReintegroEventoResponseDTO(idEvento, marcadas, true);
     }
 
     // =====================================================================
