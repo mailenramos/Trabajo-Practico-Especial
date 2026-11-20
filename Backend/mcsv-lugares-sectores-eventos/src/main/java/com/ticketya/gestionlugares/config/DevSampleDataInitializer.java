@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -21,17 +23,25 @@ import com.ticketya.gestionlugares.domain.Sector;
 import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
+import com.ticketya.gestionlugares.reservas.InicializarDisponibilidadRequestFactory;
+import com.ticketya.gestionlugares.reservas.ReservasClient;
 
 @Component
 @Profile("dev")
 public class DevSampleDataInitializer implements ApplicationRunner {
 
+        private static final Logger log = LoggerFactory.getLogger(DevSampleDataInitializer.class);
+
         private final LugarRepository lugarRepository;
         private final EventoRepository eventoRepository;
+        private final ReservasClient reservasClient;
 
-        public DevSampleDataInitializer(LugarRepository lugarRepository, EventoRepository eventoRepository) {
+        public DevSampleDataInitializer(LugarRepository lugarRepository, EventoRepository eventoRepository,
+                        ReservasClient reservasClient) {
                 this.lugarRepository = lugarRepository;
                 this.eventoRepository = eventoRepository;
+                this.reservasClient = reservasClient;
         }
 
         @Override
@@ -48,9 +58,23 @@ public class DevSampleDataInitializer implements ApplicationRunner {
                 /*Lugar estadio = buscarLugarEjemplo(lugaresDeEjemplo.get(1).getId());*/
                 Lugar estadio = buscarLugarEjemplo(lugaresDeEjemplo.get(1));
                 Instant ahora = Instant.now();
-                for (Evento evento : eventosDeEjemplo(teatro, estadio, ahora)) {
+                List<Evento> eventos = eventosDeEjemplo(teatro, estadio, ahora);
+                for (Evento evento : eventos) {
                         if (!eventoRepository.existsById(evento.getId())) {
                                 eventoRepository.save(evento);
+                        }
+                }
+                for (Evento evento : eventos) {
+                        if (evento.getEstado() == EstadoEvento.PUBLICADO) {
+                                Evento persistido = eventoRepository.findById(evento.getId())
+                                                .orElseThrow(() -> new IllegalStateException(
+                                                                "No se pudo cargar el evento de ejemplo "
+                                                                                + evento.getId()));
+                                reservasClient.inicializarDisponibilidad(persistido.getId(),
+                                                InicializarDisponibilidadRequestFactory.desdeEvento(persistido));
+                                reservasClient.cambiarEstadoVenta(persistido.getId(), EstadoVentaReservas.ACTIVA);
+                                log.info("Disponibilidad de demostración sincronizada para el evento {}",
+                                                persistido.getId());
                         }
                 }
         }

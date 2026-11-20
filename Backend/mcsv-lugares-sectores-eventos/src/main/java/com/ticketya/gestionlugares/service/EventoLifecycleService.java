@@ -1,8 +1,6 @@
 package com.ticketya.gestionlugares.service;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,14 +8,11 @@ import org.springframework.stereotype.Service;
 
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
-import com.ticketya.gestionlugares.domain.EventoSector;
-import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
+import com.ticketya.gestionlugares.reservas.InicializarDisponibilidadRequestFactory;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
-import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
-import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
 import com.ticketya.gestionlugares.compras.ComprasClient;
 
 @Service
@@ -39,7 +34,7 @@ public class EventoLifecycleService {
 
     public Evento publicar(String eventoId, String userId, String userRole) {
         Evento evento = eventoService.validarPublicacion(eventoId, userId, userRole);
-        InicializarDisponibilidadRequest request = construirInicializacion(evento);
+        InicializarDisponibilidadRequest request = InicializarDisponibilidadRequestFactory.desdeEvento(evento);
         invocarReservas("No se pudo inicializar la disponibilidad; el evento permanece en borrador",
                 () -> reservasClient.inicializarDisponibilidad(eventoId, request));
         invocarReservas("No se pudo activar la venta en Reservas; el evento permanece en borrador",
@@ -129,30 +124,6 @@ public class EventoLifecycleService {
         if (!"ADMIN".equalsIgnoreCase(rol) && !"administrador".equalsIgnoreCase(rol)) {
             throw new ForbiddenException("Solo un administrador puede gestionar la venta de eventos");
         }
-    }
-
-    private static InicializarDisponibilidadRequest construirInicializacion(Evento evento) {
-        List<SectorDisponibilidadRequest> sectores = evento.getSectores().stream()
-                .map(EventoLifecycleService::construirSector)
-                .toList();
-        return new InicializarDisponibilidadRequest(evento.getLimiteEntradasPorCliente(), sectores);
-    }
-
-    private static SectorDisponibilidadRequest construirSector(EventoSector sector) {
-        if (sector.getTipo() == TipoSector.NUMERADO) {
-            int filas = sector.getFilas();
-            int asientosPorFila = sector.getAsientosPorFila();
-            int capacidad = Math.multiplyExact(filas, asientosPorFila);
-            List<AsientoReservas> asientos = new ArrayList<>(capacidad);
-            for (int fila = 1; fila <= filas; fila++) {
-                for (int numero = 1; numero <= asientosPorFila; numero++) {
-                    asientos.add(new AsientoReservas(fila, numero));
-                }
-            }
-            return new SectorDisponibilidadRequest(sector.getSectorId(), sector.getTipo(), capacidad, asientos);
-        }
-        return new SectorDisponibilidadRequest(sector.getSectorId(), sector.getTipo(),
-                sector.getCapacidad(), List.of());
     }
 
     private static void invocarReservas(String mensaje, Runnable accion) {

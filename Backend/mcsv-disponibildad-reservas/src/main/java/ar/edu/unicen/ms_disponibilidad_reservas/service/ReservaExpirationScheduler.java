@@ -13,7 +13,7 @@ public class ReservaExpirationScheduler {
         this.reservaService = reservaService;
     }
 
-    @Scheduled(fixedDelayString = "${ms2.reservas.expiracion.fixed-delay-ms:60000}")
+    @Scheduled(fixedDelayString = "${ms2.reservas.expiracion.fixed-delay-ms:5000}")
     public void expirarReservasVencidas() {
         reservaService.expirarReservasVencidas();
     }

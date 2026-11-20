@@ -1451,8 +1451,36 @@ class DisponibilidadHttpTests {
 
         org.junit.jupiter.api.Assertions.assertEquals(1, count("reservas"));
         org.junit.jupiter.api.Assertions.assertEquals(1, count("detalles_reserva"));
-        org.junit.jupiter.api.Assertions.assertEquals("RESERVADO", seatState(1));
-        assertCustomerQuantities("CLIENTE-EXPIRED-HTTP", 1, 0);
+        org.junit.jupiter.api.Assertions.assertEquals("LIBRE", seatState(1));
+        assertCustomerQuantities("CLIENTE-EXPIRED-HTTP", 0, 0);
+    }
+
+    @Test
+    void availabilityShowsReservedSeatsAndReleasesThemWhenTheirHoldExpires() throws Exception {
+        mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
+                .andExpect(status().isNoContent());
+        activateEvent();
+        String reservationId = createMixedReservation("CLIENTE-SEAT-STATE", "SOL-SEAT-STATE", 2, 1, 1);
+
+        String reservedAvailability = mockMvc.perform(get(BASE_PATH))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(reservedAvailability.contains("\"estado\":\"RESERVADO\""));
+        org.junit.jupiter.api.Assertions.assertEquals(2, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM asientos_disponibilidad WHERE evento_id='EVT-HTTP' "
+                        + "AND sector_id='SEC-NUM' AND estado='LIBRE'", Integer.class));
+
+        jdbcTemplate.update("UPDATE reservas SET expira_en = DATEADD('SECOND', -1, CURRENT_TIMESTAMP) WHERE id = ?",
+                reservationId);
+
+        String freeAvailability = mockMvc.perform(get(BASE_PATH))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(freeAvailability.contains("\"estado\":\"LIBRE\""));
+        org.junit.jupiter.api.Assertions.assertEquals(3, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM asientos_disponibilidad WHERE evento_id='EVT-HTTP' "
+                        + "AND sector_id='SEC-NUM' AND estado='LIBRE'", Integer.class));
+        assertCustomerQuantities("CLIENTE-SEAT-STATE", 0, 0);
     }
 
     @Test

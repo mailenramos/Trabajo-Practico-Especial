@@ -108,7 +108,9 @@ class HttpReservasClientTest {
                 .andRespond(withSuccess("""
                         {"eventoId":"evento-1","sectores":[
                           {"sectorId":"sector-1","tipo":"NUMERADO","capacidadTotal":2,"cantidadDisponible":1,
-                           "asientosDisponibles":[{"fila":1,"numero":2}]},
+                           "asientosDisponibles":[{"fila":1,"numero":2,"estado":"LIBRE"}],
+                           "asientos":[{"fila":1,"numero":1,"estado":"RESERVADO"},
+                                       {"fila":1,"numero":2,"estado":"LIBRE"}]},
                           {"sectorId":"sector-2","tipo":"NO_NUMERADO","capacidadTotal":50,"cantidadDisponible":17}
                         ]}
                         """, MediaType.APPLICATION_JSON));
@@ -120,6 +122,8 @@ class HttpReservasClientTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, respuesta.sectores().getFirst().cantidadDisponible());
         org.junit.jupiter.api.Assertions.assertEquals(2,
                 respuesta.sectores().getFirst().asientosDisponibles().getFirst().numero());
+        org.junit.jupiter.api.Assertions.assertEquals("RESERVADO",
+                respuesta.sectores().getFirst().asientos().getFirst().estado());
         server.verify();
     }
 

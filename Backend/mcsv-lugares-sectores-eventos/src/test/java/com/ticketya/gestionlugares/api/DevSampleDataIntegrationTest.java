@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MongoDBContainer;
@@ -34,6 +36,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.ticketya.gestionlugares.config.DevSampleDataInitializer;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.repository.EventoRepository;
+import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
+import com.ticketya.gestionlugares.reservas.ReservasClient;
+import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
+import com.ticketya.gestionlugares.domain.TipoSector;
 
 @SpringBootTest(properties = "spring.data.mongodb.auto-index-creation=false")
 @AutoConfigureMockMvc
@@ -42,7 +48,7 @@ import com.ticketya.gestionlugares.repository.EventoRepository;
 class DevSampleDataIntegrationTest {
 
     @Container
-    private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8.0");
+    private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7.0");
 
     @DynamicPropertySource
     static void configureMongo(DynamicPropertyRegistry registry) {
@@ -61,6 +67,32 @@ class DevSampleDataIntegrationTest {
 
     @Autowired
     private DevSampleDataInitializer initializer;
+
+    @MockitoBean
+    private ReservasClient reservasClient;
+
+    @BeforeEach
+    void limpiarInvocacionesDeInicializacion() {
+        org.mockito.Mockito.clearInvocations(reservasClient);
+    }
+
+    @Test
+    void inicializaInventarioDeLosEventosPublicadosEnReservas() throws Exception {
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+        org.mockito.ArgumentCaptor<InicializarDisponibilidadRequest> requestCaptor =
+                org.mockito.ArgumentCaptor.forClass(InicializarDisponibilidadRequest.class);
+
+        org.mockito.Mockito.verify(reservasClient).inicializarDisponibilidad(
+                org.mockito.ArgumentMatchers.eq("672a1f77bcf86cd799439001"), requestCaptor.capture());
+        InicializarDisponibilidadRequest request = requestCaptor.getValue();
+        assertEquals(4, request.limiteEntradasPorCliente());
+        assertEquals(2, request.sectores().size());
+        assertEquals(TipoSector.NUMERADO, request.sectores().get(0).tipo());
+        assertEquals(1000, request.sectores().get(0).capacidadTotal());
+        assertEquals(1000, request.sectores().get(0).asientos().size());
+        org.mockito.Mockito.verify(reservasClient).cambiarEstadoVenta(
+                "672a1f77bcf86cd799439001", EstadoVentaReservas.ACTIVA);
+    }
 
     @Test
     void dosLugaresDeEjemploConAmbosTiposDeSectorSeConsultanPorLaApi() throws Exception {

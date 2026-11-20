@@ -107,6 +107,7 @@ public class ReservaService {
     }
 
     public ResultadoCreacionReserva crear(String eventoId, String usuarioId, CrearReservaRequest request) {
+        expirarReservasVencidas();
         validarEntrada(eventoId, usuarioId, request);
         String huella = calcularHuella(eventoId, request);
         for (int intento = 1; intento <= MAX_INTENTOS_TRANSACCION_CREACION; intento++) {

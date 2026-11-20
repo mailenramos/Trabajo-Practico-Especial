@@ -7,7 +7,7 @@ Persiste la información en MySQL mediante JPA/Hibernate y utiliza Flyway para a
 ## Requisitos
 
 - JDK 21 o superior.
-- Maven 3.9 o superior.
+- No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez (se necesita Internet).
 - MySQL 8.0 o superior.
 - Docker Desktop con Docker Compose, si se utiliza para levantar MySQL localmente.
 
@@ -17,24 +17,22 @@ Ejecutá los siguientes pasos desde la carpeta raíz del proyecto MS2.
 
 ### 1. Iniciar MySQL
 
-La configuración local conocida utiliza:
+En una instalación nueva, desde la carpeta de MS2, lee la contraseña ya configurada para la aplicación y levanta la base con Compose:
 
-- Host: `localhost`.
-- Puerto: `3307`.
-- Base de datos: `disponibilidad_reservas`.
-
-La URL JDBC configurada es:
-
-```properties
-jdbc:mysql://localhost:3307/disponibilidad_reservas
+```powershell
+$passwordLine = Select-String -Path .\src\main\resources\application.properties -Pattern '^spring\.datasource\.password='
+$env:MS2_DB_PASSWORD = $passwordLine.Line -replace '^spring\.datasource\.password=', ''
+docker compose up -d mysql
 ```
 
-La base debe estar disponible antes de iniciar el servicio. Las credenciales y la configuración completa se encuentran en `application.yml` o en la configuración correspondiente del entorno.
+Compose crea un contenedor MySQL 8, la base `disponibilidad_reservas` y publica el puerto del host `3307` hacia el `3306` interno de MySQL. Conserva los datos en un volumen. La aplicación se conecta a `localhost:3307` como `root`; sus credenciales coinciden con `application.properties`.
+
+Si ya tenés un contenedor de MS2 creado con `docker run` y escuchando en `3307`, dejalo corriendo: no inicies también Compose en ese puerto. En los próximos inicios, basta con `docker start <nombre-del-contenedor>`; para la base creada con Compose, ejecutá los tres comandos anteriores de nuevo (Compose reutiliza el contenedor y el volumen).
 
 ### 2. Iniciar el microservicio
 
-```bash
-mvn spring-boot:run
+```powershell
+.\mvnw.cmd spring-boot:run
 ```
 
 Por defecto, MS2 escucha en:
@@ -42,6 +40,8 @@ Por defecto, MS2 escucha en:
 ```text
 http://localhost:8080
 ```
+
+Mantené abierta la terminal. Un `BUILD SUCCESS` de Maven no significa que la aplicación haya quedado corriendo si antes aparece un error de conexión a MySQL y Spring apaga Tomcat.
 
 El nombre de la aplicación es `ms-disponibilidad-reservas`.
 
@@ -231,6 +231,8 @@ El Gateway propaga `X-User-Id` para identificar al usuario. Los valores canónic
 
 ## Respuestas y manejo de errores
 
+Las reservas temporales vencen a los 10 minutos. MS2 libera las vencidas en segundo plano cada 5 segundos como máximo y también las procesa antes de consultar disponibilidad o crear una reserva. La disponibilidad numerada incluye `asientos` con cada estado (`LIBRE`, `RESERVADO`, `VENDIDO`); `asientosDisponibles` mantiene únicamente los asientos libres.
+
 Las respuestas de error utilizan el formato acordado:
 
 ```json
@@ -296,8 +298,8 @@ La migración V7 establece comparaciones exactas de identificadores externos en 
 
 Para compilar y ejecutar la suite de pruebas:
 
-```bash
-mvn clean test
+```powershell
+.\mvnw.cmd clean test
 ```
 
 Las pruebas que necesitan MySQL deben ejecutarse en un entorno de pruebas descartable y aislado. No deben utilizarse bases persistentes de desarrollo para pruebas que puedan modificar datos o aplicar migraciones.

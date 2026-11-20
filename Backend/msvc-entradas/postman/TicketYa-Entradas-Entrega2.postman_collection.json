@@ -1,0 +1,101 @@
+{
+  "info": {
+    "name": "TicketYa - MS5 Entradas (Entrega 2)",
+    "description": "Validación de QR, consultas por rol y operaciones internas. Las carpetas 01 y 02 van por el API Gateway con el JWT de MS6 (ver la colección de MS6 para obtener los tokens). La carpeta 03 llama directo a MS5 (puerto 8085) porque el Gateway no enruta /internal/**; si SERVICE_TOKEN está configurado, completá serviceToken.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8086" },
+    { "key": "entradasUrl", "value": "http://localhost:8085" },
+    { "key": "tokenCliente", "value": "" },
+    { "key": "tokenAdmin", "value": "" },
+    { "key": "tokenPersonal", "value": "" },
+    { "key": "serviceToken", "value": "" },
+    { "key": "eventoId", "value": "evento-prueba-01" },
+    { "key": "idCompra", "value": "a1234567-1234-4234-8234-123456789001" },
+    { "key": "idEntrada", "value": "" },
+    { "key": "codigoQr", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Consultas (Gateway)",
+      "item": [
+        {
+          "name": "Mis entradas (cliente)",
+          "event": [{ "listen": "test", "script": { "exec": ["const r = pm.response.json(); if (r.content && r.content.length) { pm.collectionVariables.set('idEntrada', r.content[0].idEntrada); pm.collectionVariables.set('codigoQr', r.content[0].codigoQr); }"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }], "url": "{{gatewayUrl}}/entradas?page=0&size=20" }
+        },
+        {
+          "name": "Todas las entradas (admin)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }], "url": "{{gatewayUrl}}/entradas?idEvento={{eventoId}}" }
+        },
+        {
+          "name": "Entradas como personal de acceso (403)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }], "url": "{{gatewayUrl}}/entradas" }
+        }
+      ]
+    },
+    {
+      "name": "02 - Validación de QR (Gateway)",
+      "item": [
+        {
+          "name": "Validar QR (personal asignado)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
+            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+          }
+        },
+        {
+          "name": "Validar el mismo QR otra vez (409 ENTRADA_YA_UTILIZADA)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
+            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+          }
+        },
+        {
+          "name": "Validación excepcional (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
+            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+          }
+        },
+        {
+          "name": "Validar como cliente (403)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
+            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Internos (directo a MS5)",
+      "item": [
+        {
+          "name": "Entradas de una compra",
+          "request": { "method": "GET", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas" }
+        },
+        {
+          "name": "Bloquear por devolución (409 ENTRADA_UTILIZADA si ya se usó)",
+          "request": { "method": "POST", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/entradas/{{idEntrada}}/reintegro" }
+        },
+        {
+          "name": "Cerrar evento cancelado",
+          "request": { "method": "POST", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/eventos/{{eventoId}}/entradas/reintegro" }
+        },
+        {
+          "name": "Sin X-Service-Token (401 si SERVICE_TOKEN está configurado)",
+          "request": { "method": "GET", "header": [], "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas" }
+        }
+      ]
+    }
+  ]
+}

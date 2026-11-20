@@ -47,6 +47,9 @@ class ApiGatewayIntegrationTests {
     private static final Backend MS2 = Backend.start();
     private static final Backend MS3 = Backend.start();
     private static final Backend MS5 = Backend.start();
+    private static final Backend MS6 = Backend.start();
+    private static final String SECRET = "integration-test-secret-with-at-least-32-bytes";
+    private static final String ISSUER = "ticketya-usuarios";
 
     @LocalServerPort
     private int gatewayPort;
@@ -62,6 +65,7 @@ class ApiGatewayIntegrationTests {
         registry.add("gateway.services.ms2-url", MS2::url);
         registry.add("gateway.services.ms3-url", MS3::url);
         registry.add("gateway.services.ms5-url", MS5::url);
+        registry.add("gateway.services.ms6-url", MS6::url);
     }
 
     @AfterAll
@@ -70,6 +74,7 @@ class ApiGatewayIntegrationTests {
         MS2.stop();
         MS3.stop();
         MS5.stop();
+        MS6.stop();
     }
 
     @BeforeEach
@@ -78,6 +83,7 @@ class ApiGatewayIntegrationTests {
         MS2.clear();
         MS3.clear();
         MS5.clear();
+        MS6.clear();
     }
 
     @Test
@@ -85,17 +91,18 @@ class ApiGatewayIntegrationTests {
     void forwardsEventSearchAndIdentityHeaders() throws Exception {
         String requestId = "45feec1c-77bb-4a01-9a10-0d19063a7772";
         HttpResponse<String> response = sendAs("GET", "/eventos?q=rock&page=0", null,
-                "CLIENTE", "cliente-1", "X-Request-Id", requestId,
+                "CLIENTE", "cliente-1", "X-Correlation-Id", requestId,
                 "X-User-Id", "spoofed-user", "X-User-Role", "ADMIN");
 
         assertEquals(200, response.statusCode());
         assertEquals("{\"ok\":true}", response.body());
         CapturedRequest forwarded = MS1.take();
-        assertEquals(requestId, response.headers().firstValue("X-Request-Id").orElseThrow());
-        assertEquals(requestId, forwarded.header("X-Request-Id"));
+        assertEquals(requestId, response.headers().firstValue("X-Correlation-Id").orElseThrow());
+        assertEquals(requestId, forwarded.header("X-Correlation-Id"));
         assertEquals("GET", forwarded.method());
         assertEquals("/eventos?q=rock&page=0", forwarded.path());
         assertEquals("cliente-1", forwarded.header("X-User-Id"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Roles"));
         assertEquals("CLIENTE", forwarded.header("X-User-Role"));
         assertNull(MS2.poll());
         assertNull(MS3.poll());
@@ -154,11 +161,15 @@ class ApiGatewayIntegrationTests {
     @Test
     @Order(5)
     void rejectsMissingTokenAndDoesNotCallBackend() throws Exception {
-        HttpResponse<String> response = send("GET", "/eventos", null);
+        HttpResponse<String> response = send("GET", "/entradas", null, "X-User-Id", "cliente-1");
 
         assertEquals(401, response.statusCode());
         assertTrue(response.body().contains("NO_AUTENTICADO"));
-        assertNull(MS1.poll());
+        assertNull(MS5.poll());
+
+        HttpResponse<String> profile = send("GET", "/usuarios/me", null);
+        assertEquals(401, profile.statusCode());
+        assertNull(MS6.poll());
     }
 
     @Test
@@ -206,13 +217,24 @@ class ApiGatewayIntegrationTests {
                 new RouteCase("GET", "/reintegros", MS3, "ADMIN"),
                 new RouteCase("POST", "/reintegros/reintegro-1/reintento", MS3, "ADMIN"),
                 new RouteCase("GET", "/entradas", MS5, "CLIENTE"),
-                new RouteCase("GET", "/entradas/entrada-1", MS5, "CLIENTE"));
+                new RouteCase("GET", "/entradas/entrada-1", MS5, "CLIENTE"),
+                new RouteCase("POST", "/auth/registro", MS6, "CLIENTE"),
+                new RouteCase("POST", "/auth/login", MS6, "CLIENTE"),
+                new RouteCase("GET", "/usuarios/me", MS6, "PERSONAL_ACCESO"),
+                new RouteCase("PUT", "/usuarios/me", MS6, "CLIENTE"),
+                new RouteCase("GET", "/usuarios", MS6, "ADMIN"),
+                new RouteCase("GET", "/usuarios/usuario-1", MS6, "ADMIN"),
+                new RouteCase("PUT", "/usuarios/usuario-1/roles", MS6, "ADMIN"),
+                new RouteCase("PUT", "/usuarios/usuario-1/estado", MS6, "ADMIN"),
+                new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "PERSONAL_ACCESO"),
+                new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "ADMIN"));
 
         for (RouteCase route : routes) {
             MS1.clear();
             MS2.clear();
             MS3.clear();
             MS5.clear();
+            MS6.clear();
 
             HttpResponse<String> response = sendAs(route.method(), route.path(),
                     "GET".equals(route.method()) ? null : "{}", route.role(), "user-1",
@@ -228,6 +250,7 @@ class ApiGatewayIntegrationTests {
             assertFalse(route.backend() != MS2 && MS2.poll() != null);
             assertFalse(route.backend() != MS3 && MS3.poll() != null);
             assertFalse(route.backend() != MS5 && MS5.poll() != null);
+            assertFalse(route.backend() != MS6 && MS6.poll() != null);
         }
     }
 
@@ -237,17 +260,25 @@ class ApiGatewayIntegrationTests {
         assertNotPublished("GET", "/internal/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/reservas/reserva-1", null);
+        assertNotPublished("POST", "/disponibilidad/reservas/reserva-1/cancelacion", "{}",
+                "Content-Type", "application/json");
+        assertNotPublished("POST", "/compras/compra-1/cancelacion", "{}",
+                "Content-Type", "application/json");
         assertNotPublished("PUT", "/eventos/evento-1/disponibilidad", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/eventos-cancelados", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/internal/entradas/emision", "{}", "Content-Type", "application/json");
         assertNotPublished("GET", "/internal/pagos/compra/1", null);
         assertNotPublished("DELETE", "/eventos", null);
         assertNotPublished("GET", "/not-a-public-route", null);
+        assertNotPublished("GET", "/internal/usuarios/usuario-1/contacto", null);
+        assertNotPublished("GET", "/internal/usuarios/por-correo?correo=a@b.test", null);
+        assertNotPublished("DELETE", "/usuarios/usuario-1", null);
 
         assertNull(MS1.poll());
         assertNull(MS2.poll());
         assertNull(MS3.poll());
         assertNull(MS5.poll());
+        assertNull(MS6.poll());
     }
 
     @Test
@@ -255,8 +286,8 @@ class ApiGatewayIntegrationTests {
     void appliesCorsOnlyToConfiguredOrigin() throws Exception {
         HttpResponse<String> allowed = send("OPTIONS", "/eventos", null,
                 "Origin", corsAllowedOrigins,
-                "Access-Control-Request-Method", "POST",
-                "Access-Control-Request-Headers", "authorization,x-request-id,idempotency-key");
+                "Access-Control-Request-Method", "DELETE",
+                "Access-Control-Request-Headers", "authorization,x-correlation-id,idempotency-key");
 
         assertTrue(allowed.statusCode() < 400);
         assertEquals(corsAllowedOrigins, allowed.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
@@ -270,13 +301,97 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(10)
+    @Order(99) // Último: apaga el backend falso de MS1.
     void returnsServiceUnavailableWhenDestinationIsDown() throws Exception {
         MS1.stop();
         HttpResponse<String> response = sendAs("GET", "/eventos", null, "CLIENTE", "cliente-1");
 
         assertEquals(503, response.statusCode());
         assertTrue(response.body().contains("SERVICIO_NO_DISPONIBLE"));
+    }
+
+    @Test
+    @Order(11)
+    void servesPublicRoutesWithoutTokenAndStripsSpoofedIdentity() throws Exception {
+        HttpResponse<String> events = send("GET", "/eventos?q=rock", null,
+                "X-User-Id", "spoofed-user", "X-User-Roles", "ADMIN", "X-User-Role", "ADMIN");
+        assertEquals(200, events.statusCode());
+        CapturedRequest forwardedEvents = MS1.take();
+        assertNull(forwardedEvents.header("X-User-Id"));
+        assertNull(forwardedEvents.header("X-User-Roles"));
+        assertNull(forwardedEvents.header("X-User-Role"));
+
+        HttpResponse<String> login = send("POST", "/auth/login", "{}",
+                "Content-Type", "application/json", "X-User-Id", "spoofed-user");
+        assertEquals(200, login.statusCode());
+        assertNull(MS6.take().header("X-User-Id"));
+    }
+
+    @Test
+    @Order(12)
+    void forwardsEveryRoleOfAMultiRoleUser() throws Exception {
+        HttpResponse<String> response = sendAs("GET", "/entradas", null, "user-7",
+                new String[] {"PERSONAL_ACCESO", "CLIENTE"}, "X-User-Roles", "ADMIN");
+
+        assertEquals(200, response.statusCode());
+        CapturedRequest forwarded = MS5.take();
+        assertEquals("user-7", forwarded.header("X-User-Id"));
+        assertEquals("CLIENTE,PERSONAL_ACCESO", forwarded.header("X-User-Roles"));
+        assertNull(forwarded.header("X-User-Role"), "Con varios roles no se elige uno arbitrariamente");
+    }
+
+    @Test
+    @Order(13)
+    void rejectsExpiredForeignForgedAndMalformedTokens() throws Exception {
+        long now = System.currentTimeMillis() / 1000;
+        List<String> invalidTokens = List.of(
+                signedToken(Map.of("sub", "u", "iss", ISSUER, "roles", List.of("CLIENTE"), "exp", now - 120), SECRET),
+                signedToken(Map.of("sub", "u", "iss", "otro-emisor", "roles", List.of("CLIENTE"), "exp", now + 3600),
+                        SECRET),
+                signedToken(Map.of("sub", "u", "iss", ISSUER, "roles", List.of("CLIENTE"), "exp", now + 3600),
+                        "otro-secreto-que-tambien-tiene-32-bytes-o-mas"),
+                signedToken(Map.of("sub", "u", "iss", ISSUER, "role", "CLIENTE", "exp", now + 3600), SECRET),
+                "no-es-un-jwt");
+
+        for (String invalid : invalidTokens) {
+            HttpResponse<String> response = send("GET", "/entradas", null, "Authorization", "Bearer " + invalid);
+            assertEquals(401, response.statusCode(), invalid);
+            assertTrue(response.body().contains("TOKEN_INVALIDO"), response.body());
+            assertTrue(response.body().contains("\"mensaje\""), response.body());
+        }
+        assertNull(MS5.poll());
+    }
+
+    @Test
+    @Order(15)
+    void restrictsTicketValidationAndQueriesByRole() throws Exception {
+        HttpResponse<String> clienteValida = sendAs("POST", "/eventos/evento-1/ingresos", "{}", "CLIENTE", "u-1",
+                "Content-Type", "application/json");
+        assertEquals(403, clienteValida.statusCode());
+
+        HttpResponse<String> personalConsulta = sendAs("GET", "/entradas", null, "PERSONAL_ACCESO", "u-2");
+        assertEquals(403, personalConsulta.statusCode());
+
+        HttpResponse<String> sinToken = send("POST", "/eventos/evento-1/ingresos", "{}",
+                "Content-Type", "application/json");
+        assertEquals(401, sinToken.statusCode());
+        assertNull(MS5.poll());
+        assertNull(MS1.poll());
+    }
+
+    @Test
+    @Order(14)
+    void restrictsUserAdministrationToAdmins() throws Exception {
+        for (String[] request : new String[][] {
+                {"GET", "/usuarios"}, {"GET", "/usuarios/usuario-1"},
+                {"PUT", "/usuarios/usuario-1/roles"}, {"PUT", "/usuarios/usuario-1/estado"}}) {
+            HttpResponse<String> response = sendAs(request[0], request[1],
+                    "GET".equals(request[0]) ? null : "{}", "ORGANIZADOR", "user-1",
+                    "Content-Type", "application/json");
+            assertEquals(403, response.statusCode(), request[0] + " " + request[1]);
+            assertTrue(response.body().contains("ACCESO_DENEGADO"));
+        }
+        assertNull(MS6.poll());
     }
 
     private HttpResponse<String> send(String method, String path, String body, String... headers) throws Exception {
@@ -310,21 +425,34 @@ class ApiGatewayIntegrationTests {
         return send(method, path, body, allHeaders.toArray(String[]::new));
     }
 
-    private static String token(String userId, String role) {
+    private HttpResponse<String> sendAs(
+            String method, String path, String body, String userId, String[] roles, String... headers)
+            throws Exception {
+        List<String> allHeaders = new ArrayList<>();
+        allHeaders.add("Authorization");
+        allHeaders.add("Bearer " + token(userId, roles));
+        allHeaders.addAll(List.of(headers));
+        return send(method, path, body, allHeaders.toArray(String[]::new));
+    }
+
+    private static String token(String userId, String... roles) {
+        return signedToken(Map.of(
+                "sub", userId,
+                "iss", ISSUER,
+                "roles", List.of(roles),
+                "exp", System.currentTimeMillis() / 1000 + 3600), SECRET);
+    }
+
+    private static String signedToken(Map<String, Object> claims, String secret) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             String header = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(mapper.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")));
             String payload = Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(mapper.writeValueAsBytes(Map.of(
-                            "sub", userId,
-                            "role", role,
-                            "exp", System.currentTimeMillis() / 1000 + 3600)));
+                    .encodeToString(mapper.writeValueAsBytes(claims));
             String signingInput = header + "." + payload;
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(
-                    "integration-test-secret-with-at-least-32-bytes".getBytes(StandardCharsets.UTF_8),
-                    "HmacSHA256"));
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             String signature = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8)));
             return signingInput + "." + signature;

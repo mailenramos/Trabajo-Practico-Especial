@@ -47,7 +47,7 @@ public class ReservaController {
         ValidacionUuid.exigir(reservaId, "reservaId");
         if ("PAGO_RECHAZADO".equals(request.motivo())
                 && (request.devolucionId() != null || request.detalles() != null)) {
-            throw new IllegalArgumentException("PAGO_RECHAZADO acepta únicamente motivo.");
+            throw new IllegalArgumentException("La liberación de una reserva acepta únicamente motivo.");
         }
         if ("DEVOLUCION_APROBADA".equals(request.motivo())) {
             devolucionService.devolverAprobada(reservaId, request);

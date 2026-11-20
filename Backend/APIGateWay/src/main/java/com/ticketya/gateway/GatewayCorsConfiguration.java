@@ -27,9 +27,9 @@ public class GatewayCorsConfiguration {
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList());
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
-                "Accept", "Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
+                "Accept", "Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-Id"));
         configuration.setMaxAge(3600L);
         return configuration;
     }

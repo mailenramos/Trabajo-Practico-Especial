@@ -53,6 +53,7 @@ public class DisponibilidadController {
 
     @GetMapping(path = "/{eventoId}", produces = APPLICATION_JSON_VALUE)
     public DisponibilidadEventoResponse consultar(@PathVariable String eventoId) {
+        reservaService.expirarReservasVencidas();
         return disponibilidadService.consultarDisponibilidadEvento(eventoId);
     }
 

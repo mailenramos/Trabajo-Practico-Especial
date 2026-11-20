@@ -1,5 +1,7 @@
 package ar.edu.unicen.ms_disponibilidad_reservas.dto;
 
-/** Identificación de un asiento numerado que está libre. */
-public record AsientoDisponibleResponse(Integer fila, Integer numero) {
+import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoAsiento;
+
+/** Public seat state; no reservation or customer identifiers are exposed. */
+public record AsientoDisponibleResponse(Integer fila, Integer numero, EstadoAsiento estado) {
 }

@@ -1,12 +1,11 @@
 # Especificación del ciclo de vida de las entradas
 
 ## Purpose
-Registrar los estados implementados de las entradas y las transiciones admitidas para entradas individuales y cancelaciones de eventos.
+Registrar los estados de las entradas, las transiciones admitidas (incluido el uso por validación de QR) y el cierre persistente de un evento cancelado.
 
 ## Status
-- **Implementado y probado con tests unitarios:** estado inicial, transiciones individuales, repetición idempotente de transiciones y rechazo de la transición inválida directa de `VIGENTE` a `DEVUELTA`.
-- **Implementado, pero sin tests de integración con la base de datos:** actualizaciones condicionales masivas y comportamiento concurrente en PostgreSQL.
-- **No cubierto por los tests unitarios actuales:** carreras concurrentes de cambios de estado y persistencia de `actualizado_el`.
+- **Implementado y probado con tests unitarios:** estado inicial, transiciones individuales, idempotencia, `ENTRADA_UTILIZADA` al bloquear una entrada usada, cierre del evento (orden de bloqueos y respuesta `cerrado`).
+- **Implementado, con tests de integración con PostgreSQL (Testcontainers; requieren Docker), ejecutados sin fallos el 2026-11-20** (`IngresoConcurrencyIntegrationTest`): validación contra bloqueo por devolución simultáneos, emisión contra cierre simultáneos, cierre sin entradas idempotente y conservación de las `UTILIZADA` al cerrar.
 
 ## Requirements
 
@@ -18,7 +17,7 @@ Toda entrada recién construida MUST comenzar en estado `VIGENTE` y recibir un U
 - **THEN** la entrada tiene estado `VIGENTE` y un UUID de QR no nulo
 
 ### Requirement: Admitir las transiciones de estado de las entradas
-El servicio MUST admitir las transiciones de `VIGENTE` a `EN_REINTEGRO` y de `EN_REINTEGRO` a `DEVUELTA`; repetir una transición cuyo destino ya sea el estado actual MUST dejar el estado sin cambios. Una transición directa de `VIGENTE` a `DEVUELTA` MUST fallar con `TRANSICION_INVALIDA`.
+El servicio MUST admitir `VIGENTE` → `UTILIZADA` (validación de QR, ver `ticket-access`), `VIGENTE` → `EN_REINTEGRO` y `EN_REINTEGRO` → `DEVUELTA`. Solo una de las transiciones que salen de `VIGENTE` MUST poder completarse. Repetir una transición cuyo destino ya sea el estado actual MUST dejar el estado sin cambios. Pasar a `EN_REINTEGRO` una entrada `UTILIZADA` MUST fallar con `ENTRADA_UTILIZADA`; cualquier otra transición no admitida MUST fallar con `TRANSICION_INVALIDA`. Una entrada `EN_REINTEGRO` SHALL NOT volver automáticamente a `VIGENTE`.
 
 #### Scenario: Marcar una entrada vigente para reintegro
 - **WHEN** una entrada está `VIGENTE` y se invoca la operación de reintegro
@@ -28,38 +27,54 @@ El servicio MUST admitir las transiciones de `VIGENTE` a `EN_REINTEGRO` y de `EN
 - **WHEN** una entrada ya está `EN_REINTEGRO`
 - **THEN** la operación devuelve esa entrada sin ejecutar otra actualización de estado
 
+#### Scenario: Bloquear una entrada ya utilizada
+- **WHEN** se invoca la operación de reintegro sobre una entrada `UTILIZADA`, o una validación de QR se adelanta a la actualización
+- **THEN** el servicio responde `409 ENTRADA_UTILIZADA` y la entrada no cambia
+
+#### Scenario: Validación y bloqueo simultáneos
+- **WHEN** una validación de QR y un bloqueo por devolución llegan a la vez para la misma entrada
+- **THEN** exactamente uno se completa y la entrada termina `UTILIZADA` o `EN_REINTEGRO`
+
 #### Scenario: Completar una devolución
 - **WHEN** una entrada está `EN_REINTEGRO` y se invoca la operación de devolución
-- **THEN** el servicio la cambia condicionalmente a `DEVUELTA` y devuelve la entrada resultante
-
-#### Scenario: Repetir la operación de devolución
-- **WHEN** una entrada ya está `DEVUELTA`
-- **THEN** la operación devuelve esa entrada sin ejecutar otra actualización de estado
+- **THEN** pasa a `DEVUELTA`; repetirla no cambia nada
 
 #### Scenario: Intentar una transición inválida
-- **WHEN** se invoca la operación de devolución para una entrada `VIGENTE`
+- **WHEN** se invoca la operación de devolución para una entrada `VIGENTE` o `UTILIZADA`
 - **THEN** el servicio genera un conflicto con código `TRANSICION_INVALIDA`
 
 ### Requirement: Usar actualizaciones de estado condicionales
-Las actualizaciones individuales MUST incluir tanto el ID de la entrada como el estado actual esperado en la condición de actualización de la base de datos. El servicio MUST volver a cargar la entrada después de intentar actualizarla y antes de decidir la respuesta.
+Las actualizaciones individuales MUST incluir el ID de la entrada y el estado esperado en la condición del `UPDATE`. El servicio MUST volver a cargar la entrada después de intentar actualizarla y antes de decidir la respuesta.
 
 #### Scenario: El estado cambia antes de la actualización condicional
 - **WHEN** una actualización individual no afecta filas porque otra operación ya cambió el estado
-- **THEN** el servicio vuelve a cargar la entrada y solo la devuelve si su estado actual es el destino solicitado; de lo contrario, genera un conflicto de transición inválida
+- **THEN** el servicio vuelve a cargar la entrada y responde según su estado actual
 
-### Requirement: Pasar a reintegro las entradas vigentes de un evento
-La operación de cancelación MUST cambiar atómicamente a `EN_REINTEGRO` solo las entradas del evento solicitado que estén `VIGENTE`, y MUST devolver la cantidad de filas modificadas.
+### Requirement: Cerrar de forma persistente un evento cancelado
+`POST /internal/eventos/{idEvento}/entradas/reintegro` MUST registrar el cierre del evento en `control_eventos` aunque no tenga entradas, y en la misma transacción MUST pasar a `EN_REINTEGRO` solo las entradas `VIGENTE` del evento; las `UTILIZADA` conservan su estado. MUST responder `{idEvento, entradasMarcadas, cerrado: true}` y ser idempotente. El cierre MUST tomar un bloqueo exclusivo sobre la fila de control del evento; emisión y validación toman un bloqueo compartido sobre la misma fila, de modo que una operación completada antes del cierre quede registrada y una posterior se rechace con `EVENTO_CERRADO`.
 
-#### Scenario: Se repite la cancelación de un evento
-- **WHEN** se repite la operación cuando ya no quedan entradas `VIGENTE` para ese evento
-- **THEN** devuelve cero entradas marcadas
+#### Scenario: Evento sin entradas
+- **WHEN** se cierra un evento que no tiene entradas emitidas
+- **THEN** el cierre se registra y la respuesta trae `cerrado: true` y `entradasMarcadas: 0`
+
+#### Scenario: Repetir el cierre (idempotencia)
+- **WHEN** se repite el cierre de un evento ya cerrado
+- **THEN** responde `cerrado: true`, `entradasMarcadas: 0` y no modifica `cerrado_el`
+
+#### Scenario: Emisión después del cierre
+- **WHEN** llega una emisión nueva para un evento cerrado
+- **THEN** se rechaza con `409 EVENTO_CERRADO` y no se crea ninguna entrada
+
+#### Scenario: Emisiones simultáneas con el cierre
+- **WHEN** varias emisiones y el cierre del mismo evento se ejecutan a la vez
+- **THEN** cada emisión se completa antes del cierre (y sus entradas pasan a `EN_REINTEGRO`) o se rechaza con `EVENTO_CERRADO`, y no queda ninguna entrada `VIGENTE`
 
 ## Technical Decisions and Constraints
-- El enum de estados se persiste como texto y PostgreSQL restringe sus valores a `VIGENTE`, `EN_REINTEGRO` o `DEVUELTA`.
-- Las actualizaciones del repositorio usan `UPDATE ... WHERE estado = :esperado`; la variante por evento aplica la misma condición a todas las entradas que coinciden con el identificador del evento. Los métodos devuelven la cantidad de filas afectadas.
-- Los cambios de estado establecen explícitamente `actualizado_el` con un `LocalDateTime` UTC; el inicio de la aplicación y la configuración JDBC de Hibernate también seleccionan UTC.
-- El test de servicio verifica el comportamiento de los métodos con resultados simulados del repositorio. No verifica el aislamiento transaccional real de PostgreSQL ni actualizaciones concurrentes.
+- El enum se persiste como texto; PostgreSQL restringe sus valores a `VIGENTE`, `UTILIZADA`, `EN_REINTEGRO` o `DEVUELTA` (migración V4).
+- El índice único parcial `uk_entrada_lugar_ocupado` cuenta las entradas `VIGENTE` y `UTILIZADA`: un asiento usado sigue ocupado.
+- `control_eventos` se crea con `insert ... on conflict do nothing` y se bloquea con `select ... for share` (emisión, validación) o `select ... for update` (cierre).
+- Los cambios de estado de `entradas` usan `LocalDateTime` UTC; `cerrado_el` e `ingresos.validado_el` son `TIMESTAMP WITH TIME ZONE`.
 
 ## Verification Evidence
-- `EntradaServiceImplTest` cubre ambas transiciones individuales permitidas, las llamadas repetidas idempotentes, la transición directa inválida y la cantidad devuelta por la cancelación de evento.
-- Los tests actuales no ejecutan contra una base real la persistencia masiva por evento ni los casos concurrentes.
+- `EntradaServiceImplTest`: transiciones, idempotencia, `ENTRADA_UTILIZADA`, `TRANSICION_INVALIDA` desde `UTILIZADA`, cierre y emisión con evento cerrado.
+- `IngresoConcurrencyIntegrationTest` (Docker): validación contra bloqueo, emisión contra cierre, cierre idempotente sin entradas, `UTILIZADA` conservadas.

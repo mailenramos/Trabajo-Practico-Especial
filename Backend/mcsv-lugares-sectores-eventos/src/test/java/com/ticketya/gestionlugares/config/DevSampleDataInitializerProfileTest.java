@@ -8,13 +8,15 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.reservas.ReservasClient;
 
 class DevSampleDataInitializerProfileTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(DevSampleDataInitializer.class)
             .withBean(LugarRepository.class, () -> mock(LugarRepository.class))
-            .withBean(EventoRepository.class, () -> mock(EventoRepository.class));
+            .withBean(EventoRepository.class, () -> mock(EventoRepository.class))
+            .withBean(ReservasClient.class, () -> mock(ReservasClient.class));
 
     @Test
     void elInicializadorSoloSeRegistraConElPerfilDev() {
