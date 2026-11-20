@@ -238,7 +238,8 @@ class EventoLifecycleServiceTest {
                 .thenReturn(java.util.Optional.of(primeraLectura), java.util.Optional.of(lecturaParaCancelar));
         when(eventoRepository.save(any(Evento.class)))
                 .thenThrow(new OptimisticLockingFailureException("version desactualizada"));
-        EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository);
+        EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository,
+                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 versionedEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
@@ -263,7 +264,8 @@ class EventoLifecycleServiceTest {
                 java.util.Optional.of(leidoPorCallback),
                 java.util.Optional.of(leidoPorCallback));
         when(eventoRepository.save(any(Evento.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        EventoService realEventService = new EventoService(eventoRepository, lugarRepository);
+        EventoService realEventService = new EventoService(eventoRepository, lugarRepository,
+                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 realEventService, outboxAvisoRepository, new ComprasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,

@@ -24,10 +24,13 @@ public class EventoService {
 
     private final EventoRepository eventoRepository;
     private final LugarRepository lugarRepository;
+    private final CatalogoCacheInvalidador catalogoCacheInvalidador;
 
-    public EventoService(EventoRepository eventoRepository, LugarRepository lugarRepository) {
+    public EventoService(EventoRepository eventoRepository, LugarRepository lugarRepository,
+            CatalogoCacheInvalidador catalogoCacheInvalidador) {
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
+        this.catalogoCacheInvalidador = catalogoCacheInvalidador;
     }
 
     public Evento crearEvento(CreateEventoRequest request, String organizadorId, String userRolesHeader) {
@@ -111,26 +114,26 @@ public class EventoService {
         Evento evento = buscarEvento(eventoId);
         validarDuenoOrganizador(evento, userId, UserRoles.fromHeader(userRolesHeader));
         evento.definirPrecioMinimoYPublicar();
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     /** Transición local para ser invocada solo después de la confirmación correspondiente de Reservas. */
     public Evento suspenderVentaLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
         evento.suspenderVenta();
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     public Evento reactivarVentaLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
         evento.reactivarVenta();
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     public Evento cancelarLocal(String eventoId, String motivo, Instant canceladoEn) {
         Evento evento = buscarEvento(eventoId);
         evento.cancelar(motivo, canceladoEn);
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     public Evento cancelarLocal(String eventoId) {
@@ -140,18 +143,24 @@ public class EventoService {
     public Evento finalizarLocal(String eventoId) {
         Evento evento = buscarEvento(eventoId);
         evento.finalizar();
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     public Evento aplicarDisponibilidadLocal(String eventoId, boolean agotado) {
         Evento evento = buscarEvento(eventoId);
         evento.aplicarDisponibilidad(agotado);
-        return guardar(evento);
+        return guardarCambioCatalogo(evento);
     }
 
     public List<Evento> buscarPendientesDeFinalizacion(Instant ahora) {
         return eventoRepository.findByEstadoInAndFechaHoraBefore(
                 List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO), ahora);
+    }
+
+    private Evento guardarCambioCatalogo(Evento evento) {
+        Evento guardado = guardar(evento);
+        catalogoCacheInvalidador.invalidar();
+        return guardado;
     }
 
     private Evento guardar(Evento evento) {

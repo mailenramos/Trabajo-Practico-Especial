@@ -46,7 +46,7 @@ class EventoServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EventoService(eventoRepository, lugarRepository);
+        service = new EventoService(eventoRepository, lugarRepository, org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
         lenient().when(eventoRepository.save(any(Evento.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }

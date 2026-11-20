@@ -36,7 +36,8 @@ class EventoConsultaServiceTest {
         mongoTemplate = mock(MongoTemplate.class);
         eventoRepository = mock(EventoRepository.class);
         lugarRepository = mock(LugarRepository.class);
-        service = new EventoConsultaService(mongoTemplate, eventoRepository, lugarRepository, mock(ReservasClient.class));
+        service = new EventoConsultaService(mongoTemplate, eventoRepository, lugarRepository,
+                mock(ReservasClient.class), new CatalogoBusquedaCache(mongoTemplate));
     }
 
     @Test

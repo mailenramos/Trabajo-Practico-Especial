@@ -33,6 +33,11 @@ servicio:
 preferencias:
   base-url: ${PREFERENCIAS_BASE_URL:http://localhost:8089}
 
+catalogo:
+  cache:
+    ttl: ${CATALOGO_CACHE_TTL:30s}
+    maximo-entradas: ${CATALOGO_CACHE_MAXIMO_ENTRADAS:1000}
+
 eventos:
   finalizacion:
     interval: ${EVENTOS_FINALIZACION_INTERVAL:60s}

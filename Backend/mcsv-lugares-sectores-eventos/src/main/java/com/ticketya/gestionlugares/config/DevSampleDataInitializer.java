@@ -21,6 +21,7 @@ import com.ticketya.gestionlugares.domain.Sector;
 import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.service.CatalogoCacheInvalidador;
 
 @Component
 @Profile("dev")
@@ -28,10 +29,13 @@ public class DevSampleDataInitializer implements ApplicationRunner {
 
         private final LugarRepository lugarRepository;
         private final EventoRepository eventoRepository;
+        private final CatalogoCacheInvalidador catalogoCacheInvalidador;
 
-        public DevSampleDataInitializer(LugarRepository lugarRepository, EventoRepository eventoRepository) {
+        public DevSampleDataInitializer(LugarRepository lugarRepository, EventoRepository eventoRepository,
+                        CatalogoCacheInvalidador catalogoCacheInvalidador) {
                 this.lugarRepository = lugarRepository;
                 this.eventoRepository = eventoRepository;
+                this.catalogoCacheInvalidador = catalogoCacheInvalidador;
         }
 
         @Override
@@ -51,6 +55,10 @@ public class DevSampleDataInitializer implements ApplicationRunner {
                 for (Evento evento : eventosDeEjemplo(teatro, estadio, ahora)) {
                         if (!eventoRepository.existsById(evento.getId())) {
                                 eventoRepository.save(evento);
+                                if (evento.getEstado() == EstadoEvento.PUBLICADO
+                                                || evento.getEstado() == EstadoEvento.AGOTADO) {
+                                        catalogoCacheInvalidador.invalidar();
+                                }
                         }
                 }
         }

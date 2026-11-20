@@ -52,7 +52,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @DataMongoTest
-@Import({MongoDecimalConfiguration.class, EventoConsultaService.class})
+@Import({MongoDecimalConfiguration.class, EventoConsultaService.class,
+        com.ticketya.gestionlugares.service.CatalogoBusquedaCache.class})
 @Testcontainers(disabledWithoutDocker = true)
 class EventoRepositoryMongoTest {
 
