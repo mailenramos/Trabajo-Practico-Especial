@@ -1,0 +1,48 @@
+services:
+  mysql-fila-virtual:
+    image: mysql:8.4
+    container_name: ticketya-mysql-fila-virtual
+    environment:
+      MYSQL_DATABASE: fila_virtual
+      MYSQL_USER: "${MS7_DB_USERNAME:-ticketya_ms7}"
+      MYSQL_PASSWORD: "${MS7_DB_PASSWORD:?Configure MS7_DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${MS7_MYSQL_ROOT_PASSWORD:?Configure MS7_MYSQL_ROOT_PASSWORD}"
+    volumes:
+      - ticketya-ms7-mysql-data:/var/lib/mysql
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  fila-virtual:
+    build: .
+    container_name: ticketya-fila-virtual
+    environment:
+      SERVER_PORT: "${SERVER_PORT:-8088}"
+      MS7_DB_URL: "${MS7_DB_URL:-jdbc:mysql://mysql-fila-virtual:3306/fila_virtual}"
+      MS7_DB_USERNAME: "${MS7_DB_USERNAME:-ticketya_ms7}"
+      SPRING_JPA_SHOW_SQL: "${SPRING_JPA_SHOW_SQL:-false}"
+      MS1_API_BASE_URL: "${MS1_API_BASE_URL:-http://lugares:8081}"
+      MS7_TURNOS_FIXED_DELAY_MS: "${MS7_TURNOS_FIXED_DELAY_MS:-60000}"
+      MS1_API_CONNECT_TIMEOUT_MS: "${MS1_API_CONNECT_TIMEOUT_MS:-2000}"
+      MS1_API_READ_TIMEOUT_MS: "${MS1_API_READ_TIMEOUT_MS:-5000}"
+      MS7_DB_PASSWORD: "${MS7_DB_PASSWORD:?Configure MS7_DB_PASSWORD}"
+    depends_on:
+      mysql-fila-virtual:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:$$SERVER_PORT/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+volumes:
+  ticketya-ms7-mysql-data:
+    name: ticketya-ms7-mysql-data
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net

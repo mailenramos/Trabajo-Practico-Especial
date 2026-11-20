@@ -1,0 +1,58 @@
+services:
+  mysql-reservas:
+    image: mysql:8.4
+    container_name: ticketya-mysql-reservas
+    environment:
+      MYSQL_DATABASE: disponibilidad_reservas
+      MYSQL_USER: "${MS2_DB_USERNAME:-ticketya_ms2}"
+      MYSQL_PASSWORD: "${MS2_DB_PASSWORD:?Configure MS2_DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${MS2_MYSQL_ROOT_PASSWORD:?Configure MS2_MYSQL_ROOT_PASSWORD}"
+    volumes:
+      - ticketya-ms2-mysql-data:/var/lib/mysql
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  reservas:
+    build: .
+    container_name: ticketya-reservas
+    environment:
+      SERVER_PORT: "${SERVER_PORT:-8080}"
+      MS2_DB_URL: "${MS2_DB_URL:-jdbc:mysql://mysql-reservas:3306/disponibilidad_reservas}"
+      MS2_DB_USERNAME: "${MS2_DB_USERNAME:-ticketya_ms2}"
+      SPRING_JPA_SHOW_SQL: "${SPRING_JPA_SHOW_SQL:-false}"
+      MS1_API_BASE_URL: "${MS1_API_BASE_URL:-http://lugares:8081}"
+      MS7_API_BASE_URL: "${MS7_API_BASE_URL:-http://fila-virtual:8088}"
+      MS2_RESERVAS_EXPIRACION_FIXED_DELAY_MS: "${MS2_RESERVAS_EXPIRACION_FIXED_DELAY_MS:-60000}"
+      MS2_MS1_CONNECT_TIMEOUT_MS: "${MS2_MS1_CONNECT_TIMEOUT_MS:-2000}"
+      MS2_MS1_READ_TIMEOUT_MS: "${MS2_MS1_READ_TIMEOUT_MS:-5000}"
+      MS2_MS7_CONNECT_TIMEOUT_MS: "${MS2_MS7_CONNECT_TIMEOUT_MS:-2000}"
+      MS2_MS7_READ_TIMEOUT_MS: "${MS2_MS7_READ_TIMEOUT_MS:-5000}"
+      MS2_OUTBOX_FIXED_DELAY_MS: "${MS2_OUTBOX_FIXED_DELAY_MS:-5000}"
+      MS2_OUTBOX_INITIAL_BACKOFF_MS: "${MS2_OUTBOX_INITIAL_BACKOFF_MS:-1000}"
+      MS2_OUTBOX_MAX_BACKOFF_MS: "${MS2_OUTBOX_MAX_BACKOFF_MS:-300000}"
+      MS2_OUTBOX_LEASE_MS: "${MS2_OUTBOX_LEASE_MS:-15000}"
+      MS2_OUTBOX_CONNECT_TIMEOUT_MS: "${MS2_OUTBOX_CONNECT_TIMEOUT_MS:-2000}"
+      MS2_OUTBOX_READ_TIMEOUT_MS: "${MS2_OUTBOX_READ_TIMEOUT_MS:-5000}"
+      MS2_OUTBOX_MAX_BATCH: "${MS2_OUTBOX_MAX_BATCH:-50}"
+      MS2_DB_PASSWORD: "${MS2_DB_PASSWORD:?Configure MS2_DB_PASSWORD}"
+    depends_on:
+      mysql-reservas:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:$$SERVER_PORT/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+volumes:
+  ticketya-ms2-mysql-data:
+    name: ticketya-ms2-mysql-data
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net

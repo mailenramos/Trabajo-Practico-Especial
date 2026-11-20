@@ -10,7 +10,9 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import java.util.concurrent.TimeUnit;
+import ar.edu.unicen.ms_disponibilidad_reservas.controller.CorrelacionFilter;
 
 /** Direct internal REST client for MS1's availability-state endpoint. */
 @Component
@@ -36,6 +38,10 @@ public class Ms1DisponibilidadNotifier {
         try {
             int status = restClient.put()
                 .uri("/eventos/{eventoId}/disponibilidad", eventoId)
+                .headers(headers -> {
+                    String id = MDC.get(CorrelacionFilter.CORRELACION);
+                    if (id != null) headers.set("X-Correlation-Id", id);
+                })
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new EstadoDisponibilidadRequest(agotado))
                 .exchange((request, response) -> response.getStatusCode().value());

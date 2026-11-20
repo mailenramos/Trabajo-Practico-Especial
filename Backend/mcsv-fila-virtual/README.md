@@ -294,3 +294,27 @@ La colección individual [Postman](postman/TicketYa-MS7.postman_collection.json)
 MS7 acepta `X-Correlation-Id` con 1 a 128 caracteres alfanuméricos, punto, guion, guion bajo o dos puntos. Si falta o no cumple el formato, genera un UUID. Devuelve el identificador en el encabezado de respuesta, incluso en errores; lo incorpora al MDC para los logs y lo propaga en las consultas y actualizaciones sincrónicas a MS1. El contexto se limpia al finalizar la solicitud. Las tareas programadas no heredan la correlación de solicitudes terminadas.
 
 El registro HTTP incluye método, operación, estado, duración y, cuando se validaron identidad y rol, usuario; las solicitudes internas y las identidades no validadas se registran sin usuario. La centralización con Alloy, Loki y Grafana queda pendiente de integración grupal. Hibernate no imprime SQL por defecto; para diagnóstico se puede establecer `SPRING_JPA_SHOW_SQL=true`.
+
+
+## Integración Docker Compose (Entrega 2)
+
+Crear una sola vez la red compartida: `docker network create ticketya-net`.
+Copiar `.env.example` a `.env` y establecer contraseñas propias no vacías en
+`MS7_DB_PASSWORD` y `MS7_MYSQL_ROOT_PASSWORD`. El archivo `.env` está
+ignorado. Las variables y valores de ejemplo están documentados allí; los
+cambios de credenciales no actualizan automáticamente un volumen MySQL ya inicializado.
+
+Desde esta carpeta ejecutar `docker compose up -d --build`. El servicio `fila-virtual`
+escucha internamente en `8088`, y `mysql-fila-virtual` usa MySQL 8.4 con base
+`fila_virtual` y volumen `ticketya-ms7-mysql-data`. El Compose principal no publica
+puertos. Depende de MS1 en `http://lugares:8081`; estas URL son configurables.
+Para desarrollo usar `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
+Los puertos de host se enlazan a 127.0.0.1 y son configurables mediante
+`MS7_DEV_APP_PORT` y `MS7_DEV_DB_PORT`. Comprobar salud con
+`curl -f http://127.0.0.1:${MS7_DEV_APP_PORT:-8088}/actuator/health` cuando
+esté activo el override; también puede consultarse el estado con `docker compose ps`.
+Actuator expone únicamente health sin detalles. La comprobación HTTP usa curl,
+instalado en la imagen. No eliminar el volumen para detener los servicios.
+
+La autenticación interna `X-Service-Token` / `SERVICIO_TOKEN` aún requiere acuerdo
+sobre alcance, validación, errores y despliegue coordinado; no está habilitada.

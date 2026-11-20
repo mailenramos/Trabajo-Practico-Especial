@@ -1,0 +1,8 @@
+# Usar junto con docker-compose.yml; los puertos quedan ligados a loopback.
+services:
+  reservas:
+    ports:
+      - "127.0.0.1:${MS2_DEV_APP_PORT:-8080}:${SERVER_PORT:-8080}"
+  mysql-reservas:
+    ports:
+      - "127.0.0.1:${MS2_DEV_DB_PORT:-3308}:3306"

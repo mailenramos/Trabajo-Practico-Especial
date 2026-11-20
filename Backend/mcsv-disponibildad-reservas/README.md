@@ -378,3 +378,29 @@ Para el entorno aislado de integración MS2–MS7 ejecutá `sh tests/integracion
 La ejecución Compose verifica consumo con fallo de reserva y reingreso, competencia por asiento, FIFO, idempotencia, límite por cliente, recuperación ante indisponibilidad simulada de MS1, ingresos simultáneos en dos MS7, vencimiento real de un turno y pérdida de la respuesta de un consumo real. El proxy simula la indisponibilidad de MS7 sin detener su instancia. El simulador no verifica los contratos ni la disponibilidad del MS1 del equipo.
 
 La [matriz de cumplimiento individual](documentacion/Matriz-Cumplimiento-Entrega-2.md) reúne las verificaciones y distingue las limitaciones aceptadas y los pendientes de integración grupal.
+
+
+## Integración Docker Compose (Entrega 2)
+
+Crear una sola vez la red compartida: `docker network create ticketya-net`.
+Copiar `.env.example` a `.env` y establecer contraseñas propias no vacías en
+`MS2_DB_PASSWORD` y `MS2_MYSQL_ROOT_PASSWORD`. El archivo `.env` está
+ignorado. Las variables y valores de ejemplo están documentados allí; los
+cambios de credenciales no actualizan automáticamente un volumen MySQL ya inicializado.
+
+Desde esta carpeta ejecutar `docker compose up -d --build`. El servicio `reservas`
+escucha internamente en `8080`, y `mysql-reservas` usa MySQL 8.4 con base
+`disponibilidad_reservas` y volumen `ticketya-ms2-mysql-data`. El Compose principal no publica
+puertos. Depende de MS1 en `http://lugares:8081` y MS7 en `http://fila-virtual:8088`; estas URL son configurables.
+Para desarrollo usar `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
+Los puertos de host se enlazan a 127.0.0.1 y son configurables mediante
+`MS2_DEV_APP_PORT` y `MS2_DEV_DB_PORT`. Comprobar salud con
+`curl -f http://127.0.0.1:${MS2_DEV_APP_PORT:-8080}/actuator/health` cuando
+esté activo el override; también puede consultarse el estado con `docker compose ps`.
+Actuator expone únicamente health sin detalles. La comprobación HTTP usa curl,
+instalado en la imagen. No eliminar el volumen para detener los servicios.
+
+La autenticación interna `X-Service-Token` / `SERVICIO_TOKEN` aún requiere acuerdo
+sobre alcance, validación, errores y despliegue coordinado; no está habilitada.
+
+Cada intento diferido del outbox genera un nuevo ID de correlación: no conserva el ID original de la solicitud que creó la notificación. El ID del intento se incluye en sus logs y en el header enviado a MS1.

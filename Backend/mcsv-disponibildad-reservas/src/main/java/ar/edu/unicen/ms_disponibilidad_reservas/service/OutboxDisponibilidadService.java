@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -17,6 +18,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.enums.EstadoNotificacionOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.model.NotificacionDisponibilidadOutbox;
 import ar.edu.unicen.ms_disponibilidad_reservas.repository.NotificacionDisponibilidadOutboxRepository;
+import ar.edu.unicen.ms_disponibilidad_reservas.controller.CorrelacionFilter;
 
 /** Claims durable notifications, sends outside inventory transactions, and schedules retries. */
 @Service
@@ -90,6 +92,8 @@ public class OutboxDisponibilidadService {
     }
 
     private void enviar(Claim claim) {
+        String correlacionAnterior = MDC.get(CorrelacionFilter.CORRELACION);
+        MDC.put(CorrelacionFilter.CORRELACION, UUID.randomUUID().toString());
         try {
             int status = notifier.notificar(claim.eventoId(), claim.agotado());
             if (status != 204) {
@@ -107,6 +111,9 @@ public class OutboxDisponibilidadService {
             });
         } catch (RuntimeException exception) {
             fallar(claim, "TRANSPORT_OR_PROCESSING_ERROR:" + exception.getClass().getSimpleName());
+        } finally {
+            if (correlacionAnterior == null) MDC.remove(CorrelacionFilter.CORRELACION);
+            else MDC.put(CorrelacionFilter.CORRELACION, correlacionAnterior);
         }
     }
 

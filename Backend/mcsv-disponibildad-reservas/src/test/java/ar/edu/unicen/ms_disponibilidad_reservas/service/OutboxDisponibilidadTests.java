@@ -66,6 +66,7 @@ class OutboxDisponibilidadTests {
     private static final AtomicInteger REQUESTS = new AtomicInteger();
     private static final AtomicReference<String> LAST_PATH = new AtomicReference<>();
     private static final AtomicReference<String> LAST_BODY = new AtomicReference<>();
+    private static final AtomicReference<String> LAST_CORRELATION = new AtomicReference<>();
     private static final AtomicReference<CountDownLatch> REQUEST_GATE = new AtomicReference<>();
     private static final AtomicReference<CountDownLatch> REQUEST_STARTED = new AtomicReference<>(new CountDownLatch(1));
     private static final HttpServer HTTP_SERVER = startServer();
@@ -105,8 +106,24 @@ class OutboxDisponibilidadTests {
         REQUESTS.set(0);
         LAST_PATH.set(null);
         LAST_BODY.set(null);
+        LAST_CORRELATION.set(null);
         REQUEST_GATE.set(null);
         REQUEST_STARTED.set(new CountDownLatch(1));
+    }
+
+    @Test
+    void deferredDeliveryUsesFreshCorrelationAndRestoresCallerContext() {
+        crearNotificacion("EVT-correlation", true);
+        org.slf4j.MDC.put("correlationId", "caller-id");
+        try {
+            assertEquals(1, outboxService.procesarPendientes());
+            assertTrue(LAST_CORRELATION.get() != null);
+            java.util.UUID.fromString(LAST_CORRELATION.get());
+            assertTrue(!"caller-id".equals(LAST_CORRELATION.get()));
+            assertEquals("caller-id", org.slf4j.MDC.get("correlationId"));
+        } finally {
+            org.slf4j.MDC.remove("correlationId");
+        }
     }
 
     @Test
@@ -266,6 +283,7 @@ class OutboxDisponibilidadTests {
             server.createContext("/", exchange -> {
                 REQUESTS.incrementAndGet();
                 LAST_PATH.set(exchange.getRequestURI().getPath());
+                LAST_CORRELATION.set(exchange.getRequestHeaders().getFirst("X-Correlation-Id"));
                 LAST_BODY.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 CountDownLatch gate = REQUEST_GATE.get();
                 if (gate != null) {
