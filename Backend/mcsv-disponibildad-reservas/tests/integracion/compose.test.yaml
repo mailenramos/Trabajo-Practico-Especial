@@ -1,0 +1,98 @@
+services:
+  db-ms2:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: temporal_ms2
+      MYSQL_DATABASE: ms2_test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  db-ms7:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: temporal_ms7
+      MYSQL_DATABASE: ms7_test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  ms1:
+    image: python:3.12-alpine
+    volumes:
+      - ./ms1_simulado.py:/test/ms1_simulado.py:ro
+    command: ["python", "/test/ms1_simulado.py", "--port", "8081"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/internal/eventos/salud')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  ms7-a: &ms7
+    build: ../../../mcsv-fila-virtual
+    environment:
+      MS7_DB_URL: jdbc:mysql://db-ms7:3306/ms7_test
+      MS7_DB_USERNAME: root
+      MS7_DB_PASSWORD: temporal_ms7
+      MS1_API_BASE_URL: http://ms1:8081
+    depends_on:
+      db-ms7: {condition: service_healthy}
+      ms1: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8088'"]
+      interval: 2s
+      timeout: 3s
+      retries: 50
+  ms7-b:
+    <<: *ms7
+    depends_on:
+      ms7-a: {condition: service_healthy}
+  proxy-ms7:
+    image: python:3.12-alpine
+    volumes:
+      - ./proxy_ms7.py:/test/proxy_ms7.py:ro
+    command: ["python", "/test/proxy_ms7.py"]
+    depends_on:
+      ms7-a: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/_test/estado')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  ms2-a: &ms2
+    build: ../..
+    environment:
+      MS2_DB_URL: jdbc:mysql://db-ms2:3306/ms2_test
+      MS2_DB_USERNAME: root
+      MS2_DB_PASSWORD: temporal_ms2
+      MS1_API_BASE_URL: http://ms1:8081
+      MS7_API_BASE_URL: http://proxy-ms7:8082
+    depends_on:
+      db-ms2: {condition: service_healthy}
+      ms1: {condition: service_healthy}
+      proxy-ms7: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080'"]
+      interval: 2s
+      timeout: 3s
+      retries: 50
+  ms2-b:
+    <<: *ms2
+    depends_on:
+      ms2-a: {condition: service_healthy}
+  tests:
+    image: python:3.12-alpine
+    volumes:
+      - ./integracion_ms2_ms7.py:/test/integracion.py:ro
+    environment:
+      TICKETYA_TEST_ISOLATED: 'true'
+      TICKETYA_TEST_COMPOSE: 'true'
+      MS2_TEST_URL_A: http://ms2-a:8080
+      MS2_TEST_URL_B: http://ms2-b:8080
+      MS7_TEST_URL: http://ms7-a:8088
+      MS7_TEST_URL_B: http://ms7-b:8088
+    command: ["python", "/test/integracion.py"]
+    depends_on:
+      ms2-b: {condition: service_healthy}
+      ms7-b: {condition: service_healthy}

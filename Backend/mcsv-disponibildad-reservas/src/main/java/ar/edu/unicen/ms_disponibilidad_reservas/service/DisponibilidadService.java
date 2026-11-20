@@ -9,6 +9,7 @@ import java.util.TreeMap;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.AsientoDisponibleResponse;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.DisponibilidadEventoResponse;
@@ -43,7 +44,7 @@ public class DisponibilidadService {
         return calcularDisponibilidad(sector);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DisponibilidadEventoResponse consultarDisponibilidadEvento(String eventoId) {
         List<SectorDisponibilidad> sectores = sectorRepository.findAllByEventoId(eventoId);
         if (sectores.isEmpty()) {
@@ -56,6 +57,11 @@ public class DisponibilidadService {
                 .stream()
                 .collect(Collectors.groupingBy(AsientoDisponibilidad::getSectorId));
 
+        Map<String, Map<EstadoAsiento, Long>> cantidadesPorSector = asientoRepository.contarPorSectorYEstado(eventoId)
+                .stream().collect(Collectors.groupingBy(AsientoDisponibilidadRepository.ConteoEstadoSector::getSectorId,
+                        Collectors.toMap(AsientoDisponibilidadRepository.ConteoEstadoSector::getEstado,
+                                AsientoDisponibilidadRepository.ConteoEstadoSector::getCantidad)));
+
         List<SectorDisponibilidadResponse> respuestas = sectores.stream()
                 .map(sector -> {
                     if (sector.getTipo() == TipoSector.NUMERADO) {
@@ -67,11 +73,16 @@ public class DisponibilidadService {
                                 .map(asiento -> new AsientoDisponibleResponse(asiento.getFila(), asiento.getNumero()))
                                 .toList();
                         return new SectorDisponibilidadResponse(sector.getSectorId(), sector.getTipo(),
-                                sector.getCapacidadTotal(), disponibles.size(), disponibles);
+                                sector.getCapacidadTotal(), disponibles.size(),
+                                Math.toIntExact(cantidadesPorSector.getOrDefault(sector.getSectorId(), Map.of())
+                                        .getOrDefault(EstadoAsiento.RESERVADO, 0L)),
+                                Math.toIntExact(cantidadesPorSector.getOrDefault(sector.getSectorId(), Map.of())
+                                        .getOrDefault(EstadoAsiento.VENDIDO, 0L)), disponibles);
                     }
 
                     return new SectorDisponibilidadResponse(sector.getSectorId(), sector.getTipo(),
-                            sector.getCapacidadTotal(), calcularDisponibilidadNoNumerada(sector), null);
+                            sector.getCapacidadTotal(), calcularDisponibilidadNoNumerada(sector),
+                            sector.getCantidadReservada(), sector.getCantidadVendida(), null);
                 })
                 .toList();
 
@@ -145,6 +156,14 @@ public class DisponibilidadService {
             };
 
             if (actualizados != 1) {
+                if (accion == Accion.RESERVAR) {
+                    SectorDisponibilidad sector = solicitado.entidadesSector.get(clave);
+                    entityManager.refresh(sector, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                    int disponibles = calcularDisponibilidadNoNumerada(sector);
+                    if (disponibles < cantidad) {
+                        throw new DisponibilidadInsuficienteException(clave.sectorId, disponibles);
+                    }
+                }
                 throw new DisponibilidadException(
                         "El sector " + clave + " no tiene capacidad o cantidades suficientes para " + accion);
             }

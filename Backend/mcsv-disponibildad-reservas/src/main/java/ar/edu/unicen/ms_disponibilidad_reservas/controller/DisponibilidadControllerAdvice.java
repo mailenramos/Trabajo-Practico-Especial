@@ -2,6 +2,8 @@ package ar.edu.unicen.ms_disponibilidad_reservas.controller;
 
 import java.time.Instant;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.ErrorResponse;
+import ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.ErrorResponse.CampoError;
 import ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadNoRegistradaException;
 import ar.edu.unicen.ms_disponibilidad_reservas.service.InicializacionConflictException;
@@ -26,6 +29,23 @@ import ar.edu.unicen.ms_disponibilidad_reservas.service.ParametroInvalidoExcepti
 /** Applies MS2's documented error shape to HTTP requests. */
 @RestControllerAdvice
 public class DisponibilidadControllerAdvice {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DisponibilidadControllerAdvice.class);
+
+    @ExceptionHandler(AccesoException.class)
+    public ResponseEntity<ErrorResponse> acceso(AccesoException exception) {
+        return respuesta(exception.status(), exception.getMessage(), null);
+    }
+
+    @ExceptionHandler(IntegracionException.class)
+    public ResponseEntity<ErrorResponse> integracion(IntegracionException exception) {
+        HttpStatus status = switch (exception.tipo()) {
+            case NO_ENCONTRADO -> HttpStatus.NOT_FOUND;
+            case CONFLICTO, AUTORIZACION_NO_VIGENTE -> HttpStatus.CONFLICT;
+            case NO_DISPONIBLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case RESPUESTA_INVALIDA -> HttpStatus.BAD_GATEWAY;
+        };
+        return respuesta(status, exception.getMessage(), null);
+    }
 
     @ExceptionHandler(ParametroInvalidoException.class)
     public ResponseEntity<ErrorResponse> parametroInvalido(ParametroInvalidoException exception) {
@@ -95,6 +115,9 @@ public class DisponibilidadControllerAdvice {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> errorInterno(RuntimeException exception) {
+        StackTraceElement[] traza = exception.getStackTrace();
+        LOGGER.error("Error inesperado HTTP 500: tipo={}, ubicación={}", exception.getClass().getName(),
+                traza.length == 0 ? "desconocida" : traza[0]);
         return respuesta(HttpStatus.INTERNAL_SERVER_ERROR, "Ocurrió un error interno.", null);
     }
 

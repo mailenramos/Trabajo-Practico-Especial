@@ -17,7 +17,7 @@ Ejecutá los siguientes pasos desde la carpeta raíz del proyecto MS2.
 
 ### 1. Iniciar MySQL
 
-La configuración local conocida utiliza:
+La configuración local predeterminada utiliza:
 
 - Host: `localhost`.
 - Puerto: `3307`.
@@ -29,12 +29,12 @@ La URL JDBC configurada es:
 jdbc:mysql://localhost:3307/disponibilidad_reservas
 ```
 
-La base debe estar disponible antes de iniciar el servicio. Las credenciales y la configuración completa se encuentran en `application.yml` o en la configuración correspondiente del entorno.
+La base debe estar disponible antes de iniciar el servicio. Configurá las credenciales mediante variables de entorno; no hay contraseña predeterminada.
 
 ### 2. Iniciar el microservicio
 
 ```bash
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 Por defecto, MS2 escucha en:
@@ -65,7 +65,7 @@ Las llamadas internas utilizan REST/JSON, sin pasar por el Gateway y sin autenti
 | ------ | --------------------------------------------- | --------- | ----------------------------------------------------------------- |
 | POST   | `/disponibilidad/eventos/{eventoId}/reservas` | Cliente   | Crea una reserva temporal para uno o varios lugares de un evento. |
 
-La operación pública requiere el encabezado `X-User-Id`, que identifica al cliente. El Gateway debe propagar este identificador.
+La operación pública requiere `X-User-Id` y `X-User-Roles` con el rol `CLIENTE`; los roles pueden estar separados por comas. El Gateway valida el JWT y propaga los encabezados confiables. MS2 no valida JWT.
 
 La reserva es atómica: se reservan todos los lugares solicitados o ninguno.
 
@@ -177,6 +177,8 @@ MS2 cuenta con un proceso automático que busca reservas temporales vencidas y l
 
 La expiración lógica se determina por `expiraEn`. La recuperación física de la disponibilidad se realiza cuando el proceso automático ejecuta la liberación.
 
+El estado persistido `VIGENTE` por sí solo no garantiza vigencia temporal: al consultar una reserva también debe considerarse `expiraEn`. Para el límite por cliente, una reserva lógicamente vencida deja de contar aunque sus lugares y su contador permanezcan retenidos hasta la liberación efectiva.
+
 El intervalo de ejecución predeterminado del scheduler es de 60 segundos.
 
 ## Estados y disponibilidad
@@ -227,7 +229,7 @@ La comunicación entre microservicios es directa mediante REST/JSON y no utiliza
 
 Las operaciones públicas llegan a MS2 mediante el Gateway. Las operaciones internas entre microservicios no deben exponerse a través de él.
 
-El Gateway propaga `X-User-Id` para identificar al usuario. Los valores canónicos acordados para `X-User-Role` son `CLIENTE`, `ORGANIZADOR` y `ADMIN`; la operación pública de creación de reservas utiliza la identidad del cliente mediante `X-User-Id`.
+El Gateway propaga `X-User-Id` y `X-User-Roles`. El endpoint de reserva exige `CLIENTE`. Restringí el acceso directo a MS2 a redes confiables: los encabezados no son una prueba de identidad por sí mismos.
 
 ## Respuestas y manejo de errores
 
@@ -257,6 +259,10 @@ Los códigos HTTP utilizados dependen de la operación. Entre los principales se
 | `200`  | Consulta correcta o reintento idempotente de creación.       |
 | `201`  | Reserva creada correctamente.                                |
 | `204`  | Operación correcta sin contenido de respuesta.               |
+| `401`  | Identidad ausente o inválida.                                      |
+| `403`  | El usuario carece del rol requerido.                               |
+| `502`  | Respuesta externa inválida.                                       |
+| `503`  | Servicio externo no disponible o resultado incierto.             |
 | `400`  | Datos o parámetros inválidos.                                |
 | `404`  | Recurso no encontrado.                                       |
 | `409`  | Conflicto con el estado actual o con una solicitud anterior. |
@@ -307,3 +313,68 @@ Las pruebas que necesitan MySQL deben ejecutarse en un entorno de pruebas descar
 El siguiente diagrama representa las entidades y sus relaciones dentro de MS2.
 
 ![Arquitectura de MS2](documentacion/diagrama-entidadRelacion.png)
+
+## Entrega 2: fila virtual y observabilidad
+
+Al crear una reserva, MS2 valida la solicitud y busca primero una reserva idéntica vigente por `(usuarioId, solicitudId)`. Si existe devuelve 200 sin consultar servicios externos; la misma clave con otro evento o contenido, o una reserva ya no vigente, devuelve 409. Para una solicitud nueva consulta `GET /internal/eventos/{eventoId}` de MS1. Si `requiereFila` es verdadero, consume el turno en MS7 mediante `POST /internal/filas/eventos/{eventoId}/consumos`, enviando los identificadores y la huella existentes.
+
+Las llamadas HTTP ocurren antes de la transacción de creación. Tras bloquear el evento se comprueba otra vez la reserva idempotente y, para una reserva nueva con fila, el vencimiento de la autorización. También se comprueban estado de venta, inventario y límite por cliente; las reservas duran diez minutos. Un error remoto dispara una nueva búsqueda local de la reserva concurrente. Un timeout no restaura el turno: puede quedar consumido sin reserva y el cliente debe reintentar con la misma clave y contenido. No hay transacción distribuida ni outbox para la fila. La entrega de cambios de agotamiento a MS1 usa el outbox de disponibilidad existente, separado de este flujo.
+
+Las llamadas sincrónicas a MS1 y MS7 utilizan circuitos independientes de Resilience4j 2.4.0. Cada circuito usa ventana de 10 llamadas, mínimo de 5, umbral de fallos del 50 % y espera de 30 segundos antes de probar recuperación; estos valores están definidos en código. Solo la consulta GET a MS1 reintenta una vez errores transitorios, con espera de 100 ms. El POST de consumo no tiene reintentos automáticos y el outbox conserva su propia política. Los timeouts HTTP configurables siguen siendo 2 segundos de conexión y 5 de lectura por defecto. Un circuito abierto se informa como indisponibilidad y no autoriza la reserva.
+
+La validación del contenido de las respuestas de MS1 y MS7 ocurre dentro del circuito correspondiente. Una respuesta inválida cuenta como fallo y no se reintenta automáticamente; los errores de negocio definitivos se excluyen de las estadísticas del circuito.
+
+Como limitación aceptada, una fila puede desactivarse o cancelarse después de que MS7 autorizó el consumo y antes de que MS2 complete la reserva local. La comprobación local del vencimiento no consulta nuevamente a MS7 y no elimina esa ventana de coordinación.
+
+Si falta capacidad en un sector no numerado, el mensaje de conflicto informa los lugares disponibles observados bajo bloqueo durante la transacción. Si se supera el límite por cliente, informa el límite numérico del evento. Ambos pueden cambiar con operaciones posteriores.
+
+El resumen por sector incorpora `cantidadReservada` y `cantidadVendida`: los nombres son una **propuesta pendiente de confirmación con MS1 y MS3**. En sectores numerados se cuentan estados de asientos; en los demás se usan los contadores persistidos.
+
+`X-Correlation-Id` es opcional. Se acepta hasta 128 caracteres alfanuméricos, punto, guion, guion bajo y dos puntos; si falta o no es válido se genera un UUID. Se devuelve en la respuesta, se agrega al MDC y se propaga a MS1 y MS7. Las entregas asíncronas del outbox se registran separadamente y no heredan la correlación de una solicitud finalizada.
+
+Hibernate no imprime SQL por defecto; para diagnóstico se puede establecer `SPRING_JPA_SHOW_SQL=true`. La centralización de logs corresponde a la integración grupal.
+
+## Variables de entorno
+
+| Variable | Valor predeterminado | Uso |
+| --- | --- | --- |
+| `SERVER_PORT` | `8080` | Puerto interno HTTP. |
+| `MS2_DB_URL` | `jdbc:mysql://localhost:3307/disponibilidad_reservas` | Base propia de MS2. |
+| `MS2_DB_USERNAME` | `root` | Usuario de base; configurar uno propio para el entorno. |
+| `MS2_DB_PASSWORD` | vacío | Contraseña suministrada por el entorno. |
+| `MS1_API_BASE_URL` / `MS7_API_BASE_URL` | `http://localhost:8081` / `http://localhost:8088` | Direcciones internas. |
+| `MS2_MS1_CONNECT_TIMEOUT_MS` / `MS2_MS1_READ_TIMEOUT_MS` | `2000` / `5000` | Timeouts de consulta a MS1. |
+| `MS2_MS7_CONNECT_TIMEOUT_MS` / `MS2_MS7_READ_TIMEOUT_MS` | `2000` / `5000` | Timeouts de consumo en MS7. |
+| `MS2_RESERVAS_EXPIRACION_FIXED_DELAY_MS` | `60000` | Intervalo del scheduler de reservas. |
+| `MS2_OUTBOX_FIXED_DELAY_MS` | `5000` | Intervalo del outbox de disponibilidad. |
+| `MS2_OUTBOX_INITIAL_BACKOFF_MS` / `MS2_OUTBOX_MAX_BACKOFF_MS` | `1000` / `300000` | Reintentos del outbox. |
+| `MS2_OUTBOX_LEASE_MS` / `MS2_OUTBOX_MAX_BATCH` | `15000` / `50` | Lease y tamaño de lote del outbox. |
+| `MS2_OUTBOX_CONNECT_TIMEOUT_MS` / `MS2_OUTBOX_READ_TIMEOUT_MS` | `2000` / `5000` | Timeouts de notificación asíncrona a MS1. |
+
+No incluyas contraseñas en imágenes ni archivos versionados. Flyway aplica V1–V7 y Hibernate valida el esquema; la base debe estar disponible y ser independiente de MS7.
+
+## Imagen Docker
+
+Desde este directorio ejecutá `docker build -t ticketya-ms2 .`. La imagen usa Java 21 y un usuario sin privilegios. Para ejecutarla suministrá `MS2_DB_URL`, `MS2_DB_USERNAME`, `MS2_DB_PASSWORD`, `MS1_API_BASE_URL` y `MS7_API_BASE_URL` mediante el entorno o un gestor de secretos y conectala a una red interna; `localhost` dentro del contenedor no es el host. El puerto interno predeterminado es 8080. El Dockerfile no publica puertos ni inicia una base.
+
+Por ejemplo, con la red interna y los servicios `mysql-ms2`, `ms1` y `ms7` ya disponibles, exportá `MS2_DB_USERNAME` y `MS2_DB_PASSWORD` desde el entorno seguro y ejecutá:
+
+```bash
+docker run --rm --name ticketya-ms2 --network ticketya-interna \
+  -e 'MS2_DB_URL=jdbc:mysql://mysql-ms2:3306/disponibilidad_reservas' \
+  -e MS2_DB_USERNAME -e MS2_DB_PASSWORD \
+  -e 'MS1_API_BASE_URL=http://ms1:8081' \
+  -e 'MS7_API_BASE_URL=http://ms7:8088' ticketya-ms2
+```
+
+Los nombres y la red son ejemplos que deben coincidir con el despliegue real.
+
+## Suite con MySQL descartable
+
+Además de `./mvnw test`, las pruebas MySQL requieren una instancia nueva y descartable en un puerto local distinto de 3307, con esquemas `ms2_disposable` y `ms2_r2_disposable`. Configurá `MS2_TEST_MYSQL_URL`, `MS2_TEST_MYSQL_PASSWORD`, `MS2_R2_MYSQL_URL` y `MS2_R2_MYSQL_PASSWORD` con esa instancia y ejecutá `./mvnw -Dms2.mysql.integration=true test`. Las pruebas crean y eliminan esquemas; nunca apuntes a bases de desarrollo.
+
+Para el entorno aislado de integración MS2–MS7 ejecutá `sh tests/integracion/ejecutar-compose.sh`. Levanta dos instancias de cada servicio, bases MySQL independientes, MS1 simulado, un proxy de fallos delante de MS7 real y el ejecutor de pruebas, con un nombre de proyecto único. El script elimina los contenedores, la red y los volúmenes de ese proyecto al terminar o fallar. No reemplaza las pruebas con MS1, MS3, MS6 y Gateway reales del equipo. La última ejecución individual con MySQL aislado registró 300 pruebas de MS2 y 59 de MS7, sin omisiones.
+
+La ejecución Compose verifica consumo con fallo de reserva y reingreso, competencia por asiento, FIFO, idempotencia, límite por cliente, recuperación ante indisponibilidad simulada de MS1, ingresos simultáneos en dos MS7, vencimiento real de un turno y pérdida de la respuesta de un consumo real. El proxy simula la indisponibilidad de MS7 sin detener su instancia. El simulador no verifica los contratos ni la disponibilidad del MS1 del equipo.
+
+La [matriz de cumplimiento individual](documentacion/Matriz-Cumplimiento-Entrega-2.md) reúne las verificaciones y distingue las limitaciones aceptadas y los pendientes de integración grupal.

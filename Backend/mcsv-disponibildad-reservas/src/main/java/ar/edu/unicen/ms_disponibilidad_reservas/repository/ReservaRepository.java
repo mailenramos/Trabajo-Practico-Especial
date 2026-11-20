@@ -15,6 +15,14 @@ import jakarta.persistence.LockModeType;
 
 public interface ReservaRepository extends JpaRepository<Reserva, String> {
 
+    /** Current locking read: the event must already be locked before this query. */
+    @Query(value = "SELECT d.cantidad FROM reservas r JOIN detalles_reserva d ON d.reserva_id = r.id "
+            + "WHERE r.usuario_id = :usuarioId AND r.evento_id = :eventoId "
+            + "AND r.estado = 'VIGENTE' AND r.expira_en <= :limite ORDER BY r.id, d.id FOR UPDATE",
+            nativeQuery = true)
+    List<Integer> findUnidadesVencidasForUpdate(@Param("usuarioId") String usuarioId,
+            @Param("eventoId") String eventoId, @Param("limite") LocalDateTime limite);
+
     @Query("SELECT r.id FROM Reserva r WHERE r.estado = :estado AND r.expiraEn <= :limite "
             + "ORDER BY r.expiraEn, r.id")
     List<String> findIdsVigentesVencidasHasta(

@@ -56,6 +56,11 @@ import ar.edu.unicen.ms_disponibilidad_reservas.repository.NotificacionDisponibi
 })
 @DirtiesContext
 class OutboxDisponibilidadTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
 
     private static final AtomicInteger HTTP_STATUS = new AtomicInteger(204);
     private static final AtomicInteger REQUESTS = new AtomicInteger();

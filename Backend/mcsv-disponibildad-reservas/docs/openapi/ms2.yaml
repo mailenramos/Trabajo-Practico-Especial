@@ -1,4 +1,5 @@
 openapi: 3.1.0
+security: []
 info:
   title: TicketYa MS2 - Gestión de disponibilidad y reservas
   version: 0.2.0
@@ -56,10 +57,14 @@ paths:
                     tipo: NO_NUMERADO
                     capacidadTotal: 500
                     cantidadDisponible: 120
+                    cantidadReservada: 80
+                    cantidadVendida: 300
                   - sectorId: SEC-PLATEA
                     tipo: NUMERADO
                     capacidadTotal: 2
                     cantidadDisponible: 2
+                    cantidadReservada: 0
+                    cantidadVendida: 0
                     asientosDisponibles:
                       - fila: 1
                         numero: 5
@@ -186,10 +191,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /disponibilidad/eventos/{eventoId}/reservas:
     post:
-      parameters:
-        - $ref: '#/components/parameters/EventoIdValidated'
       tags: [Public - Gateway]
       operationId: crearReservaTemporal
+      security:
+        - bearerAuth: []
       summary: Crear una reserva temporal
       description: >-
         El cliente crea la reserva a través del Gateway; MS3 no crea reservas.
@@ -204,11 +209,19 @@ paths:
         esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido
         otro eventoId, o una
         reserva original vencida/liberada, produce 409 y no crea otra reserva.
-        Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id
-        para identificar al titular; no requiere X-User-Role. La autorización
-        corresponde al Gateway.
+        Para una reserva nueva MS2 consulta requiereFila a MS1 y consume el turno
+        en MS7 cuando corresponde. La autorización se comprueba nuevamente tras
+        bloquear el evento. Gateway valida el JWT; MS2 exige X-User-Id y CLIENTE
+        en X-User-Roles. Un fallo incierto puede dejar un turno consumido.
+        Se acepta que la fila se desactive o cancele después de la autorización
+        de MS7 y antes de completar la reserva local. En conflictos por capacidad
+        no numerada, el mensaje informa los lugares disponibles observados bajo
+        bloqueo; al superar el límite de entradas, informa el límite del evento.
       parameters:
+        - $ref: '#/components/parameters/EventoIdValidated'
         - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRoles'
+        - $ref: '#/components/parameters/XCorrelationId'
       requestBody:
         required: true
         content:
@@ -246,10 +259,33 @@ paths:
                 expiraEn: '2026-11-07T15:10:00Z'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Identidad ausente o inválida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: El usuario no posee el rol CLIENTE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: Respuesta inválida del servicio externo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: Servicio externo no disponible o respuesta incierta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404':
-          $ref: '#/components/responses/AvailabilityNotRegistered'
+          description: MS1 o MS7 no encuentra el recurso solicitado, o no existe disponibilidad local.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '409':
-          description: Selección no disponible, evento no reservable, límite excedido, contenido diferente para el mismo cliente y solicitudId, o reserva original vencida/liberada. En los últimos dos casos no se crea otra reserva.
+          description: Autorización de fila no vigente o conflicto informado por MS7; selección no disponible, evento no reservable, límite excedido, contenido diferente para el mismo cliente y solicitudId, o reserva original vencida/liberada. En los últimos dos casos no se crea otra reserva.
           content:
             application/json:
               schema:
@@ -283,6 +319,8 @@ paths:
       description: >-
         MS3 consulta MS2 directamente, fuera del Gateway. `clienteId` es el
         titular asociado a X-User-Id. expiraEn se representa en UTC y termina en Z.
+        El estado persistido VIGENTE no garantiza vigencia temporal: debe
+        comprobarse también expiraEn, pues la liberación efectiva es posterior.
       responses:
         '200':
           description: Reserva encontrada.
@@ -457,6 +495,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Validado por Gateway; MS2 confía en los encabezados de identidad propagados.
   parameters:
     EventoIdValidated:
       name: eventoId
@@ -503,14 +547,26 @@ components:
       required: true
       description: >-
         Identificador exacto del cliente autenticado, propagado por el Gateway.
-        MS2 exige entre 1 y 255 puntos de código Unicode; no aplica trim ni rechaza
-        por sí solo una cadena compuesta únicamente por espacios. La identidad no
+        MS2 exige entre 1 y 255 puntos de código Unicode, no blanco y sin controles;
+        conserva el valor sin normalizarlo. La identidad no
         se obtiene del body. La verificación del token corresponde al Gateway.
       schema:
         type: string
         minLength: 1
         maxLength: 255
       example: CLIENTE-42
+    XUserRoles:
+      name: X-User-Roles
+      in: header
+      required: true
+      description: Roles validados por Gateway separados por coma; debe incluir CLIENTE.
+      schema: { type: string, example: 'CLIENTE, ORGANIZADOR' }
+    XCorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Hasta 128 caracteres alfanuméricos, punto, guion, guion bajo y dos puntos; si no es válido se genera un UUID.
+      schema: { type: string }
   schemas:
     InicializarDisponibilidadRequest:
       type: object
@@ -632,7 +688,7 @@ components:
     SectorNumeradoDisponibilidad:
       type: object
       additionalProperties: false
-      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, asientosDisponibles]
+      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, cantidadReservada, cantidadVendida, asientosDisponibles]
       properties:
         sectorId:
           type: string
@@ -643,6 +699,14 @@ components:
           type: integer
           format: int32
           maximum: 2147483647
+        cantidadReservada:
+          type: integer
+          minimum: 0
+          description: Reservados temporalmente; nombre pendiente de confirmar con MS1 y MS3.
+        cantidadVendida:
+          type: integer
+          minimum: 0
+          description: Vendidos; nombre pendiente de confirmar con MS1 y MS3.
         cantidadDisponible:
           type: integer
           minimum: 0
@@ -657,7 +721,7 @@ components:
     SectorNoNumeradoDisponibilidad:
       type: object
       additionalProperties: false
-      required: [sectorId, tipo, capacidadTotal, cantidadDisponible]
+      required: [sectorId, tipo, capacidadTotal, cantidadDisponible, cantidadReservada, cantidadVendida]
       properties:
         sectorId:
           type: string
@@ -668,6 +732,14 @@ components:
           type: integer
           format: int32
           maximum: 2147483647
+        cantidadReservada:
+          type: integer
+          minimum: 0
+          description: Reservados temporalmente; nombre pendiente de confirmar con MS1 y MS3.
+        cantidadVendida:
+          type: integer
+          minimum: 0
+          description: Vendidos; nombre pendiente de confirmar con MS1 y MS3.
         cantidadDisponible:
           type: integer
           minimum: 0

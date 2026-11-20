@@ -72,6 +72,11 @@ import jakarta.validation.ConstraintViolationException;
 @EnabledIfSystemProperty(named = "ms2.mysql.integration", matches = "true")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DisponibilidadMySqlConcurrencyTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
 
     private static TemporaryDatabase temporaryDatabase;
 
@@ -686,7 +691,7 @@ class DisponibilidadMySqlConcurrencyTests {
                 ResultadoCreacionReserva result = creation.get(30, TimeUnit.SECONDS);
                 assertEquals(201, result.status().value(),
                         "La creación debe completar el reintento después del deadlock");
-                verify(reservaRepository, atLeast(2)).findByUsuarioIdAndClaveIdempotencia(
+                verify(reservaRepository, atLeast(2)).findByUsuarioIdAndClaveIdempotenciaForUpdate(
                         clienteId, solicitudId);
                 assertEquals(1, jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM reservas WHERE usuario_id=? AND clave_idempotencia=?",
@@ -812,6 +817,69 @@ class DisponibilidadMySqlConcurrencyTests {
                 + "WHERE evento_id=?", String.class, winningEvent));
         assertEquals("LIBRE", jdbcTemplate.queryForObject("SELECT estado FROM asientos_disponibilidad "
                 + "WHERE evento_id=?", String.class, losingEvent));
+    }
+
+    @Test
+    void vencidaYCreacionesConcurrentesCompitenConSchedulerSinDescuentosDuplicados() throws Exception {
+        String evento = "limite-vencida-" + UUID.randomUUID();
+        inicializacionService.inicializar(evento, new InicializarDisponibilidadRequest(4, List.of(
+                new SectorInicializacionRequest("GEN", TipoSector.NO_NUMERADO, 12, List.of()))));
+        estadoVentaService.aplicar(evento, EstadoVenta.ACTIVA);
+        org.mockito.Mockito.doReturn(new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(false))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var anterior = reservaService.crear(evento, "cliente-vencida", requestCantidad("sol-vencida", "GEN", 4));
+        jdbcTemplate.update("UPDATE reservas SET expira_en=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND) WHERE id=?",
+                anterior.reserva().reservaId());
+        List<Integer> resultados = ejecutarConcurrentementeConResultados(
+                () -> createStatusOrConflict(evento, "cliente-vencida", "sol-nueva-a", requestCantidad("sol-nueva-a", "GEN", 3)),
+                () -> createStatusOrConflict(evento, "cliente-vencida", "sol-nueva-b", requestCantidad("sol-nueva-b", "GEN", 3)));
+        assertEquals(List.of(201, 409), resultados.stream().sorted().toList());
+        reservaService.expirarReservasVencidas();
+        reservaService.expirarReservasVencidas();
+        assertEquals(3, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM cantidades_cliente_evento WHERE evento_id=? AND usuario_id=?", Integer.class, evento, "cliente-vencida"));
+        assertEquals(3, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM sectores_disponibilidad WHERE evento_id=?", Integer.class, evento));
+    }
+
+    @Test
+    void schedulerYReservaConcurrentesNoDuplicanElDescuentoDeVencida() throws Exception {
+        String evento = "limite-scheduler-" + UUID.randomUUID();
+        inicializacionService.inicializar(evento, new InicializarDisponibilidadRequest(4, List.of(
+                new SectorInicializacionRequest("GEN", TipoSector.NO_NUMERADO, 10, List.of()))));
+        estadoVentaService.aplicar(evento, EstadoVenta.ACTIVA);
+        org.mockito.Mockito.doReturn(new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(false))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var anterior = reservaService.crear(evento, "cliente-scheduler", requestCantidad("sol-scheduler", "GEN", 4));
+        jdbcTemplate.update("UPDATE reservas SET expira_en=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND) WHERE id=?",
+                anterior.reserva().reservaId());
+        List<Integer> resultados = ejecutarConcurrentementeConResultados(
+                () -> reservaService.crear(evento, "cliente-scheduler", requestCantidad("sol-nueva", "GEN", 1)).status().value(),
+                () -> reservaService.expirarReservasVencidas());
+        assertTrue(resultados.contains(201));
+        reservaService.expirarReservasVencidas();
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM cantidades_cliente_evento WHERE evento_id=? AND usuario_id=?", Integer.class, evento, "cliente-scheduler"));
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM sectores_disponibilidad WHERE evento_id=?", Integer.class, evento));
+    }
+
+    @Test
+    void lecturaBloqueanteVeVencimientoConfirmadoDespuesDeUnaInstantaneaRepeatableRead() throws Exception {
+        String evento = eventoParaFila();
+        org.mockito.Mockito.doReturn(new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(false))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var anterior = reservaService.crear(evento, "cliente-snapshot", requestCantidad("sol-snapshot", "GEN", 2));
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        tx.execute(status -> {
+            jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas", Integer.class);
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            try {
+                executor.submit(() -> jdbcTemplate.update("UPDATE reservas SET expira_en=DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 1 SECOND) WHERE id=?", anterior.reserva().reservaId())).get(10, TimeUnit.SECONDS);
+            } catch (Exception e) { throw new IllegalStateException(e); }
+            finally { executor.shutdownNow(); }
+            eventosRepository.findByEventoIdForUpdate(evento).orElseThrow();
+            assertEquals(List.of(2), reservaRepository.findUnidadesVencidasForUpdate("cliente-snapshot", evento,
+                    java.time.LocalDateTime.ofInstant(java.time.Instant.now(), java.time.ZoneOffset.UTC)));
+            return null;
+        });
     }
 
     @Test
@@ -1410,6 +1478,265 @@ class DisponibilidadMySqlConcurrencyTests {
         SectorInicializacionRequest noNumerado = new SectorInicializacionRequest("sector-general",
                 TipoSector.NO_NUMERADO, 7, List.of());
         return new InicializarDisponibilidadRequest(limite == null ? 4 : limite, List.of(numerado, noNumerado));
+    }
+
+    private String eventoParaFila() {
+        String evento = "fila-" + UUID.randomUUID();
+        inicializacionService.inicializar(evento, new InicializarDisponibilidadRequest(4, List.of(
+                new SectorInicializacionRequest("GEN", TipoSector.NO_NUMERADO, 4, List.of()))));
+        estadoVentaService.aplicar(evento, EstadoVenta.ACTIVA);
+        return evento;
+    }
+
+    private void politicaConFila() {
+        org.mockito.Mockito.doReturn(new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(true))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    private void autorizarHasta(java.time.Instant vence) {
+        org.mockito.Mockito.doAnswer(inv -> {
+            assertTrue(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            return new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                    1, inv.getArgument(0), inv.getArgument(2), "CONSUMIDO", vence, true);
+        }).when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void creacionConFilaYRecuperacionNoConsultanNuevamenteServicios() {
+        String evento = eventoParaFila();
+        politicaConFila();
+        autorizarHasta(java.time.Instant.now().plusSeconds(60));
+        var solicitud = requestCantidad("SOL-FILA", "GEN", 1);
+        var creada = reservaService.crear(evento, "cliente", solicitud, "corr");
+        assertEquals(201, creada.status().value());
+        var huella = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.eq(evento), org.mockito.ArgumentMatchers.eq("cliente"),
+                org.mockito.ArgumentMatchers.eq("SOL-FILA"), huella.capture(), org.mockito.ArgumentMatchers.eq("corr"));
+        assertEquals(jdbcTemplate.queryForObject("SELECT huella_solicitud FROM reservas WHERE id=?", String.class,
+                creada.reserva().reservaId()), huella.getValue());
+        org.mockito.Mockito.clearInvocations(ms1EventoClient, ms7FilaClient);
+        assertEquals(200, reservaService.crear(evento, "cliente", solicitud).status().value());
+        org.mockito.Mockito.verifyNoInteractions(ms1EventoClient, ms7FilaClient);
+        assertThrows(ReservaConflictException.class, () -> reservaService.crear(evento, "cliente", requestCantidad("SOL-FILA", "GEN", 2)));
+    }
+
+    @Test
+    void falloRemotoNoCreaReservaYReintentoUsaLaMismaHuella() {
+        String evento = eventoParaFila();
+        politicaConFila();
+        var fallo = new ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException(
+                ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.NO_DISPONIBLE, "timeout");
+        org.mockito.Mockito.doThrow(fallo).doAnswer(inv -> new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                1, inv.getArgument(0), inv.getArgument(2), "CONSUMIDO", java.time.Instant.now().plusSeconds(60), true))
+                .when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var solicitud = requestCantidad("TIMEOUT", "GEN", 1);
+        assertThrows(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.class,
+                () -> reservaService.crear(evento, "cliente", solicitud));
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+        assertEquals(201, reservaService.crear(evento, "cliente", solicitud).status().value());
+        var huellas = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(ms7FilaClient, org.mockito.Mockito.times(2)).consumir(org.mockito.ArgumentMatchers.eq(evento),
+                org.mockito.ArgumentMatchers.eq("cliente"), org.mockito.ArgumentMatchers.eq("TIMEOUT"), huellas.capture(), org.mockito.ArgumentMatchers.any());
+        assertEquals(huellas.getAllValues().get(0), huellas.getAllValues().get(1));
+    }
+
+    @Test
+    void autorizacionVenceMientrasEsperaElBloqueoDelEvento() throws Exception {
+        String evento = eventoParaFila();
+        politicaConFila();
+        CountDownLatch consumida = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(inv -> {
+            assertTrue(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            consumida.countDown();
+            return new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                    1, evento, inv.getArgument(2), "CONSUMIDO", java.time.Instant.now().plusMillis(500), true);
+        }).when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        try (var bloqueo = DriverManager.getConnection(temporaryDatabase.jdbcUrl, temporaryDatabase.username, temporaryDatabase.password);
+             var pool = Executors.newSingleThreadExecutor()) {
+            bloqueo.setAutoCommit(false);
+            try (var statement = bloqueo.prepareStatement("SELECT id FROM eventos_disponibilidad WHERE evento_id=? FOR UPDATE")) {
+                statement.setString(1, evento);
+                try (var rows = statement.executeQuery()) { assertTrue(rows.next()); }
+            }
+            var futuro = pool.submit(() -> reservaService.crear(evento, "cliente", requestCantidad("VENCE", "GEN", 1)));
+            assertTrue(consumida.await(5, TimeUnit.SECONDS));
+            Thread.sleep(800);
+            assertTrue(!futuro.isDone());
+            bloqueo.commit();
+            var error = assertThrows(java.util.concurrent.ExecutionException.class, () -> futuro.get(10, TimeUnit.SECONDS));
+            assertEquals(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.AUTORIZACION_NO_VIGENTE,
+                    ((ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException) error.getCause()).tipo());
+            assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+        }
+    }
+
+    @Test
+    void errorRemotoRecuperaReservaCreadaConcurrentemente() throws Exception {
+        String evento = eventoParaFila();
+        var entro = new CountDownLatch(1);
+        var continuar = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(inv -> {
+            assertTrue(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            if (Thread.currentThread().getName().equals("remoto-falla")) {
+                entro.countDown();
+                assertTrue(continuar.await(10, TimeUnit.SECONDS));
+                throw new ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException(
+                        ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.NO_DISPONIBLE, "timeout");
+            }
+            return new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(false);
+        }).when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var solicitud = requestCantidad("RACE-REMOTE", "GEN", 1);
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var primero = pool.submit(() -> { Thread.currentThread().setName("remoto-falla"); return reservaService.crear(evento, "cliente", solicitud); });
+            assertTrue(entro.await(5, TimeUnit.SECONDS));
+            assertEquals(201, reservaService.crear(evento, "cliente", solicitud).status().value());
+            continuar.countDown();
+            assertEquals(200, primero.get(10, TimeUnit.SECONDS).status().value());
+        } finally { continuar.countDown(); }
+    }
+
+    @Test
+    void suspensionYLimiteSeVerificanDespuesDeConsumir() {
+        String evento = eventoParaFila();
+        politicaConFila();
+        autorizarHasta(java.time.Instant.now().plusSeconds(60));
+        assertEquals(201, reservaService.crear(evento, "cliente", requestCantidad("FILA-UNO", "GEN", 4)).status().value());
+        assertThrows(ReservaConflictException.class,
+                () -> reservaService.crear(evento, "cliente", requestCantidad("FILA-DOS", "GEN", 1)));
+        estadoVentaService.aplicar(evento, EstadoVenta.SUSPENDIDA);
+        assertThrows(ReservaConflictException.class,
+                () -> reservaService.crear(evento, "otro", requestCantidad("FILA-TRES", "GEN", 1)));
+        verify(ms7FilaClient, org.mockito.Mockito.times(3)).consumir(org.mockito.ArgumentMatchers.eq(evento),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void solicitudesSimultaneasConLaMismaClaveRecuperanUnaSolaReserva() throws Exception {
+        String evento = eventoParaFila();
+        politicaConFila();
+        CountDownLatch llamadas = new CountDownLatch(2);
+        org.mockito.Mockito.doAnswer(inv -> {
+            llamadas.countDown();
+            assertTrue(llamadas.await(10, TimeUnit.SECONDS));
+            return new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                    1, evento, inv.getArgument(2), "CONSUMIDO", java.time.Instant.now().plusSeconds(60), true);
+        }).when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        var solicitud = requestCantidad("MISMA-CLAVE", "GEN", 1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var primero = pool.submit(() -> reservaService.crear(evento, "cliente", solicitud));
+            var segundo = pool.submit(() -> reservaService.crear(evento, "cliente", solicitud));
+            var a = primero.get(15, TimeUnit.SECONDS);
+            var b = segundo.get(15, TimeUnit.SECONDS);
+            assertEquals(java.util.Set.of(200, 201), java.util.Set.of(a.status().value(), b.status().value()));
+            assertEquals(a.reserva().reservaId(), b.reserva().reservaId());
+            assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+        }
+    }
+
+    @Test
+    void cancelacionDuranteConsumoImpideCrearReserva() {
+        String evento = eventoParaFila();
+        politicaConFila();
+        org.mockito.Mockito.doAnswer(inv -> {
+            assertTrue(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            estadoVentaService.aplicar(evento, EstadoVenta.CANCELADA);
+            return new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                    1, evento, inv.getArgument(2), "CONSUMIDO", java.time.Instant.now().plusSeconds(60), true);
+        }).when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        assertThrows(ReservaConflictException.class,
+                () -> reservaService.crear(evento, "cliente", requestCantidad("CANCELADO", "GEN", 1)));
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+    }
+
+    @Test
+    void solicitudesConDistintasClavesNoExcedenElInventarioConFila() throws Exception {
+        String evento = eventoParaFila();
+        politicaConFila();
+        autorizarHasta(java.time.Instant.now().plusSeconds(60));
+        List<Boolean> resultados = ejecutarConcurrentemente(
+                () -> reservaService.crear(evento, "cliente-a", requestCantidad("CLAVE-A", "GEN", 3)),
+                () -> reservaService.crear(evento, "cliente-b", requestCantidad("CLAVE-B", "GEN", 3)));
+        assertEquals(1, resultados.stream().filter(Boolean::booleanValue).count());
+        assertEquals(3, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM sectores_disponibilidad WHERE evento_id=?", Integer.class, evento));
+    }
+
+    @Test
+    void inventarioInsuficienteDespuesDelConsumoNoCreaReserva() {
+        String evento = eventoParaFila();
+        politicaConFila();
+        autorizarHasta(java.time.Instant.now().plusSeconds(60));
+        reservaService.crear(evento, "cliente-a", requestCantidad("LLENA", "GEN", 4));
+        assertThrows(ReservaConflictException.class,
+                () -> reservaService.crear(evento, "cliente-b", requestCantidad("SIN-LUGAR", "GEN", 1)));
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+        verify(ms7FilaClient, org.mockito.Mockito.times(2)).consumir(org.mockito.ArgumentMatchers.eq(evento),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void sinFilaNoConsumeYUnaAutorizacionVencidaNoCreaReserva() {
+        String sinFila = eventoParaFila();
+        assertEquals(201, reservaService.crear(sinFila, "cliente", requestCantidad("SIN-FILA", "GEN", 1)).status().value());
+        org.mockito.Mockito.verifyNoInteractions(ms7FilaClient);
+        String conFila = eventoParaFila();
+        politicaConFila();
+        autorizarHasta(java.time.Instant.now().minusSeconds(1));
+        var error = assertThrows(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.class,
+                () -> reservaService.crear(conFila, "cliente", requestCantidad("VENCIDO", "GEN", 1)));
+        assertEquals(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.AUTORIZACION_NO_VIGENTE, error.tipo());
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, conFila));
+    }
+
+    @Test
+    void erroresDePoliticaYTurnoImpidenCrearUnaReservaNueva() {
+        String evento = eventoParaFila();
+        var tipo = ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.NO_DISPONIBLE;
+        org.mockito.Mockito.doThrow(new ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException(tipo, "MS1"))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        assertEquals(tipo, assertThrows(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.class,
+                () -> reservaService.crear(evento, "cliente", requestCantidad("POLITICA", "GEN", 1))).tipo());
+        org.mockito.Mockito.verifyNoInteractions(ms7FilaClient);
+        politicaConFila();
+        for (var rechazo : List.of(
+                ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.NO_ENCONTRADO,
+                ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.CONFLICTO,
+                ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.AUTORIZACION_NO_VIGENTE,
+                ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.Tipo.RESPUESTA_INVALIDA)) {
+            org.mockito.Mockito.doThrow(new ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException(rechazo, "MS7"))
+                    .when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+            assertEquals(rechazo, assertThrows(ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException.class,
+                    () -> reservaService.crear(evento, "cliente", requestCantidad("TURNO-" + rechazo, "GEN", 1))).tipo());
+        }
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+    }
+
+    @Test
+    void resumenDeSectoresCuentaEstadosEnMySql() {
+        String evento = "resumen-mysql-" + java.util.UUID.randomUUID();
+        guardarSector(evento, "numerado", TipoSector.NUMERADO, 3);
+        guardarSector(evento, "general", TipoSector.NO_NUMERADO, 5);
+        guardarAsiento(evento, "numerado", 1);
+        guardarAsiento(evento, "numerado", 2);
+        guardarAsiento(evento, "numerado", 3);
+        jdbcTemplate.update("UPDATE asientos_disponibilidad SET estado = 'RESERVADO' WHERE evento_id = ? AND numero = 2", evento);
+        jdbcTemplate.update("UPDATE asientos_disponibilidad SET estado = 'VENDIDO' WHERE evento_id = ? AND numero = 3", evento);
+        jdbcTemplate.update("UPDATE sectores_disponibilidad SET cantidad_reservada = 2, cantidad_vendida = 1 WHERE evento_id = ? AND sector_id = 'general'", evento);
+
+        var resumen = disponibilidadService.consultarDisponibilidadEvento(evento);
+        var numerado = resumen.sectores().stream().filter(s -> s.sectorId().equals("numerado")).findFirst().orElseThrow();
+        var general = resumen.sectores().stream().filter(s -> s.sectorId().equals("general")).findFirst().orElseThrow();
+        assertEquals(1, numerado.cantidadDisponible());
+        assertEquals(1, numerado.cantidadReservada());
+        assertEquals(1, numerado.cantidadVendida());
+        assertEquals(2, general.cantidadDisponible());
+        assertEquals(2, general.cantidadReservada());
+        assertEquals(1, general.cantidadVendida());
     }
 
     private InicializarDisponibilidadRequest solicitudAlternativa(Integer limite) {

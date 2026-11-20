@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "658e3c66-bd4c-478a-b198-3f739c7b3fc1",
     "name": "TicketYa MS2 - Gestión de disponibilidad y reservas",
-    "description": "Contratos HTTP implementados por MS2 para disponibilidad y reservas, junto con la integración saliente documentada de Outbox hacia MS1. Las operaciones internas usan REST/JSON directamente, fuera del API Gateway y sin autenticación entre microservicios. Las operaciones de cliente pasan por el Gateway. Puertos locales: MS1 8081, MS2 8080 y MS3 8083. El contrato de consulta pública de la reserva propia del cliente sigue pendiente.",
+    "description": "MS2: operaciones internas MS1/MS3 y creación pública con identidad y rol CLIENTE propagados por Gateway. El flujo consulta MS1 y, si corresponde, MS7. Los nombres de cantidadReservada y cantidadVendida están pendientes de confirmación con MS1 y MS3.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "58900759",
     "_collection_link": "https://go.postman.co/collection/58900759-658e3c66-bd4c-478a-b198-3f739c7b3fc1?source=collection_link"
@@ -335,7 +335,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 415,\n  \"error\": \"Unsupported Media Type\",\n  \"mensaje\": \"El tipo de contenido no está soportado.\"\n}"
                         },
                         {
                           "name": "Error interno no recuperable; no expone detalles de persistencia.",
@@ -391,7 +391,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                         }
                       ]
                     }
@@ -417,6 +417,14 @@
                           {
                             "key": "Accept",
                             "value": "application/json"
+                          },
+                          {
+                            "key": "X-User-Roles",
+                            "value": "{{roles}}"
+                          },
+                          {
+                            "key": "X-Correlation-Id",
+                            "value": "{{correlationId}}"
                           }
                         ],
                         "body": {
@@ -448,7 +456,7 @@
                             }
                           ]
                         },
-                        "description": "El cliente crea la reserva a través del Gateway; MS3 no crea reservas. X-User-Id identifica al titular. Se reservan todos los detalles o ninguno. Cada reserva dura exactamente 10 minutos; este plazo es fijo y no configurable. El máximo es el límite recibido para ese evento durante la inicialización; MS1 envía 4 por defecto. solicitudId se conserva sin cambios en los reintentos. La identidad es (clienteId, solicitudId), sin eventoId en la clave; para comparar contenido se incluyen el eventoId de la URL y el body completo. Un reintento con ambos idénticos mientras la reserva original siga VIGENTE y no haya pasado su instante de expiración devuelve esa reserva con 200 y no vuelve a reservar; contenido diferente, incluido otro eventoId, o una reserva original vencida/liberada, produce 409 y no crea otra reserva. Una solicitud nueva con ID nuevo produce 201. MS2 requiere X-User-Id para identificar al titular; no requiere X-User-Role. La autorización corresponde al Gateway."
+                        "description": "Gateway valida el JWT; MS2 exige CLIENTE. Las solicitudes nuevas consultan MS1 y, cuando corresponde, consumen un turno en MS7. Reintentos idénticos vigentes responden 200."
                       },
                       "response": [
                         {
@@ -815,7 +823,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 415,\n  \"error\": \"Unsupported Media Type\",\n  \"mensaje\": \"El tipo de contenido no está soportado.\"\n}"
                         },
                         {
                           "name": "Error interno no recuperable; no expone detalles de persistencia.",
@@ -876,7 +884,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                         }
                       ]
                     }
@@ -910,7 +918,7 @@
                         }
                       ]
                     },
-                    "description": "MS1 consulta directamente a MS2 para combinar esta disponibilidad con los datos del evento. MS2 informa sus datos locales y no consulta MS1. cantidadDisponible puede ser cero por reservas temporales vigentes; eso no significa que el evento esté agotado, ya que el agotamiento depende únicamente de las ventas confirmadas."
+                    "description": "Incluye cantidadReservada y cantidadVendida por sector; nombres sujetos a confirmación con MS1 y MS3."
                   },
                   "response": [
                     {
@@ -952,7 +960,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"eventoId\": \"EVT-123\",\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"cantidadDisponible\": 120\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 100,\n      \"cantidadDisponible\": 2,\n      \"asientosDisponibles\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ]\n    }\n  ]\n}"
+                      "body": "{\n  \"eventoId\": \"EVT-123\",\n  \"sectores\": [\n    {\n      \"sectorId\": \"SEC-GENERAL\",\n      \"tipo\": \"NO_NUMERADO\",\n      \"capacidadTotal\": 500,\n      \"cantidadDisponible\": 120,\n      \"cantidadReservada\": 0,\n      \"cantidadVendida\": 0\n    },\n    {\n      \"sectorId\": \"SEC-PLATEA\",\n      \"tipo\": \"NUMERADO\",\n      \"capacidadTotal\": 100,\n      \"cantidadDisponible\": 2,\n      \"asientosDisponibles\": [\n        {\n          \"fila\": 1,\n          \"numero\": 5\n        },\n        {\n          \"fila\": 1,\n          \"numero\": 8\n        }\n      ],\n      \"cantidadReservada\": 0,\n      \"cantidadVendida\": 0\n    }\n  ]\n}"
                     },
                     {
                       "name": "No hay disponibilidad local registrada en MS2 para el evento.",
@@ -1034,7 +1042,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                      "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                     }
                   ]
                 },
@@ -1292,7 +1300,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                      "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 415,\n  \"error\": \"Unsupported Media Type\",\n  \"mensaje\": \"El tipo de contenido no está soportado.\"\n}"
                     },
                     {
                       "name": "Error interno no recuperable; no expone detalles de persistencia.",
@@ -1347,7 +1355,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                      "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                     }
                   ]
                 }
@@ -1552,7 +1560,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                         }
                       ]
                     }
@@ -1876,7 +1884,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 415,\n  \"error\": \"Unsupported Media Type\",\n  \"mensaje\": \"El tipo de contenido no está soportado.\"\n}"
                         },
                         {
                           "name": "Error interno no recuperable; no expone detalles de persistencia.",
@@ -1932,7 +1940,7 @@
                             }
                           ],
                           "cookie": [],
-                          "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                          "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                         }
                       ]
                     }
@@ -2090,7 +2098,7 @@
                         }
                       ],
                       "cookie": [],
-                      "body": "{\n  \"timestamp\": \"1984-07-22T02:26:48.856Z\",\n  \"status\": 5113,\n  \"error\": \"string\",\n  \"mensaje\": \"string\",\n  \"campos\": [\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    },\n    {\n      \"campo\": \"string\",\n      \"mensaje\": \"string\"\n    }\n  ]\n}"
+                      "body": "{\n  \"timestamp\": \"2026-01-01T00:00:00Z\",\n  \"status\": 500,\n  \"error\": \"Internal Server Error\",\n  \"mensaje\": \"Ocurrió un error interno.\"\n}"
                     }
                   ]
                 }

@@ -20,6 +20,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import tools.jackson.databind.json.JsonMapper;
+import ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaService;
 
 /** Regression checks over real HTTP, exclusively against this in-memory database. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
@@ -33,9 +34,15 @@ import tools.jackson.databind.json.JsonMapper;
 })
 @DirtiesContext
 class ReservaDevolucionVariantesHttpTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
     @LocalServerPort int port;
     @Autowired JdbcTemplate db;
     @Autowired JsonMapper mapper;
+    @Autowired ReservaService reservaService;
     private String event;
     private String client;
     private static final String SEAT = "{\"sectorId\":\"SEC-01\",\"fila\":1,\"numero\":2}";
@@ -60,7 +67,7 @@ class ReservaDevolucionVariantesHttpTests {
     private String request(String method, String path, String body, int expected) throws Exception {
         try (HttpClient http = HttpClient.newHttpClient()) {
             var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                    .header("Content-Type", "application/json").header("X-User-Id", client)
+                    .header("Content-Type", "application/json").header("X-User-Roles", "CLIENTE").header("X-User-Id", client)
                     .method(method, body == null ? HttpRequest.BodyPublishers.noBody()
                             : HttpRequest.BodyPublishers.ofString(body));
             var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
@@ -88,6 +95,62 @@ class ReservaDevolucionVariantesHttpTests {
         request("POST", "/disponibilidad/reservas/" + id + "/liberacion",
                 "{\"motivo\":\"DEVOLUCION_APROBADA\",\"devolucionId\":\"" + key
                         + "\",\"detalles\":[" + details + "]}", status);
+    }
+
+    private void assertSummary(String sectorId, int available, int reserved, int sold) throws Exception {
+        var response = mapper.readTree(request("GET", "/disponibilidad/eventos/" + event, null, 200));
+        assertEquals(event, response.get("eventoId").asString());
+        var sector = response.get("sectores").findValues("sectorId");
+        assertEquals(2, sector.size());
+        for (var item : response.get("sectores")) {
+            if (sectorId.equals(item.get("sectorId").asString())) {
+                assertEquals(available, item.get("cantidadDisponible").asInt());
+                assertEquals(reserved, item.get("cantidadReservada").asInt());
+                assertEquals(sold, item.get("cantidadVendida").asInt());
+                assertEquals(sectorId.equals("SEC-01") ? "NUMERADO" : "NO_NUMERADO", item.get("tipo").asString());
+                assertEquals(sectorId.equals("SEC-01") ? 3 : 20, item.get("capacidadTotal").asInt());
+                assertEquals(sectorId.equals("SEC-01"), item.has("asientosDisponibles"));
+                if (item.has("asientosDisponibles")) assertEquals(available, item.get("asientosDisponibles").size());
+                return;
+            }
+        }
+        fail("No se encontró el sector " + sectorId);
+    }
+
+    @Test
+    void availabilitySummaryReflectsReservationConfirmationRefundReleaseAndExpiration() throws Exception {
+        assertSummary("SEC-01", 2, 0, 0);
+        assertSummary("SEC-02", 20, 0, 0);
+        String details = SEAT + "," + QUANTITY;
+        String id = mapper.readTree(reserve("SUMMARY-1", details, 201)).get("reservaId").asString();
+        assertSummary("SEC-01", 1, 1, 0);
+        assertSummary("SEC-02", 18, 2, 0);
+        request("POST", "/disponibilidad/reservas/" + id + "/confirmacion", null, 204);
+        assertSummary("SEC-01", 1, 0, 1);
+        assertSummary("SEC-02", 18, 0, 2);
+        refund(id, UUID.randomUUID().toString(), details, 204);
+        assertSummary("SEC-01", 2, 0, 0);
+        assertSummary("SEC-02", 20, 0, 0);
+
+        String released = mapper.readTree(reserve("SUMMARY-2", details, 201)).get("reservaId").asString();
+        request("POST", "/disponibilidad/reservas/" + released + "/liberacion", "{\"motivo\":\"PAGO_RECHAZADO\"}", 204);
+        assertSummary("SEC-01", 2, 0, 0);
+        assertSummary("SEC-02", 20, 0, 0);
+
+        String expired = mapper.readTree(reserve("SUMMARY-3", details, 201)).get("reservaId").asString();
+        db.update("UPDATE reservas SET expira_en = DATEADD('SECOND', -1, CURRENT_TIMESTAMP) WHERE id = ?", expired);
+        assertEquals(1, reservaService.expirarReservasVencidas());
+        assertSummary("SEC-01", 2, 0, 0);
+        assertSummary("SEC-02", 20, 0, 0);
+    }
+
+    @Test
+    void availabilitySummaryIncludesFullSectors() throws Exception {
+        db.update("UPDATE eventos_disponibilidad SET limite_entradas_por_cliente = 30 WHERE evento_id = ?", event);
+        reserve("SUMMARY-FULL", SEAT + ",{\"sectorId\":\"SEC-01\",\"fila\":1,\"numero\":3},"
+                + "{\"sectorId\":\"SEC-02\",\"cantidad\":20}", 201);
+        assertSummary("SEC-01", 0, 2, 0);
+        assertSummary("SEC-02", 0, 20, 0);
     }
 
     // Includes reservation states/fingerprints, inventory, client counters and the complete refund ledger.
