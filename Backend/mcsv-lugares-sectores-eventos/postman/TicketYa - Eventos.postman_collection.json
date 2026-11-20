@@ -12578,13 +12578,13 @@
       ]
     },
     {
-      "name": "21 Personal de acceso [PROPUESTA PENDIENTE]",
-      "description": "Endpoints aún no implementados. Configurar localmente eventoPersonalId, organizadorPersonalId, correoPersonal, usuarioPersonalId y servicioToken.",
+      "name": "21 Personal de acceso",
+      "description": "Configurar eventoPersonalId, organizadorPersonalId y correoPersonal de un usuario activo con rol PERSONAL_ACCESO en MS6. PA01 guarda el usuarioPersonalId. MS1 debe tener USUARIOS_BASE_URL y SERVICIO_TOKEN configuradas.",
       "item": [
         {
           "name": "PA01 Asignar personal",
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
-            "pm.test('201 asignación activa', function () { pm.response.to.have.status(201); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'usuarioId', 'estado', 'asignadaEn', 'revocadaEn'); pm.expect(j.estado).to.eql('ACTIVA'); });"
+            "pm.test('201 asignación activa', function () { pm.response.to.have.status(201); var j = pm.response.json(); pm.expect(j).to.include.all.keys('eventoId', 'usuarioId', 'estado', 'asignadaEn', 'revocadaEn'); pm.expect(j.estado).to.eql('ACTIVA'); pm.collectionVariables.set('usuarioPersonalId', j.usuarioId); });"
           ] } }],
           "request": {
             "auth": { "type": "noauth" },
@@ -12671,6 +12671,10 @@
     }
   ],
   "variable": [
+    { "key": "eventoPersonalId", "value": "" },
+    { "key": "organizadorPersonalId", "value": "" },
+    { "key": "correoPersonal", "value": "" },
+    { "key": "usuarioPersonalId", "value": "" },
     {
       "key": "baseUrl",
       "value": "http://localhost:8081"

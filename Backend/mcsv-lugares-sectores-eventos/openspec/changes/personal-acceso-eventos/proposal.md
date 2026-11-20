@@ -6,11 +6,11 @@ Entradas (MS5) necesita consultar si una persona está autorizada para validar Q
 
 ## What Changes
 
-- Agregar asignación, listado y revocación por evento para su organizador propietario o un administrador; resolver el correo en MS6 y exigir `PERSONAL_ACCESO`.
+- Agregar asignación, listado y revocación por evento para su organizador propietario o un administrador; resolver el correo en MS6 y exigir un usuario activo con `PERSONAL_ACCESO`.
 - Persistir una sola asignación por par evento/usuario, con estado activo o revocado y fechas; impedir duplicados activos y permitir reactivación.
 - Ofrecer a MS5 una consulta interna sin caché que devuelva `autorizado` según el estado actual.
 - Enviar `X-Service-Token` al consultar MS6, usando `servicio.token`.
-- Preparar documentación y requests Postman, y configurar la URL de MS6 cuando el grupo confirme los valores de host y Docker.
+- Documentar y configurar la URL de MS6: `http://localhost:8087` fuera de Docker y `USUARIOS_BASE_URL` explícita en Docker, sin inventar el nombre del servicio.
 
 ## Capabilities
 

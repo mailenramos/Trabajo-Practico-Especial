@@ -6,8 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -33,7 +38,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.ticketya.gestionlugares.domain.AsignacionPersonalAcceso;
 import com.ticketya.gestionlugares.domain.EstadoPersonalAcceso;
+import com.ticketya.gestionlugares.domain.Evento;
+import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.PersonalAccesoRepository;
+import com.ticketya.gestionlugares.usuarios.http.HttpUsuariosClient;
+import com.ticketya.gestionlugares.service.ResourceNotFoundException;
+import com.ticketya.gestionlugares.service.ServiceUnavailableException;
 
 @SpringBootTest(properties = {"outbox.dispatcher.interval=3600000", "servicio.token=token-prueba"})
 @AutoConfigureMockMvc
@@ -51,7 +61,11 @@ class PersonalAccesoIntegrationTest {
     }
 
     @Autowired private PersonalAccesoRepository repository;
+    @Autowired private EventoRepository eventos;
     @Autowired private MockMvc mockMvc;
+    @MockBean private HttpUsuariosClient usuarios;
+
+    private static final String USUARIO_ID = "b06507ba-403b-4ce2-a828-72845ff212ad";
 
     private static final Instant ASIGNACION = Instant.parse("2030-01-01T10:00:00Z");
     private static final Instant REVOCACION = Instant.parse("2030-01-02T10:00:00Z");
@@ -60,6 +74,8 @@ class PersonalAccesoIntegrationTest {
     @BeforeEach
     void limpiar() {
         repository.deleteAll();
+        eventos.deleteAll();
+        reset(usuarios);
     }
 
     @Test
@@ -119,6 +135,96 @@ class PersonalAccesoIntegrationTest {
         consultar("evento-1", "usuario-1", false);
         assertTrue(repository.reactivarSiRevocada("evento-1", "usuario-1", REACTIVACION).isPresent());
         consultar("evento-1", "usuario-1", true);
+    }
+
+    @Test
+    void gestionaAsignacionYRevocacionConEfectoInmediato() throws Exception {
+        guardarEvento();
+        when(usuarios.consultarPorCorreo("personal@example.com"))
+                .thenReturn(new HttpUsuariosClient.Usuario(USUARIO_ID, List.of("CLIENTE", "PERSONAL_ACCESO"), true));
+        mockMvc.perform(alta("evento-1", "organizador-1", "CLIENTE,ORGANIZADOR", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.usuarioId").value(USUARIO_ID))
+                .andExpect(jsonPath("$.estado").value("ACTIVA"));
+        consultar("evento-1", USUARIO_ID, true);
+        mockMvc.perform(alta("evento-1", "admin-1", "CLIENTE,ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get("/eventos/evento-1/personal-acceso")
+                .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].usuarioId").value(USUARIO_ID));
+        mockMvc.perform(baja("evento-1", USUARIO_ID, "organizador-1", "ORGANIZADOR"))
+                .andExpect(status().isNoContent());
+        Instant revocadaEn = repository.findByEventoIdAndUsuarioId("evento-1", USUARIO_ID).orElseThrow().getRevocadaEn();
+        consultar("evento-1", USUARIO_ID, false);
+        mockMvc.perform(baja("evento-1", USUARIO_ID, "admin-1", "ADMIN"))
+                .andExpect(status().isNoContent());
+        assertEquals(revocadaEn, repository.findByEventoIdAndUsuarioId("evento-1", USUARIO_ID).orElseThrow().getRevocadaEn());
+        mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.estado").value("ACTIVA"))
+                .andExpect(jsonPath("$.revocadaEn").doesNotExist());
+        assertEquals(1, repository.count());
+        consultar("evento-1", USUARIO_ID, true);
+        mockMvc.perform(baja("evento-1", "ausente", "admin-1", "ADMIN")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deniegaIdentidadesInsuficientesYEventoInexistente() throws Exception {
+        guardarEvento();
+        mockMvc.perform(alta("evento-1", "otro", "ORGANIZADOR", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/eventos/evento-1/personal-acceso").header("X-User-Id", "organizador-1")
+                .header("X-User-Roles", "CLIENTE")).andExpect(status().isForbidden());
+        mockMvc.perform(baja("evento-1", USUARIO_ID, "otro", "ORGANIZADOR")).andExpect(status().isForbidden());
+        mockMvc.perform(alta("evento-inexistente", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"no-es-correo\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(usuarios);
+        assertEquals(0, repository.count());
+    }
+
+    @Test
+    void fallasDeMs6NoCreanNiReactivanAsignaciones() throws Exception {
+        guardarEvento();
+        when(usuarios.consultarPorCorreo("personal@example.com"))
+                .thenThrow(new ServiceUnavailableException("Servicio de usuarios no disponible"));
+        mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                .andExpect(status().isServiceUnavailable());
+        assertEquals(0, repository.count());
+        reset(usuarios);
+        repository.insert(nueva("evento-1", USUARIO_ID));
+        repository.revocarSiActiva("evento-1", USUARIO_ID, REVOCACION);
+        when(usuarios.consultarPorCorreo("personal@example.com"))
+                .thenReturn(new HttpUsuariosClient.Usuario(USUARIO_ID, List.of("PERSONAL_ACCESO"), false))
+                .thenReturn(new HttpUsuariosClient.Usuario(USUARIO_ID, List.of("CLIENTE"), true))
+                .thenThrow(new ResourceNotFoundException("Usuario no encontrado"))
+                .thenThrow(new ServiceUnavailableException("Servicio de usuarios no disponible"));
+        for (int esperado : List.of(400, 400, 404, 503)) {
+            mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                    .andExpect(status().is(esperado));
+            var asignacion = repository.findByEventoIdAndUsuarioId("evento-1", USUARIO_ID).orElseThrow();
+            assertEquals(EstadoPersonalAcceso.REVOCADA, asignacion.getEstado());
+            assertEquals(REVOCACION, asignacion.getRevocadaEn());
+            assertEquals(1, repository.count());
+        }
+    }
+
+    private void guardarEvento() {
+        Evento evento = Evento.borrador("organizador-1", "lugar-1", "CABA", "Evento",
+                "Descripción", "MUSICA", List.of(), Instant.parse("2030-01-01T10:00:00Z"), 4, List.of());
+        evento.setId("evento-1");
+        eventos.save(evento);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder alta(
+            String eventoId, String user, String roles, String body) {
+        return post("/eventos/{eventoId}/personal-acceso", eventoId).header("X-User-Id", user)
+                .header("X-User-Roles", roles).contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder baja(
+            String eventoId, String usuarioId, String user, String roles) {
+        return delete("/eventos/{eventoId}/personal-acceso/{usuarioId}", eventoId, usuarioId)
+                .header("X-User-Id", user).header("X-User-Roles", roles);
     }
 
     private void consultar(String eventoId, String usuarioId, boolean autorizado) throws Exception {

@@ -103,10 +103,14 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | PUT | `/eventos/{eventoId}/venta/suspender` | `ADMIN` | Suspende la venta sin crear un estado formal nuevo. |
 | PUT | `/eventos/{eventoId}/venta/reactivar` | `ADMIN` | Reactiva la venta. |
 | PUT | `/eventos/{eventoId}/cancelar` | `ADMIN` | Cancela el evento después de confirmarlo con Reservas; body opcional `{"motivo":"..."}`. |
+| POST | `/eventos/{eventoId}/personal-acceso` | `ORGANIZADOR` dueño o `ADMIN` | Asigna un usuario activo con rol `PERSONAL_ACCESO`, consultado en MS6 por correo. |
+| GET | `/eventos/{eventoId}/personal-acceso` | `ORGANIZADOR` dueño o `ADMIN` | Lista las asignaciones activas y revocadas. |
+| DELETE | `/eventos/{eventoId}/personal-acceso/{usuarioId}` | `ORGANIZADOR` dueño o `ADMIN` | Revoca una asignación de forma idempotente. |
 | PUT | `/eventos/{eventoId}/disponibilidad` | Interno: Reservas | Recibe el aviso de agotado o recuperación. No exige `X-User-Id` ni `X-User-Roles`; no debe exponerse por el API Gateway. |
 | GET | `/internal/eventos/{eventoId}` | Interno: Compras y otros servicios | Consulta datos actuales del evento en cualquier estado. No exige headers de usuario y no debe exponerse por el API Gateway. |
 | PUT | `/internal/eventos/{eventoId}/politica-fila` | Interno: Fila virtual (MS7) | Activa o desactiva `requiereFila`; no exige headers de usuario ni se expone por el API Gateway. |
 | GET | `/internal/eventos-publicados` | Interno: Preferencias/recomendaciones (MS8) | Devuelve eventos publicados o agotados paginados. No exige headers de usuario y no debe exponerse por el API Gateway. |
+| GET | `/internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` | Interno: Entradas (MS5) | Consulta la autorización actual sin caché ni headers de usuario; fuera del Gateway. |
 
 ## Identidad y usuarios de prueba
 
@@ -180,7 +184,7 @@ La comunicación entre servicios es directa, por REST/JSON. Las llamadas salient
 
 MS1 acepta `X-Correlation-Id` de hasta 100 caracteres ASCII (letras, números, `-`, `_` y `.`); si falta o es inválido genera un UUID. Lo devuelve en la respuesta y lo incluye en los logs de stdout. Por cada solicitud, salvo `/actuator/**`, registra método, ruta sin query, usuario si existe, estado y duración; no registra tokens ni cuerpos.
 
-El ID se propaga a Reservas y a las llamadas de outbox. Los avisos de publicación y cancelación lo guardan para conservarlo en los reintentos; los avisos antiguos sin ID generan uno al despacharse. Las llamadas programadas sin contexto también generan uno. El cliente de MS6 aún no está implementado y deberá incorporar esta propagación cuando se agregue. La recolección de logs corresponde al Compose general.
+El ID se propaga a Reservas, MS6 y las llamadas de outbox. Los avisos de publicación y cancelación lo guardan para conservarlo en los reintentos; los avisos antiguos sin ID generan uno al despacharse. Las llamadas programadas sin contexto también generan uno. La recolección de logs corresponde al Compose general.
 
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
@@ -218,15 +222,15 @@ Ambas rutas son internas, sin headers de usuario y fuera del Gateway.
 - **Consulta interna de eventos publicados:** MS8 llama `GET /internal/eventos-publicados` sin headers de usuario. La ruta devuelve eventos `publicado` o `agotado`, ordenados por fecha e ID, con `page` (default `0`) y `size` (default `100`, máximo `200`). No se publica por el API Gateway.
 - **Aviso de publicación:** después de que Reservas confirma la inicialización, MS1 guarda el evento publicado y un aviso `PUBLICACION` en la misma transacción MongoDB. El aviso usa ID `publicacion-{eventoId}`, destino `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados` y payload `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`.
 
-### Personal de acceso — propuesta pendiente de implementación
+### Personal de acceso
 
-El change `personal-acceso-eventos` propone `POST` y `GET /eventos/{eventoId}/personal-acceso` y `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}`, para el `ORGANIZADOR` titular o `ADMIN`. El alta consultará el correo en MS6, exigirá el rol `PERSONAL_ACCESO`, devolverá `201` o `409` si ya está activa y permitirá reactivar una asignación revocada. Una caída de MS6 responderá `503` sin guardar. La revocación conservará el registro y será idempotente.
+El `ORGANIZADOR` titular o `ADMIN` puede asignar con `POST /eventos/{eventoId}/personal-acceso` y `{"correo":"personal@example.com"}`, listar con `GET` y revocar con `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}`. El alta consulta a MS6, exige `activo=true` y el rol `PERSONAL_ACCESO`, y devuelve `201`; una asignación activa duplicada responde `409` y una revocada se reactiva. Correo inexistente responde `404`, usuario inactivo o sin rol responde `400`, y fallo o error de autenticación con MS6 responde `503`, sin guardar. Revocar es idempotente y conserva el registro. Por simplicidad se guardan solo el estado y las fechas de la última activación y revocación, sin historial completo.
 
-MS5 consultará `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` en cada validación: responderá `autorizado: false` si no hay una asignación activa. Para evitar datos obsoletos no se usará caché; para mantener el alcance mínimo se conservarán solo el estado y las fechas de la última activación y revocación, no un historial completo.
+MS5 consulta `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` en cada validación: devuelve `200` con `autorizado: false` incluso si el evento o la asignación no existen. Lee el estado actual sin caché, no exige headers de usuario y queda fuera del Gateway.
 
-La consulta de autorización será interna, sin headers de usuario y fuera del Gateway. MS1 enviará `X-Service-Token` al consultar MS6.
+MS1 consulta `GET {USUARIOS_BASE_URL}/internal/usuarios/por-correo?correo=...` con `X-Service-Token` y `X-Correlation-Id`, con timeouts de conexión de 2 s y lectura de 5 s. Fuera de Docker la URL por defecto es `http://localhost:8087`; en Docker debe configurarse `USUARIOS_BASE_URL` con una dirección alcanzable desde el contenedor, ya que el nombre de servicio aún no está definido. Sin URL o token el alta responde `503`.
 
-La variable propuesta `USUARIOS_BASE_URL` configurará la URL de MS6; **TODO:** confirmar con el grupo los defaults de host y Docker y el contrato de respuesta de MS6. Todavía no está configurada en la aplicación ni en Compose.
+La carpeta 21 de Postman requiere MS6 disponible, un evento existente y un usuario activo con rol `PERSONAL_ACCESO`. Configurá `eventoPersonalId`, `organizadorPersonalId` y `correoPersonal`; la primera request guarda `usuarioPersonalId` para las siguientes.
 
 ### Outbox de avisos
 
@@ -276,6 +280,7 @@ Defaults aplicados por el Compose de Docker:
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
+| `USUARIOS_BASE_URL` | `usuarios.base-url` | Sin default; configurar para asignar personal |
 | `PREFERENCIAS_BASE_URL` | `preferencias.base-url` | `http://preferencias:8089` |
 | `SERVICIO_TOKEN` | `servicio.token` | Sin default; obligatorio con perfil `docker` |
 | `CATALOGO_CACHE_TTL` | `catalogo.cache.ttl` | `30s` |

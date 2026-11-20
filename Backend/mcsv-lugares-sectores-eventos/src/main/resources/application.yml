@@ -31,6 +31,9 @@ reservas:
 compras:
   base-url: ${COMPRAS_BASE_URL:http://localhost:8083}
 
+usuarios:
+  base-url: ${USUARIOS_BASE_URL:http://localhost:8087}
+
 servicio:
   token: ${SERVICIO_TOKEN:}
 

@@ -189,6 +189,7 @@ class OpenApiDocumentationTest {
             assertTrue(java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(), false)
                     .noneMatch(parameter -> parameter.path("name").asText().startsWith("X-User-")));
         }
+
         assertEventErrors(put.path("responses"), "200", "400", "404", "409", "500");
         JsonNode request = put.path("requestBody");
         assertTrue(request.path("required").asBoolean());
@@ -202,6 +203,29 @@ class OpenApiDocumentationTest {
                 .path("examples").path("Evento para Compras").path("value");
         assertTrue(example.has("requiereFila") && example.has("fechaHora") && example.has("organizadorId"));
         assertTrue(example.path("sectores").get(0).has("tipo"));
+    }
+
+    @Test
+    void documentaGestionYConsultaInternaDePersonal() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode paths = new ObjectMapper().readTree(body).path("paths");
+        JsonNode gestion = paths.path("/eventos/{eventoId}/personal-acceso");
+        for (String code : List.of("201", "400", "403", "404", "409", "503")) {
+            assertTrue(gestion.path("post").path("responses").has(code));
+        }
+        for (String code : List.of("200", "403", "404")) {
+            assertTrue(gestion.path("get").path("responses").has(code));
+        }
+        for (String code : List.of("204", "403", "404")) {
+            assertTrue(paths.path("/eventos/{eventoId}/personal-acceso/{usuarioId}").path("delete")
+                    .path("responses").has(code));
+        }
+        JsonNode interno = paths.path("/internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion").path("get");
+        assertTrue(interno.path("description").asText().contains("Sin caché"));
+        assertTrue(java.util.stream.StreamSupport.stream(interno.path("parameters").spliterator(), false)
+                .noneMatch(parameter -> parameter.path("name").asText().startsWith("X-User-")));
+        assertTrue(interno.path("responses").has("200"));
     }
 
     private static void assertEventErrors(JsonNode responses, String... codes) {

@@ -26,6 +26,7 @@ services:
       MONGODB_URI: mongodb://mongodb:27017/ticketya_lugares?replicaSet=rs0
       RESERVAS_BASE_URL: ${RESERVAS_BASE_URL:-http://reservas:8080}
       COMPRAS_BASE_URL: ${COMPRAS_BASE_URL:-http://compras:8083}
+      USUARIOS_BASE_URL: ${USUARIOS_BASE_URL:-}
       PREFERENCIAS_BASE_URL: ${PREFERENCIAS_BASE_URL:-http://preferencias:8089}
       SERVICIO_TOKEN: ${SERVICIO_TOKEN}
       CATALOGO_CACHE_TTL: ${CATALOGO_CACHE_TTL:-30s}
