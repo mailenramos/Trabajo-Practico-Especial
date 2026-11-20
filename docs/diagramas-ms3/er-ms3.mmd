@@ -6,6 +6,8 @@ erDiagram
     solicitudes_devolucion ||--o| reintegros : "id = refundRequestId"
     reintegros ||--o{ entradas_de_reintegro : "reintegroId"
     cancelaciones_evento ||--o{ compras : "eventoId"
+    modificaciones_evento ||--o{ compras : "eventoId"
+    compras ||--o{ avisos_pendientes : "recursoId (o el de la devolución, reintegro o evento)"
 
     compras {
         UUID id PK
@@ -14,7 +16,8 @@ erDiagram
         string reservaId UK
         string eventoId
         string eventoNombre
-        datetime eventoFechaInicio
+        datetime eventoFechaInicio "se actualiza si el evento cambia de fecha"
+        string tipoEvento "copiado de Eventos; nulo en compras anteriores"
         decimal total
         string medioDePago
         string pagoId "ID del pago en Pagos"
@@ -95,4 +98,27 @@ erDiagram
         datetime tomadaEn
         int entradasMarcadas
         string ultimoError
+    }
+    modificaciones_evento {
+        long id PK
+        string evento_id "UK junto a version"
+        int version "UK junto a evento_id"
+        datetime recibida_en
+    }
+    avisos_pendientes {
+        long id PK
+        string acontecimiento_id "UK con tipo y usuario_id"
+        string tipo "UK; COMPRA_CONFIRMADA, EVENTO_MODIFICADO, ..."
+        string usuario_id "UK; destinatario"
+        string recurso_id
+        string correlacion_id
+        json datos
+        string estado "PENDIENTE, PROCESANDO, ENVIADO, ERROR_FINAL"
+        int intentos
+        datetime proximo_intento
+        string ultimo_error
+        datetime creado_en
+        string toma "ejecución que lo tomó"
+        datetime vence_en "límite de PROCESANDO"
+        datetime enviado_en
     }

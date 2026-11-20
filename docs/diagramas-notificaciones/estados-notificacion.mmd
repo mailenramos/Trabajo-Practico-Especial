@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> PENDIENTE: aviso recibido (POST 202)
+    PENDIENTE --> PROCESANDO: la tarea de envío la toma (UPDATE condicional)
+    PROCESANDO --> ENVIADA: SMTP acepta el correo
+    PROCESANDO --> PENDIENTE: fallo temporal con intentos restantes
+    PROCESANDO --> ERROR_FINAL: destinatario inexistente o sin correo
+    PROCESANDO --> ERROR_FINAL: fallo temporal y se agotaron los intentos
+    PROCESANDO --> PENDIENTE: venció en PROCESANDO (recuperación)
+    PROCESANDO --> ERROR_FINAL: venció en PROCESANDO sin intentos restantes
+    ENVIADA --> [*]
+    ERROR_FINAL --> [*]

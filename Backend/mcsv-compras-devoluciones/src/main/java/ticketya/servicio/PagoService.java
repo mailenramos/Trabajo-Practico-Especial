@@ -14,6 +14,7 @@ import ticketya.cliente.EntradasCliente.EntradaEmitida;
 import ticketya.cliente.EntradasCliente.EventoEmision;
 import ticketya.cliente.EntradasCliente.LineaEmision;
 import ticketya.cliente.EntradasCliente.SolicitudEmision;
+import ticketya.cliente.EventoCerradoException;
 import ticketya.cliente.PagosCliente;
 import ticketya.cliente.PagosCliente.ConflictoEnPagosException;
 import ticketya.cliente.PagosCliente.EstadoPago;
@@ -88,10 +89,11 @@ public class PagoService {
     private final Duration esperaEntreIntentos;
     private final Duration plazoEnProceso;
     private final ReintegroService reintegroService;
+    private final AvisoService avisos;
 
     public PagoService(CompraRepository compras, ClaveIdempotenciaRepository claves,
                        ReservasCliente reservas, PagosCliente pagos, EntradasCliente entradas,
-                       ReintegroService reintegroService,
+                       ReintegroService reintegroService, AvisoService avisos,
                        TransactionTemplate transaccion, JsonMapper json,
                        @Value("${compras.emision.intentos:3}") int intentosEmision,
                        @Value("${compras.emision.espera-entre-intentos:200ms}") Duration esperaEntreIntentos,
@@ -107,6 +109,7 @@ public class PagoService {
         this.esperaEntreIntentos = esperaEntreIntentos;
         this.plazoEnProceso = plazoEnProceso;
         this.reintegroService = reintegroService;
+        this.avisos = avisos;
     }
 
     // ------------------------------------------------------------------ pedido de pago
@@ -263,6 +266,10 @@ public class PagoService {
             compras.saveAndFlush(compra);
         }
 
+        // Con la venta ya confirmada por un pedido anterior, ese pedido pudo haber emitido las
+        // entradas sin recibir la respuesta: la emisión es incierta
+        boolean emisionIncierta = compra.isVentaConfirmada();
+
         // 2. Confirmación de la venta (la validación definitiva de la reserva)
         if (!compra.isVentaConfirmada()) {
             try {
@@ -274,17 +281,26 @@ public class PagoService {
             compras.saveAndFlush(compra);
         }
 
-        // 3. Emisión de las entradas, con reintentos
-        if (!emitirEntradas(compra)) {
+        // 3. Emisión de las entradas, con reintentos. Un evento cerrado no se reintenta
+        boolean emitidas;
+        try {
+            emitidas = emitirEntradas(compra, emisionIncierta);
+        } catch (EventoCerradoException e) {
+            return eventoCerrado(compra);
+        }
+        if (!emitidas) {
             compras.saveAndFlush(compra);
             throw new OperacionInterrumpida(respuestaCompra(202, compraId));
         }
         compras.saveAndFlush(compra);
 
         // 4. Recién con las entradas emitidas, la compra pasa a confirmada. Solo si sigue
-        // pendiente: una compra cerrada (por ejemplo, por la cancelación del evento) no se reabre
+        // pendiente: una compra cerrada (por ejemplo, por la cancelación del evento) no se reabre.
+        // Los avisos de compra confirmada y entradas disponibles se guardan en esta misma transacción
         if (compras.cambiarEstado(compraId, EstadoCompra.PENDIENTE, EstadoCompra.CONFIRMADA) == 0) {
             log.warn("La compra {} dejó de estar pendiente antes de confirmarla: no se confirma", compraId);
+        } else {
+            avisos.compraConfirmada(compraId);
         }
         return respuestaCompra(200, compraId);
     }
@@ -346,6 +362,31 @@ public class PagoService {
         return respuestaCompra(200, compraId);
     }
 
+    /**
+     * El pago se aprobó pero Entradas rechazó la emisión con 409 EVENTO_CERRADO: el evento se
+     * canceló y Entradas ya registró su cierre. Se trata como una compra pendiente de un evento
+     * cancelado ({@link CancelacionService}): la compra queda FALLIDA, sin entradas, y se registra un
+     * reintegro automático por el total con origen CANCELACION_EVENTO, junto con el aviso
+     * EVENTO_CANCELADO para el comprador, en esta misma transacción. Todo depende del cambio
+     * condicional a fallida, así una repetición no crea un segundo reintegro ni un segundo aviso.
+     * Después se pide el reintegro a Pagos; si no responde, queda pendiente con el error y lo retoma
+     * la cancelación del evento (si sigue en proceso) o un administrador.
+     */
+    private ResultadoPago eventoCerrado(Compra compra) {
+        UUID compraId = compra.getId();
+        String pagoId = compra.getPagoId();
+        log.warn("Compra {} con pago {} aprobado pero el evento {} está cerrado: reintegro automático",
+                compraId, pagoId, compra.getEventoId());
+        compras.saveAndFlush(compra);
+        if (compras.cambiarEstado(compraId, EstadoCompra.PENDIENTE, EstadoCompra.FALLIDA) == 1) {
+            Reintegro reintegro = reintegroService.registrar(compraId, UUID.randomUUID(), compra.getTotal(),
+                    CancelacionService.MOTIVO_REINTEGRO, OrigenReintegro.CANCELACION_EVENTO);
+            avisos.eventoCanceladoParaCompra(compra);
+            reintegroService.pedir(reintegro, pagoId);
+        }
+        return respuestaCompra(200, compraId);
+    }
+
     /** C-4: pago rechazado. La compra queda fallida y se liberan los lugares. */
     private ResultadoPago rechazar(Compra compra) {
         compras.saveAndFlush(compra);
@@ -362,9 +403,12 @@ public class PagoService {
 
     /**
      * Pide la emisión hasta {@code intentosEmision} veces y guarda el entradaId de cada
-     * lugar. Entradas es idempotente por idCompra, así que repetir es seguro.
+     * lugar. Entradas es idempotente por idCompra, así que repetir es seguro. Antes de repetir
+     * una emisión incierta (un intento sin respuesta, en este pedido o en uno anterior) se consultan
+     * las entradas de la compra: si ya se emitieron se asignan sin volver a emitir; si la lista está
+     * vacía, se emite como siempre.
      */
-    private boolean emitirEntradas(Compra compra) {
+    private boolean emitirEntradas(Compra compra, boolean emisionIncierta) {
         if (compra.getDetalle().stream().allMatch(d -> d.getEntradaId() != null)) {
             return true;
         }
@@ -373,11 +417,22 @@ public class PagoService {
                 compra.getDetalle().stream()
                         .map(d -> new LineaEmision(d.getSectorId(), d.getSectorNombre(), d.getFila(), d.getNumero()))
                         .toList());
+        boolean incierta = emisionIncierta;
         for (int intento = 1; intento <= intentosEmision; intento++) {
             try {
+                if (incierta) {
+                    List<EntradaEmitida> yaEmitidas = entradas.listarPorCompra(compra.getId().toString());
+                    if (!yaEmitidas.isEmpty()) {
+                        log.info("Las entradas de la compra {} ya estaban emitidas: se asignan sin emitir",
+                                compra.getId());
+                        asignarEntradas(compra, yaEmitidas);
+                        return true;
+                    }
+                }
                 asignarEntradas(compra, entradas.emitir(solicitud));
                 return true;
             } catch (ServicioExternoException e) {
+                incierta = true;
                 log.warn("Emisión de entradas de la compra {} falló (intento {} de {}): {}",
                         compra.getId(), intento, intentosEmision, e.getMessage());
                 if (intento < intentosEmision) {

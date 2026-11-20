@@ -1,0 +1,13 @@
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+*.log
+hs_err_pid*
+salida-test.txt
+# Nunca mandar secretos al contexto de build
+.env
+.env.*
+*.pem
+*.key

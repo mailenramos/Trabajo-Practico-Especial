@@ -1,11 +1,15 @@
 package ticketya.cliente.rest;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import ticketya.cliente.ContratoInvalidoException;
 import ticketya.cliente.EntradasCliente;
 import ticketya.cliente.EstadoEntradaConflictoException;
+import ticketya.cliente.EventoCerradoException;
 import ticketya.cliente.ServicioExternoException;
 
 import java.time.Duration;
@@ -29,28 +33,70 @@ import java.util.Optional;
 @Component
 public class EntradasClienteRest extends ClienteRest implements EntradasCliente {
 
+    private static final Logger log = LoggerFactory.getLogger(EntradasClienteRest.class);
+
+    /**
+     * Todas las llamadas llevan X-Service-Token (SERVICIO_TOKEN) y X-Correlation-Id. Sin token
+     * configurado no se envía el encabezado: Entradas responde 403, que es una falla técnica
+     * reintentable (se corrige configurando el token).
+     */
+    @Autowired
     public EntradasClienteRest(@Value("${servicios.entradas.url}") String url,
+                               @Value("${compras.seguridad.token-servicio:}") String token,
                                @Value("${servicios.timeout-conexion:2s}") Duration conexion,
                                @Value("${servicios.timeout-lectura:5s}") Duration lectura) {
-        super("Entradas", url, conexion, lectura);
+        super("Entradas", url, conexion, lectura, new EncabezadosDeServicio(token));
+        if (token == null || token.isBlank()) {
+            log.warn("SERVICIO_TOKEN no está configurado: Entradas va a rechazar las llamadas con 403");
+        }
     }
 
+    /** Sin token de servicio (pruebas del contrato que no dependen de los encabezados). */
+    EntradasClienteRest(String url, Duration conexion, Duration lectura) {
+        this(url, null, conexion, lectura);
+    }
+
+    /**
+     * Un 409 EVENTO_CERRADO es un conflicto de negocio ({@link EventoCerradoException}, sin
+     * reintentos); cualquier otro 409 (por ejemplo, IDEMPOTENCIA_CONFLICTO) sigue siendo una falla.
+     */
     @Override
     public List<EntradaEmitida> emitir(SolicitudEmision solicitud) {
         JsonNode respuesta = llamar("emitir", () -> http.post().uri("/internal/entradas/emision")
-                .body(solicitud).retrieve().body(JsonNode.class));
+                .body(solicitud).retrieve().body(JsonNode.class),
+                (status, ex) -> {
+                    if (status.value() == 409 && "EVENTO_CERRADO".equals(codigoDeError(ex))) {
+                        throw new EventoCerradoException(
+                                solicitud.evento() == null ? null : solicitud.evento().id(), ex);
+                    }
+                    return null;
+                });
         if (respuesta == null) {
             throw new ServicioExternoException("Entradas", "Entradas respondió sin cuerpo");
         }
+        return leerEntradas(respuesta);
+    }
+
+    /**
+     * GET /internal/compras/{idCompra}/entradas (Entrega 2): consulta sin emitir. Una lista vacía
+     * (o un 2xx sin cuerpo) es "no se emitió". La envoltura se lee igual que en la emisión.
+     */
+    @Override
+    public List<EntradaEmitida> listarPorCompra(String idCompra) {
+        JsonNode respuesta = llamar("listarPorCompra",
+                () -> http.get().uri("/internal/compras/{idCompra}/entradas", idCompra).retrieve().body(JsonNode.class));
+        return respuesta == null ? List.of() : leerEntradas(respuesta);
+    }
+
+    /** Lista de entradas, como arreglo o dentro de "entradas". El sector puede venir plano o anidado. */
+    private static List<EntradaEmitida> leerEntradas(JsonNode respuesta) {
         JsonNode lista = respuesta.isArray() ? respuesta : respuesta.path("entradas");
         List<EntradaEmitida> entradas = new ArrayList<>();
         for (JsonNode e : lista) {
-            entradas.add(new EntradaEmitida(
-                    texto(e, "idEntrada"),
-                    e.has("idSector") ? texto(e, "idSector")
-                            : e.has("sectorId") ? texto(e, "sectorId") : texto(e, "sector"),
-                    entero(e, "fila"),
-                    entero(e, "numero"),
+            String sector = e.has("idSector") ? texto(e, "idSector")
+                    : e.has("sectorId") ? texto(e, "sectorId")
+                    : e.path("sector").isObject() ? texto(e.path("sector"), "id") : texto(e, "sector");
+            entradas.add(new EntradaEmitida(texto(e, "idEntrada"), sector, entero(e, "fila"), entero(e, "numero"),
                     texto(e, "codigoQr")));
         }
         return entradas;
@@ -119,21 +165,21 @@ public class EntradasClienteRest extends ClienteRest implements EntradasCliente 
     }
 
     /**
-     * POST /internal/eventos/{idEvento}/entradas/reintegro. PROVISORIO: no figura en el contrato
-     * confirmado por Entradas; se mantiene la propuesta anterior (contrato a acordar).
-     * Responde la cantidad marcada en entradasMarcadas; un 2xx sin ese campo cuenta como 0,
-     * porque el dato es solo informativo.
+     * POST /internal/eventos/{idEvento}/entradas/reintegro (Entrega 2). Responde
+     * {@code entradasMarcadas} y {@code cerrado}. Un 2xx sin entradasMarcadas cuenta como 0, porque
+     * el dato es solo informativo; sin cerrado (o sin cuerpo) el cierre NO está confirmado.
      */
     @Override
-    public int marcarEntradasDelEvento(String idEvento) {
+    public ResultadoCierre marcarEntradasDelEvento(String idEvento) {
         JsonNode respuesta = llamar("marcarEntradasDelEvento",
                 () -> http.post().uri("/internal/eventos/{idEvento}/entradas/reintegro", idEvento)
                         .retrieve().body(JsonNode.class));
         if (respuesta == null) {
-            return 0;
+            return new ResultadoCierre(0, false);
         }
         Integer marcadas = entero(respuesta, "entradasMarcadas");
-        return marcadas == null ? 0 : marcadas;
+        JsonNode cerrado = respuesta.path("cerrado");
+        return new ResultadoCierre(marcadas == null ? 0 : marcadas, cerrado.isBoolean() && cerrado.asBoolean());
     }
 
     /** Marca interna para un 404, distinta de un cuerpo vacío. */

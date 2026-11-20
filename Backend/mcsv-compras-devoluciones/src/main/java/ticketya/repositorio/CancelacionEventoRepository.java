@@ -43,6 +43,19 @@ public interface CancelacionEventoRepository extends JpaRepository<CancelacionEv
             where c.eventoId = :eventoId""")
     int registrarMarcacion(@Param("eventoId") String eventoId, @Param("marcadas") int marcadas);
 
+    /**
+     * Entradas respondió pero no confirmó el cierre: suma lo que informó, guarda el error y deja la
+     * marcación pendiente, para volver a pedirla al retomar (es idempotente en Entradas).
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update CancelacionEvento c
+            set c.entradasMarcadas = coalesce(c.entradasMarcadas, 0) + :marcadas, c.ultimoError = :error
+            where c.eventoId = :eventoId""")
+    int registrarCierreNoConfirmado(@Param("eventoId") String eventoId, @Param("marcadas") int marcadas,
+                                    @Param("error") String error);
+
     /** Marcación fallida: guarda el error y deja la marcación pendiente, para reintentarla al retomar. */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
