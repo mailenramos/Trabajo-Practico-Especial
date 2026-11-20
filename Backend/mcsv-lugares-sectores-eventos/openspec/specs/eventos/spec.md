@@ -163,7 +163,7 @@ El servicio SHALL publicar un evento solo cuando todos los sectores tengan preci
 - **THEN** responde `403 Forbidden` si es otro organizador o no incluye `ORGANIZADOR`, o `401 Unauthorized` si falta la identidad o la lista de roles, y el evento permanece en borrador
 
 ### Requirement: Administrar suspensión, reactivación y cancelación
-El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Roles` incluya `ADMIN` suspender o reactivar ventas y cancelar eventos elegibles, sin mezclar la suspensión con el estado formal. Cuando una operación local origine un aviso a otro servicio, SHALL persistir el cambio de evento y el aviso outbox en la misma transacción MongoDB. El fallo posterior de entrega SHALL no revertir el cambio ni afectar la respuesta exitosa al usuario.
+Solo usuarios autenticados cuya lista `X-User-Roles` incluya `ADMIN` SHALL suspender o reactivar ventas y cancelar eventos elegibles. La suspensión y reactivación SHALL NOT cambiar el estado formal. La intención de cancelar SHALL persistirse antes de llamar a Reservas. Si una operación local origina avisos, SHALL guardar el cambio y los avisos outbox en la misma transacción MongoDB. Un fallo posterior de entrega SHALL NOT revertir el cambio ni afectar la respuesta exitosa.
 
 #### Scenario: Suspender venta tras confirmación de Reservas
 - **GIVEN** un evento `publicado` o `agotado`
@@ -177,13 +177,18 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 
 #### Scenario: No suspender ni reactivar si Reservas falla
 - **GIVEN** un evento cuyo estado local permite suspender o reactivar
-- **WHEN** Reservas devuelve error o no responde antes del cambio local
+- **WHEN** Reservas no responde o devuelve un error distinto de `409` antes del cambio local
 - **THEN** el estado y `ventaSuspendida` no cambian y se responde `503 Service Unavailable`
 
+#### Scenario: Conflicto de Reservas al suspender o reactivar
+- **GIVEN** un evento cuyo estado local permite suspender o reactivar
+- **WHEN** Reservas responde `409` al cambiar el estado de venta
+- **THEN** MS1 responde `409 Conflict` sin modificar el evento
+
 #### Scenario: Cancelar tras confirmación de Reservas y notificar a Compras
-- **GIVEN** un evento `publicado` o `agotado`
-- **WHEN** un administrador autenticado con `X-User-Roles` que incluye `ADMIN` lo cancela y Reservas confirma con `204`
-- **THEN** el evento pasa a `cancelado`, se registra el aviso outbox en la misma transacción MongoDB que el cambio local, se intenta entregarlo a Compras y el administrador recibe `200 OK`
+- **GIVEN** un evento `publicado` o `agotado` con intención de cancelación persistida
+- **WHEN** Reservas confirma con `204` y se confirma la transacción local
+- **THEN** el evento pasa a `cancelado`, se registran los avisos a Compras y MS7 en la misma transacción y el administrador recibe `200 OK`; se intenta entregar los avisos sin revertir la cancelación si fallan
 
 #### Scenario: Cancelar con motivo omitido
 - **GIVEN** un evento `publicado` o `agotado`
@@ -193,7 +198,7 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 #### Scenario: Compras acepta el aviso de cancelación
 - **GIVEN** Reservas confirmó la cancelación y el evento y el aviso outbox quedaron confirmados localmente
 - **WHEN** Compras responde con cualquier `2xx` al aviso
-- **THEN** el aviso pasa a `ENTREGADO` porque Compras aceptó la recepción, sin asumir que terminó su procesamiento, y el administrador recibe `200 OK`
+- **THEN** el aviso pasa a `ENTREGADO` porque Compras aceptó la recepción, sin asumir que terminó su procesamiento o los reintegros, y el administrador recibe `200 OK`
 
 #### Scenario: Compras ya procesó el aviso de cancelación
 - **GIVEN** Reservas confirmó la cancelación y el aviso outbox quedó confirmado localmente
@@ -201,13 +206,13 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 - **THEN** el aviso pasa a `ENTREGADO` y no vuelve a entregarse automáticamente
 
 #### Scenario: No cancelar si Reservas falla
-- **GIVEN** un evento `publicado` o `agotado`
-- **WHEN** Reservas falla o no responde antes del cambio local
-- **THEN** el evento conserva su estado actual, no se registra aviso outbox a Compras y se responde `503 Service Unavailable`
+- **GIVEN** un evento `publicado` o `agotado` con intención de cancelar persistida
+- **WHEN** Reservas falla o no responde durante el intento inmediato
+- **THEN** el evento conserva su estado formal, no se crean aún avisos a Compras ni MS7, responde `503 Service Unavailable` y la intención queda sujeta a la política de recuperación de outbox
 
 #### Scenario: Compras no responde al aviso de cancelación
 - **GIVEN** un evento cancelable y Reservas confirmó la cancelación
-- **WHEN** la transacción local confirma el evento cancelado y el aviso outbox, pero Compras falla o no responde al intento inmediato
+- **WHEN** la transacción local confirma el evento cancelado y los avisos outbox, pero Compras falla o no responde al intento inmediato
 - **THEN** la cancelación sigue hecha, el administrador recibe `200 OK` y el aviso permanece `PENDIENTE` para reintento
 
 #### Scenario: Reenviar aviso de cancelación pendiente
@@ -218,7 +223,7 @@ El servicio SHALL permitir solo a un usuario autenticado cuya lista `X-User-Role
 #### Scenario: Rechazar cancelación de evento finalizado o cancelado
 - **GIVEN** un evento `finalizado` o `cancelado`
 - **WHEN** un administrador intenta cancelarlo
-- **THEN** no cambia el evento ni duplica el aviso y responde `409 Conflict`
+- **THEN** no cambia el evento ni duplica los avisos y responde `409 Conflict`
 
 #### Scenario: Rechazar acción administrativa a otro rol o sin identidad
 - **GIVEN** una solicitud sin identidad o cuya lista `X-User-Roles` no incluye `ADMIN`
@@ -530,12 +535,12 @@ Las rutas `/internal/...` y los callbacks internos SHALL permanecer sin autentic
 - **THEN** no exige `X-User-Id` ni `X-User-Roles`
 
 ### Requirement: Persistir avisos outbox atómicamente
-Cuando una mutación origine un aviso, MS1 SHALL guardar el cambio local y un aviso en la colección MongoDB `outbox` en la misma transacción. Cada aviso SHALL incluir ID estable, tipo, `eventoId`, destino, payload, estado, intentos, próximo intento, último error y fechas. Los estados SHALL ser `PENDIENTE`, `PROCESANDO`, `ENTREGADO` o `ERROR_FINAL`. Los productores cubiertos SHALL ser la cancelación a Compras y la publicación a Preferencias.
+Cuando una mutación origine avisos, MS1 SHALL guardar el cambio local y los avisos en la misma transacción MongoDB. Cada aviso SHALL incluir ID estable, tipo, `eventoId`, destino, estado, intentos, próximo intento, último error y fechas, y SHALL admitir método HTTP y payload opcionales. Los estados SHALL ser `PENDIENTE`, `PROCESANDO`, `ENTREGADO` o `ERROR_FINAL`. El método ausente SHALL conservar el comportamiento `POST` de avisos existentes.
 
 #### Scenario: Mantener el evento y el aviso atómicos
-- **GIVEN** una cancelación que escribe el cambio del evento y el aviso outbox en una transacción
+- **GIVEN** Reservas confirmó la cancelación y una transacción escribe el cambio del evento, el resultado del trabajo y los avisos a Compras y MS7
 - **WHEN** falla una de las escrituras antes del commit
-- **THEN** no queda persistido ni el cambio local del evento ni un aviso huérfano
+- **THEN** no queda persistido el cambio de cancelación ni un aviso huérfano; el trabajo continúa recuperable
 
 #### Scenario: Mantener la publicación y su aviso atómicos
 - **GIVEN** una publicación tras la confirmación de Reservas
@@ -543,12 +548,17 @@ Cuando una mutación origine un aviso, MS1 SHALL guardar el cambio local y un av
 - **THEN** no queda persistido ni el cambio local del evento ni un aviso huérfano
 
 ### Requirement: Entregar avisos con reintentos limitados
-El dispatcher SHALL enviar avisos mediante `POST` fuera de la transacción con timeouts de conexión/lectura de `2 s`/`5 s`; cualquier `2xx` marca `ENTREGADO`. Reintenta timeouts, errores de conexión, `5xx`, `408` y `429`; el resto de `4xx` y las respuestas `3xx` son definitivos. El máximo es 8 reclamos con backoff de 30 s × 2, tope 15 min y sin jitter; el polling es configurable y el lease fijo de 60 s.
+El dispatcher SHALL enviar avisos fuera de transacciones usando el método indicado, o `POST` si falta, y body solo cuando corresponda. Para notificaciones, cualquier `2xx` marca `ENTREGADO`; el trabajo de Reservas requiere `204`. Reintenta timeouts, errores de conexión, `5xx`, `408` y `429`; el resto de `4xx` y las respuestas `3xx` son definitivos. El máximo es 8 reclamos con backoff de 30 s × 2, tope 15 min y sin jitter; el polling es configurable y el lease fijo de 60 s.
 
 #### Scenario: Entregar al destino fuera de la transacción
 - **GIVEN** un cambio de evento y su aviso fueron confirmados por MongoDB
 - **WHEN** el dispatcher envía el aviso por HTTP
-- **THEN** la llamada remota usa los timeouts establecidos y no forma parte de la transacción MongoDB
+- **THEN** la llamada remota usa timeouts de conexión y lectura de `2 s` y `5 s` y no forma parte de la transacción MongoDB
+
+#### Scenario: Reservas no confirma con 204
+- **GIVEN** el trabajo de cierre de venta de Reservas no agotó sus intentos
+- **WHEN** Reservas responde con un `2xx` distinto de `204`
+- **THEN** el cierre no se considera confirmado y el trabajo queda pendiente para reintento
 
 #### Scenario: Sin token no se procesan avisos
 - **GIVEN** el perfil `docker` no está activo, no hay token configurado y existe un aviso `PENDIENTE`
@@ -658,7 +668,7 @@ Después de que Reservas confirme la inicialización, MS1 SHALL guardar en una t
 - **THEN** el evento permanece publicado, el administrador conserva la respuesta exitosa y el aviso queda sujeto a los reintentos del dispatcher general
 
 ### Requirement: Autenticar las entregas salientes de outbox
-MS1 SHALL enviar `X-Service-Token` con el valor configurado de `servicio.token` en todos los POST salientes de outbox, además de conservar `X-Aviso-Id`. El token SHALL provenir de `SERVICIO_TOKEN` sin valor predeterminado secreto. MS1 SHALL NOT registrar ni persistir el valor del token.
+MS1 SHALL enviar `X-Service-Token` con el valor configurado de `servicio.token` en todas las llamadas salientes de outbox, además de conservar `X-Aviso-Id`. El token SHALL provenir de `SERVICIO_TOKEN` sin valor predeterminado secreto. MS1 SHALL NOT registrar ni persistir el valor del token.
 
 #### Scenario: Enviar el token junto al identificador estable
 - **GIVEN** `SERVICIO_TOKEN` contiene un valor no vacío y hay un aviso listo para entregar
@@ -668,7 +678,7 @@ MS1 SHALL enviar `X-Service-Token` con el valor configurado de `servicio.token` 
 #### Scenario: Usar el token para todos los tipos de aviso
 - **GIVEN** hay avisos de publicación y cancelación listos para entregar y un token configurado
 - **WHEN** el cliente común de outbox los envía
-- **THEN** cada solicitud incluye `X-Service-Token` independientemente del tipo de aviso
+- **THEN** cada solicitud incluye `X-Service-Token` independientemente del tipo de aviso o método HTTP
 
 #### Scenario: No revelar el token
 - **GIVEN** hay un token configurado y un aviso se entrega o falla
@@ -748,3 +758,64 @@ MS1 SHALL ofrecer a MS7 `PUT /internal/eventos/{eventoId}/politica-fila`, sin he
 - **GIVEN** una actualización que cambia el indicador y una modificación concurrente del evento
 - **WHEN** el control optimista detecta una versión obsoleta
 - **THEN** responde `409 Conflict` sin sobrescribir el cambio concurrente y la operación puede reintentarse
+
+### Requirement: Recuperar la intención de cancelar
+MS1 SHALL persistir la intención y el trabajo de Reservas atómicamente antes de cualquier llamada remota. SHALL procesarlos mediante la outbox existente, sin estados públicos nuevos, y SHALL confirmar cancelación, resultado y avisos en una transacción tras el `204` de Reservas. Un reclamo vencido SHALL NOT confirmar ni sobrescribir un reclamo posterior.
+
+#### Scenario: Recuperar después de un corte
+- **GIVEN** la intención y el trabajo de Reservas se confirmaron y MS1 se interrumpe antes de llamar a Reservas
+- **WHEN** el scheduler recupera el trabajo y Reservas confirma `204`
+- **THEN** MS1 cancela el evento, crea una sola vez ambos avisos y los entrega según su política
+
+#### Scenario: Recuperar una respuesta perdida
+- **GIVEN** Reservas cerró la venta pero MS1 no recibió la respuesta o se cortó antes del commit local
+- **WHEN** vence el lease y el scheduler repite el cierre idempotente y recibe `204`
+- **THEN** confirma la cancelación y los avisos sin duplicarlos
+
+#### Scenario: No duplicar intención durante reintentos
+- **GIVEN** una cancelación ya está pendiente o el evento ya quedó cancelado
+- **WHEN** un administrador repite la solicitud con el mismo u otro motivo
+- **THEN** no modifica el motivo original ni crea avisos adicionales; mientras no termine responde `503` y una vez cancelado responde `409`
+
+#### Scenario: Proteger una cancelación de operaciones concurrentes
+- **GIVEN** un evento con una intención de cancelación pendiente
+- **WHEN** se intenta suspender, reactivar, cancelar nuevamente o finalizarlo mediante el scheduler
+- **THEN** suspender y reactivar responden `409`, cancelar responde `503` y el scheduler omite el evento hasta la próxima pasada; las escrituras locales concurrentes usan control de versión
+
+#### Scenario: Invalidar caché tras cancelar
+- **GIVEN** Reservas confirmó el cierre de venta
+- **WHEN** se confirma la transacción de cancelación local
+- **THEN** MS1 usa el invalidador central después del commit; las otras instancias o un corte antes de invalidar pueden conservar datos hasta el TTL
+
+#### Scenario: Agotar la recuperación
+- **GIVEN** el trabajo de Reservas alcanza el límite de intentos o recibe un error definitivo
+- **WHEN** el dispatcher registra el resultado o el scheduler barre un lease agotado
+- **THEN** queda `ERROR_FINAL` para revisión y no se reintenta automáticamente ni se revierte ninguna confirmación remota
+
+### Requirement: Notificar cancelación a Fila virtual
+MS1 SHALL crear el aviso `cancelacion-fila-{eventoId}` al cancelar, incluso si `requiereFila=false`, y enviarlo por `PUT {FILAS_BASE_URL}/internal/filas/eventos/{eventoId}/cancelacion` sin body. SHALL usar los headers comunes de outbox. `FILAS_BASE_URL` SHALL usar `http://localhost:8088` en host y `http://fila-virtual:8088` en Compose, configurables por entorno.
+
+#### Scenario: Entregar aviso de cancelación a MS7
+- **GIVEN** un evento quedó cancelado y su aviso a MS7 está pendiente
+- **WHEN** MS7 responde `204` o cualquier otro `2xx`
+- **THEN** el aviso pasa a `ENTREGADO`, conservando el ID estable y sin revertir el evento
+
+#### Scenario: Reintentar una falla transitoria de MS7
+- **GIVEN** un aviso a MS7 no agotó sus intentos
+- **WHEN** MS7 responde `5xx` o vence el timeout
+- **THEN** el aviso queda pendiente para reintento y el evento permanece cancelado
+
+#### Scenario: Marcar error definitivo de MS7
+- **GIVEN** un aviso a MS7 pendiente
+- **WHEN** MS7 responde `400`
+- **THEN** el aviso queda `ERROR_FINAL` sin reintento automático y el evento permanece cancelado
+
+#### Scenario: Notificar un evento sin fila
+- **GIVEN** un evento con `requiereFila=false` queda cancelado
+- **WHEN** se confirma la transacción de cancelación
+- **THEN** se crea igualmente el aviso a MS7, que puede responder `204` aunque no haya fila
+
+#### Scenario: Mantener avisos anteriores
+- **GIVEN** un aviso de publicación o cancelación a Compras creado sin el nuevo campo de método
+- **WHEN** el dispatcher lo procesa
+- **THEN** envía `POST` con el payload y headers anteriores sin modificar su contrato
