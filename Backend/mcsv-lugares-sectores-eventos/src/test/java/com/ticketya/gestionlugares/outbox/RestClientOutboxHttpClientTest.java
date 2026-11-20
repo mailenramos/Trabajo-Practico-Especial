@@ -36,6 +36,7 @@ class RestClientOutboxHttpClientTest {
         aviso.setTipo(tipo);
         aviso.setId("aviso-evento-1");
         aviso.setDestino("http://destino.test/avisos");
+        aviso.setCorrelationId("traza-outbox");
         aviso.setPayload(Map.of("eventoId", "evento-1", "detalle", "notificacion"));
 
         for (int intento = 0; intento < 2; intento++) {
@@ -43,6 +44,7 @@ class RestClientOutboxHttpClientTest {
                     .andExpect(method(HttpMethod.POST))
                     .andExpect(header("X-Aviso-Id", "aviso-evento-1"))
                     .andExpect(header("X-Service-Token", "token-prueba"))
+                    .andExpect(header("X-Correlation-Id", "traza-outbox"))
                     .andExpect(content().json("""
                             {"eventoId":"evento-1","detalle":"notificacion"}
                             """))

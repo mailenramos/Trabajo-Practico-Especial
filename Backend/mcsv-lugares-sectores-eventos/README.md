@@ -176,6 +176,12 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
 
+### Trazabilidad
+
+MS1 acepta `X-Correlation-Id` de hasta 100 caracteres ASCII (letras, números, `-`, `_` y `.`); si falta o es inválido genera un UUID. Lo devuelve en la respuesta y lo incluye en los logs de stdout. Por cada solicitud, salvo `/actuator/**`, registra método, ruta sin query, usuario si existe, estado y duración; no registra tokens ni cuerpos.
+
+El ID se propaga a Reservas y a las llamadas de outbox. Los avisos de publicación y cancelación lo guardan para conservarlo en los reintentos; los avisos antiguos sin ID generan uno al despacharse. Las llamadas programadas sin contexto también generan uno. El cliente de MS6 aún no está implementado y deberá incorporar esta propagación cuando se agregue. La recolección de logs corresponde al Compose general.
+
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
 ### Reservas — contrato confirmado

@@ -19,6 +19,7 @@ public class AvisoOutbox {
     private String id;
     private String tipo;
     private String eventoId;
+    private String correlationId;
     private String destino;
     private Map<String, Object> payload = new LinkedHashMap<>();
     private EstadoAvisoOutbox estado = EstadoAvisoOutbox.PENDIENTE;
@@ -39,6 +40,8 @@ public class AvisoOutbox {
     public void setTipo(String tipo) { this.tipo = tipo; }
     public String getEventoId() { return eventoId; }
     public void setEventoId(String eventoId) { this.eventoId = eventoId; }
+    public String getCorrelationId() { return correlationId; }
+    public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
     public String getDestino() { return destino; }
     public void setDestino(String destino) { this.destino = destino; }
     public Map<String, Object> getPayload() { return payload; }

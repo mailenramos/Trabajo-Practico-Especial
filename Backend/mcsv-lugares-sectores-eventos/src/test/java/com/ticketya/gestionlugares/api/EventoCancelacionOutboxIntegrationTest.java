@@ -100,13 +100,15 @@ class EventoCancelacionOutboxIntegrationTest {
             return 204;
         });
 
-        mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo"))
+        mockMvc.perform(solicitudCancelacion(evento.getId(), "Cierre preventivo")
+                        .header("X-Correlation-Id", "cancelacion-traza"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("cancelado"))
                 .andExpect(jsonPath("$.avisoCancelacionPendiente").doesNotExist());
 
         Evento persistido = eventoRepository.findById(evento.getId()).orElseThrow();
         AvisoOutbox aviso = outboxRepository.findById("cancelacion-" + evento.getId()).orElseThrow();
+        assertEquals("cancelacion-traza", aviso.getCorrelationId());
         assertEquals(EstadoEvento.CANCELADO, persistido.getEstado());
         assertEquals(EstadoAvisoOutbox.ENTREGADO, aviso.getEstado());
         assertEquals(evento.getId(), aviso.getEventoId());

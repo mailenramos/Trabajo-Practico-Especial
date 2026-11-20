@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import com.ticketya.gestionlugares.trazabilidad.CorrelacionHttpInterceptor;
+
 @Configuration
 @EnableConfigurationProperties(ReservasProperties.class)
 public class ReservasHttpConfiguration {
@@ -15,8 +17,9 @@ public class ReservasHttpConfiguration {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(properties.getConnectTimeout());
         requestFactory.setReadTimeout(properties.getReadTimeout());
-        return builder.baseUrl(properties.getBaseUrl().toString())
+        return builder.clone().baseUrl(properties.getBaseUrl().toString())
                 .requestFactory(requestFactory)
+                .requestInterceptor(new CorrelacionHttpInterceptor())
                 .build();
     }
 }

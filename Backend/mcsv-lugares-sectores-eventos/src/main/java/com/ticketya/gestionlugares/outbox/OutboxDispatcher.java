@@ -14,6 +14,7 @@ import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoAvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
+import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 
 @Service
 public class OutboxDispatcher {
@@ -60,11 +61,13 @@ public class OutboxDispatcher {
     private boolean procesar(Optional<AvisoOutbox> reclamado, Instant ahora) {
         if (reclamado.isEmpty()) return false;
         AvisoOutbox aviso = reclamado.orElseThrow();
-        try {
-            procesarRespuesta(aviso, ahora, httpClient.enviar(aviso));
-        } catch (ResourceAccessException exception) {
-            registrarFalloReintentable(aviso, ahora,
-                    servicioToken.ocultarEn(exception.getMostSpecificCause().toString()));
+        try (Correlacion.Contexto contexto = Correlacion.usar(aviso.getCorrelationId())) {
+            try {
+                procesarRespuesta(aviso, ahora, httpClient.enviar(aviso));
+            } catch (ResourceAccessException exception) {
+                registrarFalloReintentable(aviso, ahora,
+                        servicioToken.ocultarEn(exception.getMostSpecificCause().toString()));
+            }
         }
         return true;
     }

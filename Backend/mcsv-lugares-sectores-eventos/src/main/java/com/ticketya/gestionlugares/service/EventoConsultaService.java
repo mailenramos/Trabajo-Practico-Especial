@@ -127,7 +127,7 @@ public class EventoConsultaService {
                     .collect(Collectors.toMap(SectorDisponibilidadResponse::sectorId, sector -> sector,
                             (primero, duplicado) -> primero, HashMap::new));
         } catch (ReservasClientException exception) {
-            log.warn("No se pudo consultar disponibilidad en Reservas para el evento {}", evento.getId(), exception);
+            log.warn("No se pudo consultar disponibilidad en Reservas para el evento {}", evento.getId());
             return Map.of();
         }
     }

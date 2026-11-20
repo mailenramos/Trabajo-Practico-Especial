@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClient;
 
 import com.ticketya.gestionlugares.config.ServicioToken;
 import com.ticketya.gestionlugares.domain.AvisoOutbox;
+import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 
 @Component
 public class RestClientOutboxHttpClient implements OutboxHttpClient {
@@ -25,11 +26,13 @@ public class RestClientOutboxHttpClient implements OutboxHttpClient {
 
     @Override
     public int enviar(AvisoOutbox aviso) {
-        try {
+        try (Correlacion.Contexto contexto = Correlacion.usar(
+                Correlacion.actual() == null ? aviso.getCorrelationId() : Correlacion.actual())) {
             return restClient.post()
                     .uri(URI.create(aviso.getDestino()))
                     .header("X-Aviso-Id", aviso.getId())
                     .header("X-Service-Token", servicioToken.valor())
+                    .header(Correlacion.HEADER, Correlacion.actual())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(aviso.getPayload())
                     .exchange((request, response) -> response.getStatusCode().value());

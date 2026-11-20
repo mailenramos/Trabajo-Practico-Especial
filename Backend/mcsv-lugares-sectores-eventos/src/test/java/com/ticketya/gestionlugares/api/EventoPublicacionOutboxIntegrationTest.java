@@ -104,11 +104,12 @@ class EventoPublicacionOutboxIntegrationTest {
         RESPUESTAS.add(400);
 
         Evento primerEvento = guardarBorrador("evento-publicacion-reintento", null);
-        mockMvc.perform(solicitudPublicacion(primerEvento.getId()))
+        mockMvc.perform(solicitudPublicacion(primerEvento.getId()).header("X-Correlation-Id", "publicacion-traza"))
                 .andExpect(status().isOk());
 
         String primerId = "publicacion-" + primerEvento.getId();
         AvisoOutbox pendiente = outboxRepository.findById(primerId).orElseThrow();
+        assertEquals("publicacion-traza", pendiente.getCorrelationId());
         assertEquals(EstadoEvento.PUBLICADO,
                 eventoRepository.findById(primerEvento.getId()).orElseThrow().getEstado());
         assertEquals("PUBLICACION", pendiente.getTipo());
@@ -142,6 +143,8 @@ class EventoPublicacionOutboxIntegrationTest {
         assertPublicacionRequest(REQUESTS.get(1), primerEvento.getId(), List.of());
         assertPublicacionRequest(REQUESTS.get(2), segundoEvento.getId(), List.of("Artista"));
         assertEquals(REQUESTS.get(0).body(), REQUESTS.get(1).body());
+        assertEquals("publicacion-traza", REQUESTS.get(0).correlationId());
+        assertEquals("publicacion-traza", REQUESTS.get(1).correlationId());
         verify(reservasClient, org.mockito.Mockito.times(2))
                 .cambiarEstadoVenta(any(), org.mockito.ArgumentMatchers.eq(EstadoVentaReservas.ACTIVA));
     }
@@ -253,7 +256,8 @@ class EventoPublicacionOutboxIntegrationTest {
                         .map(Evento::getEstado).orElse(null);
                 REQUESTS.add(new RequestCapture(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),
                         exchange.getRequestHeaders().getFirst("X-Aviso-Id"),
-                        exchange.getRequestHeaders().getFirst("X-Service-Token"), body, estadoEvento == null
+                        exchange.getRequestHeaders().getFirst("X-Service-Token"),
+                        exchange.getRequestHeaders().getFirst("X-Correlation-Id"), body, estadoEvento == null
                                 ? null : estadoEvento.name()));
                 Integer status = RESPUESTAS.poll();
                 exchange.sendResponseHeaders(status == null ? 500 : status, -1);
@@ -266,7 +270,7 @@ class EventoPublicacionOutboxIntegrationTest {
         }
     }
 
-    private record RequestCapture(String method, String path, String avisoId, String serviceToken,
+    private record RequestCapture(String method, String path, String avisoId, String serviceToken, String correlationId,
             String body, String estadoEvento) {
     }
 }

@@ -56,6 +56,33 @@ class OutboxDispatcherTest {
                 Clock.fixed(AHORA, ZoneOffset.UTC), new ServicioToken("token-prueba", new MockEnvironment()));
     }
 
+    @Test
+    void usaIdGuardadoYRestauraContextoEnError() {
+        aviso.setCorrelationId("traza-guardada");
+        org.slf4j.MDC.put("correlationId", "solicitud-original");
+        try {
+            when(httpClient.enviar(aviso)).thenAnswer(invocation -> {
+                assertEquals("traza-guardada", org.slf4j.MDC.get("correlationId"));
+                throw new ResourceAccessException("timeout");
+            });
+            dispatcher.procesarSiguiente();
+            assertEquals("solicitud-original", org.slf4j.MDC.get("correlationId"));
+        } finally {
+            org.slf4j.MDC.remove("correlationId");
+        }
+    }
+
+    @Test
+    void avisoLegacyGeneraUuidYNoContaminaElScheduler() {
+        when(httpClient.enviar(aviso)).thenAnswer(invocation -> {
+            String id = org.slf4j.MDC.get("correlationId");
+            assertEquals(id, java.util.UUID.fromString(id).toString());
+            return 204;
+        });
+        dispatcher.procesarSiguiente();
+        assertNull(org.slf4j.MDC.get("correlationId"));
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {200, 201, 202, 204})
     void respuestas2xxMarcanElAvisoComoEntregado(int status) {

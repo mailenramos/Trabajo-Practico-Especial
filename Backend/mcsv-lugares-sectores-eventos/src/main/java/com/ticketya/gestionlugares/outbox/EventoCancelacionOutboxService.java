@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ticketya.gestionlugares.compras.http.ComprasProperties;
 import com.ticketya.gestionlugares.domain.Evento;
+import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.service.EventoService;
+import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 
 @Service
 public class EventoCancelacionOutboxService {
@@ -27,8 +29,10 @@ public class EventoCancelacionOutboxService {
     @Transactional
     public Evento cancelarConAvisoOutbox(String eventoId, String motivo, Instant canceladoEn) {
         Evento cancelado = eventoService.cancelarLocal(eventoId, motivo, canceladoEn);
-        outboxRepository.insert(CancelacionAvisoOutboxFactory.crear(
-                eventoId, motivo, canceladoEn, canceladoEn, comprasProperties));
+        AvisoOutbox aviso = CancelacionAvisoOutboxFactory.crear(
+                eventoId, motivo, canceladoEn, canceladoEn, comprasProperties);
+        aviso.setCorrelationId(Correlacion.actual());
+        outboxRepository.insert(aviso);
         return cancelado;
     }
 }

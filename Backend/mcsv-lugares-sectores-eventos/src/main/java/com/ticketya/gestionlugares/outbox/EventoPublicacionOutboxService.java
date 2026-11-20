@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ticketya.gestionlugares.domain.Evento;
+import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.preferencias.http.PreferenciasProperties;
 import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.service.EventoService;
+import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 
 @Service
 public class EventoPublicacionOutboxService {
@@ -29,8 +31,9 @@ public class EventoPublicacionOutboxService {
     @Transactional
     public Evento publicarConAvisoOutbox(String eventoId, String userId, String userRolesHeader) {
         Evento publicado = eventoService.confirmarPublicacion(eventoId, userId, userRolesHeader);
-        outboxRepository.insert(PublicacionAvisoOutboxFactory.crear(
-                publicado, clock.instant(), preferenciasProperties));
+        AvisoOutbox aviso = PublicacionAvisoOutboxFactory.crear(publicado, clock.instant(), preferenciasProperties);
+        aviso.setCorrelationId(Correlacion.actual());
+        outboxRepository.insert(aviso);
         return publicado;
     }
 }

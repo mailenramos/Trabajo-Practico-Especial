@@ -9,6 +9,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.slf4j.MDC;
 
 import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
@@ -28,6 +29,45 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.http.HttpStatus.CONFLICT;
 
 class HttpReservasClientTest {
+
+    @Test
+    void configuracionPropagaCorrelacionEnTodasLasOperacionesYGeneraIdSinContexto() throws Exception {
+        var ids = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/disponibilidad/eventos", exchange -> {
+            ids.add(exchange.getRequestHeaders().getFirst("X-Correlation-Id"));
+            if ("GET".equals(exchange.getRequestMethod())) {
+                byte[] body = "{\"eventoId\":\"evento-1\",\"sectores\":[]}"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            } else {
+                exchange.sendResponseHeaders(204, -1);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            ReservasProperties props = new ReservasProperties();
+            props.setBaseUrl(java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
+            HttpReservasClient client = new HttpReservasClient(
+                    new ReservasHttpConfiguration().reservasRestClient(RestClient.builder(), props));
+            MDC.put("correlationId", "traza-reservas");
+            client.inicializarDisponibilidad("evento-1", new InicializarDisponibilidadRequest(4, List.of()));
+            client.cambiarEstadoVenta("evento-1", EstadoVentaReservas.ACTIVA);
+            client.consultarDisponibilidad("evento-1");
+            org.junit.jupiter.api.Assertions.assertEquals(List.of("traza-reservas", "traza-reservas", "traza-reservas"), ids);
+            org.junit.jupiter.api.Assertions.assertEquals("traza-reservas", MDC.get("correlationId"));
+            MDC.remove("correlationId");
+            client.cambiarEstadoVenta("evento-1", EstadoVentaReservas.FINALIZADA);
+            org.junit.jupiter.api.Assertions.assertEquals(ids.get(3), java.util.UUID.fromString(ids.get(3)).toString());
+            org.junit.jupiter.api.Assertions.assertNull(MDC.get("correlationId"));
+        } finally {
+            MDC.remove("correlationId");
+            server.stop(0);
+        }
+    }
 
     @Test
     void inicializaConElContratoJsonYAcepta204() {
