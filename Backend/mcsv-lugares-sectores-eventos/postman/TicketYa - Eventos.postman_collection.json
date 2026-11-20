@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a8719607-ab22-4c0e-a360-3cd1e96ad84d",
     "name": "TicketYa - Eventos",
-    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos con Reservas encendido (la 12 prepara los datos y las publica). 18: detalle con Reservas apagado. Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
+    "description": "Casos de prueba del servicio de eventos. 00 a 04: crear, límite y precios. 05: validaciones de publicar, suspender, reactivar, cancelar y agotado. 06 y 07: Reservas encendido o apagado. 08: GET interno para Compras. 09, 10 y 11: aviso de cancelación a Compras. 12 a 17: búsqueda y detalle de eventos con Reservas encendido (la 12 prepara los datos y las publica). 18: detalle con Reservas apagado. 22: cancelación recuperable y controles de stubs; ejecutar escenarios individualmente. Puerto por defecto: 8081. Las carpetas 06/07 y 09/10 son excluyentes: correrlas por separado.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "55960073",
     "_collection_link": "https://go.postman.co/collection/55960073-a8719607-ab22-4c0e-a360-3cd1e96ad84d?source=collection_link"
@@ -12648,6 +12648,114 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "22 Cancelación recuperable",
+      "description": "Preparar dos eventos distintos publicados con Reservas en modo ok y configurar eventoCancelacionOkId y eventoCancelacionPendienteId. Ejecutar las solicitudes individualmente: los modos de los stubs son alternativos. Consultar el README para los pasos y la espera del scheduler.",
+      "item": [
+        {
+          "name": "RC01 Cancelación confirmada (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 y evento cancelado', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('cancelado'); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "PUT",
+            "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "X-Correlation-Id", "value": "postman-cancelacion-ok" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"motivo\":\"Cancelación de prueba\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoCancelacionOkId}}/cancelar", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoCancelacionOkId}}", "cancelar"] },
+            "description": "Con Reservas, Compras y Fila en modo ok. Usar un evento publicado distinto del escenario pendiente."
+          },
+          "response": []
+        },
+        {
+          "name": "RC02 Repetir cancelación confirmada (409)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409 sin nueva cancelación', function () { pm.response.to.have.status(409); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "PUT",
+            "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"motivo\":\"Otro motivo\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoCancelacionOkId}}/cancelar", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoCancelacionOkId}}", "cancelar"] },
+            "description": "Ejecutar después de RC01; los avisos conservan sus IDs y el motivo original."
+          },
+          "response": []
+        },
+        {
+          "name": "RC03 Cancelar con fallo de Reservas (503)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('503 con posible intención pendiente', function () { pm.response.to.have.status(503); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "PUT",
+            "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "X-Correlation-Id", "value": "postman-cancelacion-pendiente" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"motivo\":\"Motivo original pendiente\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoCancelacionPendienteId}}/cancelar", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoCancelacionPendienteId}}", "cancelar"] },
+            "description": "Con un evento publicado distinto y Reservas en modo error, timeout o perder-respuesta. El 503 puede dejar una intención durable."
+          },
+          "response": []
+        },
+        {
+          "name": "RC04 Repetir mientras la intención está pendiente (503)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('503 mientras sigue pendiente', function () { pm.response.to.have.status(503); });"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "PUT",
+            "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"motivo\":\"No debe reemplazar el original\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/eventos/{{eventoCancelacionPendienteId}}/cancelar", "host": ["{{baseUrl}}"], "path": ["eventos", "{{eventoCancelacionPendienteId}}", "cancelar"] },
+            "description": "Ejecutar después de RC03 mientras Reservas sigue fallando, antes de recuperar el trabajo."
+          },
+          "response": []
+        },
+        {
+          "name": "RC05 Consultar evento pendiente o recuperado",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 consulta interna', function () { pm.response.to.have.status(200); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/internal/eventos/{{eventoCancelacionPendienteId}}", "host": ["{{baseUrl}}"], "path": ["internal", "eventos", "{{eventoCancelacionPendienteId}}"] }, "description": "Tras volver Reservas a ok, esperar el backoff y el scheduler hasta que el estado sea cancelado." },
+          "response": []
+        },
+        {
+          "name": "Controles Reservas (localhost:8080)",
+          "item": [
+            { "name": "Reservas modo ok", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{reservasUrl}}/_stub/modo/ok" }, "response": [] },
+            { "name": "Reservas modo error (500)", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{reservasUrl}}/_stub/modo/error" }, "response": [] },
+            { "name": "Reservas modo timeout", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{reservasUrl}}/_stub/modo/timeout" }, "response": [] },
+            { "name": "Reservas modo perder-respuesta", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{reservasUrl}}/_stub/modo/perder-respuesta" }, "response": [] },
+            { "name": "Consultar estado de venta", "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{reservasUrl}}/_stub/venta/{{eventoCancelacionPendienteId}}" }, "response": [] }
+          ]
+        },
+        {
+          "name": "Controles Compras (localhost:8083)",
+          "item": [
+            { "name": "Compras modo ok", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{comprasUrl}}/_stub/modo/ok" }, "response": [] },
+            { "name": "Compras modo error (500)", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{comprasUrl}}/_stub/modo/error" }, "response": [] },
+            { "name": "Compras modo timeout", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{comprasUrl}}/_stub/modo/timeout" }, "response": [] },
+            { "name": "Consultar avisos de Compras", "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{comprasUrl}}/_stub/avisos" }, "response": [] }
+          ]
+        },
+        {
+          "name": "Controles Fila (localhost:8088)",
+          "item": [
+            { "name": "Fila modo ok", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{filaUrl}}/_stub/modo/ok" }, "response": [] },
+            { "name": "Fila modo error (500)", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{filaUrl}}/_stub/modo/error" }, "response": [] },
+            { "name": "Fila modo timeout", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{filaUrl}}/_stub/modo/timeout" }, "response": [] },
+            { "name": "Fila modo inválido (400 definitivo)", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{filaUrl}}/_stub/modo/invalido" }, "response": [] },
+            { "name": "Consultar cancelaciones de Fila", "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{filaUrl}}/_stub/cancelaciones" }, "response": [] }
+          ]
+        },
+        {
+          "name": "Controles Usuarios (localhost:8087)",
+          "item": [
+            { "name": "Usuarios modo ok", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{usuariosUrl}}/_stub/modo/ok" }, "response": [] },
+            { "name": "Usuarios modo error (500)", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{usuariosUrl}}/_stub/modo/error" }, "response": [] },
+            { "name": "Usuarios modo timeout", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [], "url": "{{usuariosUrl}}/_stub/modo/timeout" }, "response": [] },
+            { "name": "Consultar consultas a Usuarios", "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{usuariosUrl}}/_stub/consultas" }, "response": [] }
+          ]
+        }
+      ]
     }
   ],
   "auth": {
@@ -12671,6 +12779,10 @@
     }
   ],
   "variable": [
+    { "key": "eventoCancelacionOkId", "value": "" },
+    { "key": "eventoCancelacionPendienteId", "value": "" },
+    { "key": "filaUrl", "value": "http://localhost:8088" },
+    { "key": "usuariosUrl", "value": "http://localhost:8087" },
     { "key": "eventoPersonalId", "value": "" },
     { "key": "organizadorPersonalId", "value": "" },
     { "key": "correoPersonal", "value": "" },

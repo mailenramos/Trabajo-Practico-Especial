@@ -141,6 +141,10 @@ class OpenApiDocumentationTest {
         assertEventErrors(cancellationResponses, "401", "403", "404", "409", "503", "500");
         assertTrue(cancellationResponses.path("200").path("content").path("application/json")
                 .path("examples").has("Evento cancelado"));
+        assertTrue(cancellationResponses.path("409").path("description").asText().contains("cancelado"));
+        assertTrue(cancellationResponses.path("409").path("description").asText().contains("finalizado"));
+        assertTrue(cancellationResponses.path("503").path("description").asText().contains("pendiente"));
+        assertTrue(cancellationResponses.path("503").path("description").asText().contains("no implica ausencia de efectos"));
 
         JsonNode callback = paths.path("/eventos/{eventoId}/disponibilidad").path("put");
         assertTrue(callback.path("description").asText().contains("No exige X-User-Id ni X-User-Roles"));

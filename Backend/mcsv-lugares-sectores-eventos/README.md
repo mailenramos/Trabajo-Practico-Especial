@@ -7,7 +7,7 @@ Microservicio Spring Boot de TicketYa. Gestiona lugares físicos, sus sectores y
 - JDK 21 o superior.
 - Maven 3.9 o superior.
 - Docker Desktop con Docker Compose para MongoDB y las pruebas de integración.
-- Node.js (opcional, para simular Reservas, Compras o Preferencias desde Postman).
+- Node.js (opcional, para simular Reservas, Compras, Fila, Usuarios o Preferencias desde Postman).
 
 ## Ejecutar MS1 con Docker Compose
 
@@ -136,7 +136,7 @@ El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires
 | Conferencia de Tecnología | Borrador | Teatro Central (Buenos Aires) | Sin precios |
 | Recital Cancelado | Cancelado | Estadio del Parque (Córdoba) | Tribuna Norte: $20.000; Campo de pie: $8.000 |
 
-Estos eventos se insertan directamente en la base de este servicio, sin pasar por Reservas. Por eso, el detalle de los eventos publicados muestra `disponibilidad: null` y suspender o cancelar esos eventos responde `503`, porque Reservas no los conoce. Para probar el flujo completo, creá y publicá eventos por la API con Reservas encendido (carpeta 12 de Postman).
+Estos eventos se insertan directamente en la base de este servicio, sin pasar por Reservas. Por eso, el detalle de los eventos publicados muestra `disponibilidad: null` y suspender o cancelar esos eventos responde `503`, porque Reservas no los conoce. La cancelación puede dejar una intención y un trabajo `ERROR_FINAL` si Reservas responde `404`. Para probar el flujo completo, creá y publicá eventos por la API con Reservas encendido (carpeta 12 de Postman).
 
 Las rutas de gestión de eventos y lugares devuelven errores controlados con `timestamp`, `status`, `error` y `mensaje`; `campos` se incluye como lista de `{campo, mensaje}` cuando corresponde.
 
@@ -200,9 +200,28 @@ Este servicio hace estas llamadas a Reservas:
 
 Reservas llama a este servicio mediante el callback `PUT /eventos/{eventoId}/disponibilidad`, con `{"agotado":true}` o `{"agotado":false}`. Responde `204` para cambios, avisos duplicados y avisos tardíos de eventos cancelados o finalizados; `404` si el evento no existe y `409` si sigue en borrador. El callback es interno, sin headers de usuario y fuera del Gateway.
 
-Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender, reactivar o cancelar, el servicio responde `503` y no cambia el estado local; la operación se puede reintentar. Si Reservas responde `409` al suspender o reactivar, MS1 devuelve `409` sin modificar el evento.
+Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender o reactivar, MS1 responde `503` sin cambiar el evento; si Reservas responde `409`, MS1 devuelve `409` sin modificarlo. Cancelar tiene recuperación durable y un `503` no implica ausencia de efectos, como se detalla a continuación.
 
-La propuesta de cancelación recuperable aún no está implementada. El equipo de Reservas confirmó que repetir `CANCELADA` responde `204` y que este estado es terminal: intentar pasar a `ACTIVA` o `SUSPENDIDA` responde `409`.
+El equipo de Reservas confirmó que repetir `CANCELADA` sobre una venta cancelada responde `204` y que `CANCELADA` es terminal: intentar pasar a `ACTIVA` o `SUSPENDIDA` responde `409`. Las guardas de MS1 no detienen llamadas remotas que ya estaban en curso al registrar la intención.
+
+### Cancelación recuperable
+
+`PUT /eventos/{eventoId}/cancelar` requiere `ADMIN` y acepta un body opcional `{"motivo":"..."}`. Para un evento publicado o agotado:
+
+1. Una transacción MongoDB registra la intención interna y el trabajo `cancelacion-reservas-{eventoId}`; el evento conserva su estado visible. La primera intención fija el motivo y la correlación.
+2. Fuera de la transacción, el dispatcher intenta `PUT /disponibilidad/eventos/{eventoId}/venta` con `{"estado":"CANCELADA"}`. Solo `204` confirma el cierre; otro `2xx` se reintenta.
+3. Tras el `204`, una transacción condicionada al reclamo vigente cancela el evento, guarda `canceladoEn` y el motivo, limpia la intención, entrega el trabajo y crea `cancelacion-{eventoId}` para Compras y `cancelacion-fila-{eventoId}` para MS7. La caché del catálogo se invalida después del commit.
+4. Los avisos se intentan por separado después del commit y, si corresponde, se recuperan por el scheduler. Una falla de Compras o MS7 no revierte la cancelación ni impide entregar el otro aviso. La aceptación de Compras confirma recepción, no que terminaron los reintegros.
+
+| Código | Resultado |
+|---|---|
+| `200` | Reservas confirmó el cierre y la transacción local confirmó la cancelación; los avisos pueden seguir pendientes. |
+| `503` | No se confirmó la cancelación en este intento o ya hay una intención pendiente. **No implica ausencia de efectos**: si la intención quedó persistida, el scheduler la recupera según la política de outbox. Un `ERROR_FINAL` requiere intervención y sin token el dispatcher permanece pausado. |
+| `409` | Evento ya cancelado o finalizado, u otro estado incompatible. |
+| `401` / `403` | Falta identidad / la lista de roles no incluye `ADMIN`. |
+| `404` | Evento inexistente. |
+
+Repetir mientras la intención está pendiente devuelve `503`, conserva el primer motivo y no crea otro trabajo; una vez cancelado devuelve `409` sin duplicar avisos. Mientras haya intención pendiente, suspender y reactivar responden `409` y la finalización programada omite el evento. Ante `503`, consultá la outbox antes de asumir que no se realizará la cancelación.
 
 ### Compras — contrato confirmado
 
@@ -210,6 +229,8 @@ URL base configurable con `compras.base-url` (default Docker `http://compras:808
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
+
+MS7 también recibe siempre `PUT {FILAS_BASE_URL}/internal/filas/eventos/{eventoId}/cancelacion` sin body, incluso si `requiereFila=false`. Se envía el aviso `cancelacion-fila-{eventoId}` con los headers comunes de outbox. Cualquier `2xx` confirma su entrega; una falla no afecta al aviso de Compras.
 
 ### Política de fila virtual
 
@@ -242,12 +263,12 @@ Los avisos se guardan en la colección MongoDB `outbox`:
 |---|---|
 | `PENDIENTE` | Espera el próximo intento. |
 | `PROCESANDO` | Reclamado por una instancia; el campo `leaseHasta` marca el vencimiento del lease de 60 s. |
-| `ENTREGADO` | El destino respondió con cualquier `2xx`. |
+| `ENTREGADO` | El destino confirmó la entrega: `204` para el trabajo de Reservas; cualquier `2xx` para los avisos. |
 | `ERROR_FINAL` | Error definitivo o se agotaron los intentos; requiere revisión. |
 
 `OUTBOX_DISPATCHER_INTERVAL` (`outbox.dispatcher.interval`, default `60s`) configura el intervalo del scheduler. El resto de la política actualmente no es configurable: máximo 8 intentos contados al reclamar; espera inicial de 30 s, factor 2, tope de 15 min, sin jitter y `leaseHasta` fijado a 60 s desde el reclamo.
 
-Todos los avisos salientes incluyen `X-Service-Token` y `X-Aviso-Id`. Sin `SERVICIO_TOKEN` en perfiles distintos de `docker`, se registra un aviso al arrancar y el dispatcher no procesa ni reclama avisos: permanecen pendientes sin consumir intentos ni perderse. Configurá el token y reiniciá MS1 para reanudar la entrega. Un `403` del destino sigue siendo un error definitivo.
+Todos los avisos salientes incluyen `X-Service-Token`, `X-Aviso-Id` y `X-Correlation-Id`. Sin `SERVICIO_TOKEN` en perfiles distintos de `docker`, se registra un aviso al arrancar y el dispatcher no procesa ni reclama avisos: permanecen pendientes sin consumir intentos ni perderse. Configurá el token y reiniciá MS1 para reanudar la entrega. `408`, `429`, `5xx` y errores de transporte se reintentan; `3xx` y los demás `4xx`, incluido `403`, son definitivos.
 
 La entrega inmediata de `PUBLICACION` es síncrona después del commit; si Preferencias no responde, puede demorar hasta unos 7 s (timeouts de conexión y lectura). Ese fallo no revierte la publicación ni cambia su respuesta exitosa. Los reintentos posteriores son asíncronos, a cargo del dispatcher.
 
@@ -258,9 +279,23 @@ use ticketya_lugares
 db.outbox.find({ estado: "PENDIENTE" }).sort({ proximoIntento: 1 })
 db.outbox.find({ estado: "PROCESANDO" }).sort({ leaseHasta: 1 })
 db.outbox.find({ estado: "ERROR_FINAL" }).sort({ actualizadoEn: -1 })
+db.outbox.find({ _id: "cancelacion-reservas-<eventoId>" })
 db.outbox.find({ _id: "cancelacion-<eventoId>" })
+db.outbox.find({ _id: "cancelacion-fila-<eventoId>" })
 db.outbox.find({ _id: "publicacion-<eventoId>" })
 ```
+
+`ERROR_FINAL` no se reintenta solo. Investigá `ultimoError`, el estado del evento y del servicio remoto, corregí la causa y verificá que sea seguro reenviar con el mismo ID. Para reencolar **solo** el aviso revisado, conectate a la base correcta con `mongosh` y reemplazá el ID:
+
+```javascript
+db.outbox.updateOne(
+  { _id: "cancelacion-reservas-<eventoId>", estado: "ERROR_FINAL" },
+  { $set: { estado: "PENDIENTE", intentos: 0, proximoIntento: new Date(), actualizadoEn: new Date() },
+    $unset: { leaseHasta: "", ultimoError: "" } }
+)
+```
+
+Para Compras o MS7 usá su ID respectivo. La condición evita tocar reclamos activos; conservá destino, payload, motivo y correlación. El scheduler volverá a reclamar el trabajo elegible si hay token configurado.
 
 Al arrancar, un backfill transitorio busca documentos antiguos con `avisoCancelacionPendiente=true`. Inserta avisos `PENDIENTE` con ID determinístico `cancelacion-{eventoId}`; si el ID ya existe no sobrescribe el aviso. Solo después de que el aviso exista elimina el campo legacy. Registra los conteos de migrados, ya existentes y omitidos; eventos legacy inconsistentes se omiten con `WARN` y no bloquean el arranque.
 
@@ -282,6 +317,7 @@ Defaults aplicados por el Compose de Docker:
 | `RESERVAS_CONNECT_TIMEOUT` | `reservas.connect-timeout` | `2s` |
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
+| `FILAS_BASE_URL` | `filas.base-url` | `http://fila-virtual:8088` |
 | `USUARIOS_BASE_URL` | `usuarios.base-url` | Sin default; configurar para asignar personal |
 | `PREFERENCIAS_BASE_URL` | `preferencias.base-url` | `http://preferencias:8089` |
 | `SERVICIO_TOKEN` | `servicio.token` | Sin default; obligatorio con perfil `docker` |
@@ -291,9 +327,9 @@ Defaults aplicados por el Compose de Docker:
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
 
-El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Las URLs predeterminadas de Reservas, Compras y Preferencias usan DNS de Docker; son configurables con `RESERVAS_BASE_URL`, `COMPRAS_BASE_URL` y `PREFERENCIAS_BASE_URL`. Para ejecutar MS1 desde el host, `PREFERENCIAS_BASE_URL` usa `http://localhost:8089`.
+El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Desde el host, las URLs predeterminadas son Reservas `http://localhost:8080`, Compras `http://localhost:8083`, Fila `http://localhost:8088`, Usuarios `http://localhost:8087` y Preferencias `http://localhost:8089`. En Docker, `USUARIOS_BASE_URL` queda vacía hasta configurar una URL alcanzable: el nombre de servicio de MS6 aún no está confirmado. Los timeouts de Reservas tienen defaults `2s`/`5s`; el Compose base no pasa `RESERVAS_CONNECT_TIMEOUT` ni `RESERVAS_READ_TIMEOUT` al contenedor.
 
-Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5s`). También son fijos el máximo de intentos, backoff y lease descritos arriba; no hay variables de entorno para esos valores.
+El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destinos usan conexión `2s` y lectura `5s` fijos. El máximo de intentos, backoff y lease también son fijos; no hay variables de entorno para esos valores.
 
 `CATALOGO_CACHE_TTL` y `CATALOGO_CACHE_MAXIMO_ENTRADAS` deben ser positivos. Las propiedades tienen los mismos defaults al ejecutar MS1 desde el host.
 
@@ -302,13 +338,13 @@ Los timeouts HTTP del dispatcher de outbox son fijos (conexión `2s`, lectura `5
 En `postman/` están las dos colecciones:
 
 - `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 20** y una carpeta 21 de requests propuestos.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 22**.
 
 Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
 La carpeta **20 Política de fila** usa `eventoCompraId` preparado por la carpeta 08. Comprueba activación, consulta actual, repetición, desactivación, body inválido y evento inexistente; la versión y los casos de cancelación se verifican en las pruebas automatizadas.
 
-La carpeta **21 Personal de acceso** contiene requests de la propuesta aún no implementada. Configurá localmente `eventoPersonalId`, `organizadorPersonalId`, `correoPersonal` y `usuarioPersonalId`.
+La carpeta **21 Personal de acceso** prueba la gestión implementada. Configurá localmente `eventoPersonalId`, `organizadorPersonalId`, `correoPersonal` y `usuarioPersonalId`. La carpeta **22 Cancelación recuperable** contiene requests para el caso feliz, la repetición, la intención pendiente y los controles de los stubs; ejecutá sus escenarios por separado como se indica más abajo.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 
@@ -323,10 +359,10 @@ Las carpetas **09 y 10 son excluyentes**: usan escenarios de cancelación separa
 Para simular Compras, desde `mcsv-lugares-sectores-eventos` ejecutá en otra terminal:
 
 ```sh
-node postman/compras-stub.js
+node postman/compras-eventos-stub.js
 ```
 
-El stub escucha en `localhost:8083` por defecto (`PORT` permite cambiarlo), imprime y registra los avisos recibidos. Devuelve `202` al aceptar uno nuevo y `200` cuando ya lo procesó. Permite consultar los avisos con `GET /_stub/avisos`. Requiere Node.js.
+El stub escucha en `localhost:8083` por defecto (`PORT` permite cambiarlo), imprime y registra los avisos recibidos. Devuelve `202` al aceptar uno nuevo y `200` cuando ya lo procesó. Permite consultar los avisos con `GET /_stub/avisos`. Requiere Node.js. No puede compartir puerto con `compras-stub.js`.
 
 Para simular Preferencias y recomendaciones (MS8), desde `mcsv-lugares-sectores-eventos` ejecutá en otra terminal:
 
@@ -360,6 +396,28 @@ node postman/reservas-stub.js
 El stub de Reservas escucha en el puerto `8080` por defecto (`PORT` permite cambiarlo), imprime los pedidos recibidos y valida el formato de las rutas y los cuerpos. También responde `GET /disponibilidad/eventos/{id}`; `POST /_stub/ocupar/{eventoId}` permite simular ocupación y `DELETE /_stub/eventos` limpia los datos del simulador. Requiere Node.js.
 
 El stub de Compras también ofrece `GET /_stub/avisos` para consultar avisos recibidos y `DELETE /_stub/avisos` para limpiarlos.
+
+### Pruebas manuales de cancelación recuperable
+
+En terminales separadas, desde esta carpeta, iniciá los simuladores (solo para uso local):
+
+```sh
+node postman/reservas-stub.js
+node postman/compras-eventos-stub.js
+node postman/fila-stub.js
+node postman/usuarios-stub.js
+```
+
+Escuchan por defecto en `8080`, `8083`, `8088` y `8087`, respectivamente. Configurá un `SERVICIO_TOKEN` no vacío en MS1; si también lo configurás en los stubs de Compras, Fila o Usuarios, debe coincidir. Si MS1 corre en Docker, configurá las cuatro URLs correspondientes como `http://host.docker.internal:<puerto>` en `.env` y recreá MS1; desde Postman en el host, las URLs de los stubs usan `localhost`. No publiques ni compartas el token.
+
+Importá la colección y prepará **dos eventos distintos publicados** con Reservas en modo `ok`: podés ejecutar los pasos de creación, precios y publicación de las carpetas 09 y 10 sin ejecutar todavía sus cancelaciones. Copiá sus IDs en `eventoCancelacionOkId` y `eventoCancelacionPendienteId` de la colección. No reinicies el stub de Reservas entre publicar y cancelar: sus datos están solo en memoria. Ejecutá los requests de la carpeta 22 individualmente, no toda la carpeta en orden: sus modos son alternativos.
+
+1. **Feliz y repetida:** poné Reservas, Compras y Fila en `ok`, cancelá el primer evento (`200`) y repetí (`409`). Consultá `GET /_stub/avisos` de Compras y `GET /_stub/cancelaciones` de Fila: deben mostrar los IDs estables, el token como presente y la correlación; el body de Fila es `null`. Consultá también los tres IDs en `outbox`.
+2. **Recuperación tras error o timeout:** poné Reservas en `error` (`500`) o `timeout` (sin respuesta), cancelá el segundo evento y comprobá `503`; repetí mientras siga pendiente y comprobá otro `503`. No hay avisos a Compras ni Fila antes del `204` de Reservas. Volvé a `ok` y esperá el próximo intento elegible y una pasada del scheduler: el evento queda cancelado y aparecen ambos avisos. El backoff y el intervalo del scheduler pueden sumar espera.
+3. **Respuesta perdida:** con un evento nuevo publicado, poné Reservas en `perder-respuesta` y cancelalo. El stub aplica `CANCELADA` y corta la conexión; MS1 responde `503`. Consultá `GET /_stub/venta/{eventoId}`, cambiá el stub a `ok` y esperá el reintento: Reservas acepta repetir `CANCELADA` con `204` y MS1 completa la cancelación sin duplicar avisos.
+4. **Avisos independientes:** con eventos nuevos, probá `error` o `timeout` en Compras y en Fila por separado. MS1 responde `200` tras confirmar la cancelación; el aviso fallido queda pendiente y el otro puede entregarse. En Fila, `invalido` devuelve `400` y produce `ERROR_FINAL`; revisalo y reencolalo solo después de corregir la causa, como se indicó en la sección de outbox.
+
+Los controles locales están en la carpeta 22: Reservas `POST /_stub/modo/{ok|error|timeout|perder-respuesta}` y `GET /_stub/venta/{eventoId}`; Compras `POST /_stub/modo/{ok|error|timeout}` y `GET /_stub/avisos`; Fila `POST /_stub/modo/{ok|error|timeout|invalido}` y `GET /_stub/cancelaciones`; Usuarios `POST /_stub/modo/{ok|error|timeout}` y `GET /_stub/consultas`. Restaurá los modos a `ok` al terminar. El stub de Usuarios permite además probar la carpeta 21 con `personal@ticketya.com`.
 
 ## Ejecutar las pruebas automatizadas
 

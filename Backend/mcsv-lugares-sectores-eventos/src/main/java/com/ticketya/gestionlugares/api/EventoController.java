@@ -178,12 +178,12 @@ public class EventoController {
     @PutMapping("/{eventoId}/cancelar")
     @Operation(summary = "Cancelar evento y detener su venta", description = "Requiere X-User-Id y X-User-Roles con ADMIN. El body y el motivo son opcionales; si se omiten, se aplica el motivo predeterminado.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Evento cancelado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),
+            @ApiResponse(responseCode = "200", description = "Cancelación confirmada; los avisos a Compras y Fila pueden estar pendientes", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),
             @ApiResponse(responseCode = "401", description = "Falta identidad", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "403", description = "Se requiere ADMIN en X-User-Roles", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "404", description = "Evento inexistente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "409", description = "Estado o versión incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
-            @ApiResponse(responseCode = "503", description = "Reservas no pudo cancelar la venta", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "409", description = "Evento ya cancelado, finalizado o con estado incompatible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "503", description = "La cancelación puede quedar pendiente y recuperarse automáticamente; no implica ausencia de efectos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
             @ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
     })
     public Evento cancelar(@PathVariable String eventoId,
