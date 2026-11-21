@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,8 +32,10 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -84,7 +87,7 @@ class CatalogoCacheIntegrationTest {
     @Autowired private EventoRepository eventos;
     @Autowired private LugarRepository lugares;
     @Autowired private PersonalAccesoRepository personal;
-    @Autowired private OutboxAvisoRepository outbox;
+    @SpyBean private OutboxAvisoRepository outbox;
     @Autowired private EventoLifecycleService lifecycle;
     @Autowired private EventoService eventoService;
     @Autowired private CatalogoCacheInvalidador invalidador;
@@ -242,6 +245,76 @@ class CatalogoCacheIntegrationTest {
         assertEquals(EstadoEvento.BORRADOR, eventos.findById(draft.getId()).orElseThrow().getEstado());
         buscar().andExpect(jsonPath("$.totalElementos").value(1));
         verificarLecturas(2);
+    }
+
+    @Test
+    void modificarInvalidaBusquedaSoloDespuesDelCommit() throws Exception {
+        Lugar lugar = lugares.insert(new Lugar(null, "Sala", "Calle 1", "CABA", 0, 0, List.of()));
+        Evento evento = borrador(Instant.parse("2035-01-01T00:00:00Z"));
+        evento.setLugarId(lugar.getId());
+        evento.definirPrecioMinimoYPublicar();
+        eventos.insert(evento);
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-01-01T00:00:00Z"));
+
+        transaccion.executeWithoutResult(status -> {
+            eventoService.modificarEvento(evento.getId(),
+                    new ModificarEventoRequest("2035-02-01T00:00:00Z", null), "org-1", "ORGANIZADOR");
+            assertNotNull(cache().get(new BusquedaCatalogo(null, null, null, null, null, null,
+                    "fecha", "asc", null, 0, 20)));
+        });
+
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-02-01T00:00:00Z"));
+        verificarLecturas(2);
+        assertEquals(1, outbox.count());
+    }
+
+    @Test
+    void falloAlInsertarAvisoRevierteEventoYSinInvalidarCache() throws Exception {
+        Lugar lugar = lugares.insert(new Lugar(null, "Sala", "Calle 1", "CABA", 0, 0, List.of()));
+        Evento evento = borrador(Instant.parse("2035-01-01T00:00:00Z"));
+        evento.setLugarId(lugar.getId());
+        evento.definirPrecioMinimoYPublicar();
+        eventos.insert(evento);
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-01-01T00:00:00Z"));
+        doThrow(new DataAccessResourceFailureException("fallo al insertar aviso"))
+                .when(outbox).insert(any(AvisoOutbox.class));
+
+        mockMvc.perform(put("/eventos/{id}", evento.getId())
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fechaHora\":\"2035-02-01T00:00:00Z\"}"))
+                .andExpect(status().isInternalServerError());
+
+        Evento persistido = eventos.findById(evento.getId()).orElseThrow();
+        assertEquals(evento.getFechaHora(), persistido.getFechaHora());
+        assertEquals(evento.getVersion(), persistido.getVersion());
+        assertEquals(0, outbox.count());
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-01-01T00:00:00Z"));
+        verificarLecturas(1);
+    }
+
+    @Test
+    void rollbackDespuesDeInsertarRevierteEventoYAviso() throws Exception {
+        Lugar lugar = lugares.insert(new Lugar(null, "Sala", "Calle 1", "CABA", 0, 0, List.of()));
+        Evento evento = borrador(Instant.parse("2035-01-01T00:00:00Z"));
+        evento.setLugarId(lugar.getId());
+        evento.definirPrecioMinimoYPublicar();
+        eventos.insert(evento);
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-01-01T00:00:00Z"));
+
+        transaccion.executeWithoutResult(status -> {
+            eventoService.modificarEvento(evento.getId(),
+                    new ModificarEventoRequest("2035-02-01T00:00:00Z", null), "org-1", "ORGANIZADOR");
+            assertEquals(1, outbox.count());
+            status.setRollbackOnly();
+        });
+
+        Evento persistido = eventos.findById(evento.getId()).orElseThrow();
+        assertEquals(evento.getFechaHora(), persistido.getFechaHora());
+        assertEquals(evento.getVersion(), persistido.getVersion());
+        assertEquals(0, outbox.count());
+        buscar().andExpect(jsonPath("$.contenido[0].fechaHora").value("2035-01-01T00:00:00Z"));
+        verificarLecturas(1);
     }
 
     @Test

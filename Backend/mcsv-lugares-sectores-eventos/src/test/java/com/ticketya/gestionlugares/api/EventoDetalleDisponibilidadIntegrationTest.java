@@ -1,7 +1,9 @@
 package com.ticketya.gestionlugares.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -12,7 +14,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
@@ -20,6 +25,7 @@ import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.dto.AsientoDisponibleResponse;
@@ -42,7 +48,7 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = "spring.data.mongodb.auto-index-creation=false")
+@SpringBootTest(properties = {"spring.data.mongodb.auto-index-creation=false", "outbox.dispatcher.interval=3600000"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
@@ -58,12 +64,15 @@ class EventoDetalleDisponibilidadIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private EventoRepository eventoRepository;
     @Autowired private LugarRepository lugarRepository;
+    @Autowired private OutboxAvisoRepository outboxRepository;
+    @Autowired private ObjectMapper objectMapper;
     @MockBean private ReservasClient reservasClient;
 
     @BeforeEach
     void limpiarBase() {
         eventoRepository.deleteAll();
         lugarRepository.deleteAll();
+        outboxRepository.deleteAll();
     }
 
     @Test
@@ -259,6 +268,76 @@ class EventoDetalleDisponibilidadIntegrationTest {
         Evento persistido = eventoRepository.findById(evento.getId()).orElseThrow();
         assertEquals(true, persistido.isCancelacionPendiente());
         assertEquals(evento.getFechaHora(), persistido.getFechaHora());
+    }
+
+    @Test
+    void avisosCompletosUsanIdPublicoYVersionCrecienteEnCambiosSucesivos() throws Exception {
+        Lugar original = crearLugar();
+        Evento evento = crearEvento(original, EstadoEvento.AGOTADO);
+        Lugar nuevo = lugarRepository.save(new Lugar(null, "Nuevo teatro", "Otra calle", "Rosario",
+                -32, -60, List.of()));
+        Instant primeraFecha = Instant.parse("2035-02-01T12:00:00Z");
+        Instant segundaFecha = Instant.parse("2035-03-01T12:00:00Z");
+        String idPublico = objectMapper.readTree(mockMvc.perform(get("/eventos/{id}", evento.getId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("id").asText();
+        long versionInicial = evento.getVersion();
+
+        modificar(evento.getId(), "{\"fechaHora\":\"" + primeraFecha + "\"}");
+        AvisoOutbox primero = outboxRepository.findById(
+                "modificacion-" + idPublico + "-v" + (versionInicial + 1)).orElseThrow();
+        verificarAviso(primero, idPublico, versionInicial + 1, primeraFecha, "Estadio", "CABA");
+
+        modificar(evento.getId(), "{\"lugarId\":\"" + nuevo.getId() + "\"}");
+        AvisoOutbox segundo = outboxRepository.findById(
+                "modificacion-" + idPublico + "-v" + (versionInicial + 2)).orElseThrow();
+        verificarAviso(segundo, idPublico, versionInicial + 2, primeraFecha, "Nuevo teatro", "Rosario");
+
+        modificar(evento.getId(), "{\"fechaHora\":\"" + segundaFecha
+                + "\",\"lugarId\":\"" + original.getId() + "\"}");
+        AvisoOutbox tercero = outboxRepository.findById(
+                "modificacion-" + idPublico + "-v" + (versionInicial + 3)).orElseThrow();
+        verificarAviso(tercero, idPublico, versionInicial + 3, segundaFecha, "Estadio", "CABA");
+        assertEquals(versionInicial + 3, eventoRepository.findById(evento.getId()).orElseThrow().getVersion());
+        assertEquals(3, outboxRepository.count());
+    }
+
+    @Test
+    void borradorYCambioIdenticoNoCreanAviso() throws Exception {
+        Lugar lugar = crearLugar();
+        Evento borrador = crearEvento(lugar, EstadoEvento.BORRADOR);
+        modificar(borrador.getId(), "{\"fechaHora\":\"2035-01-01T12:00:00Z\"}");
+        assertEquals(0, outboxRepository.count());
+
+        Evento publicado = crearEvento(lugar, EstadoEvento.PUBLICADO);
+        modificar(publicado.getId(), "{\"fechaHora\":\"" + publicado.getFechaHora()
+                + "\",\"lugarId\":\"" + lugar.getId() + "\"}");
+        assertEquals(publicado.getVersion(), eventoRepository.findById(publicado.getId()).orElseThrow().getVersion());
+        assertEquals(0, outboxRepository.count());
+    }
+
+    private void modificar(String eventoId, String body) throws Exception {
+        mockMvc.perform(put("/eventos/{id}", eventoId)
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                        .header("X-Correlation-Id", "modificacion-traza")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
+
+    private void verificarAviso(AvisoOutbox aviso, String idPublico, long version, Instant fecha,
+            String lugar, String ciudad) {
+        assertEquals(idPublico, aviso.getEventoId());
+        assertEquals("MODIFICACION", aviso.getTipo());
+        assertNull(aviso.getMetodoHttp());
+        assertTrue(aviso.getDestino().endsWith("/internal/eventos-modificados"));
+        assertEquals("modificacion-traza", aviso.getCorrelationId());
+        assertEquals(Set.of("eventoId", "version", "fechaHora", "lugar", "ciudad"), aviso.getPayload().keySet());
+        assertEquals(idPublico, aviso.getPayload().get("eventoId"));
+        assertTrue(aviso.getPayload().get("version") instanceof Integer
+                || aviso.getPayload().get("version") instanceof Long);
+        assertEquals(version, ((Number) aviso.getPayload().get("version")).longValue());
+        assertEquals(fecha.toString(), aviso.getPayload().get("fechaHora"));
+        assertEquals(lugar, aviso.getPayload().get("lugar"));
+        assertEquals(ciudad, aviso.getPayload().get("ciudad"));
     }
 
     private Evento guardarEventoPublicado() {

@@ -1,6 +1,7 @@
 package com.ticketya.gestionlugares.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -11,17 +12,23 @@ import java.util.Objects;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.ticketya.gestionlugares.api.CreateEventoRequest;
 import com.ticketya.gestionlugares.api.ModificarEventoRequest;
+import com.ticketya.gestionlugares.compras.http.ComprasProperties;
+import com.ticketya.gestionlugares.domain.AvisoOutbox;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
 import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.domain.Sector;
+import com.ticketya.gestionlugares.outbox.ModificacionAvisoOutboxFactory;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 import com.ticketya.gestionlugares.security.UserRoles;
+import com.ticketya.gestionlugares.trazabilidad.Correlacion;
 
 @Service
 public class EventoService {
@@ -31,12 +38,19 @@ public class EventoService {
     private final EventoRepository eventoRepository;
     private final LugarRepository lugarRepository;
     private final CatalogoCacheInvalidador catalogoCacheInvalidador;
+    private final OutboxAvisoRepository outboxRepository;
+    private final ComprasProperties comprasProperties;
+    private final Clock outboxClock;
 
     public EventoService(EventoRepository eventoRepository, LugarRepository lugarRepository,
-            CatalogoCacheInvalidador catalogoCacheInvalidador) {
+            CatalogoCacheInvalidador catalogoCacheInvalidador, OutboxAvisoRepository outboxRepository,
+            ComprasProperties comprasProperties, Clock outboxClock) {
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
         this.catalogoCacheInvalidador = catalogoCacheInvalidador;
+        this.outboxRepository = outboxRepository;
+        this.comprasProperties = comprasProperties;
+        this.outboxClock = outboxClock;
     }
 
     public Evento crearEvento(CreateEventoRequest request, String organizadorId, String userRolesHeader) {
@@ -58,6 +72,7 @@ public class EventoService {
         return eventoRepository.save(evento);
     }
 
+    @Transactional
     public Evento modificarEvento(String eventoId, ModificarEventoRequest request, String userId,
             String userRolesHeader) {
         UserRoles roles = UserRoles.fromHeader(userRolesHeader);
@@ -95,7 +110,16 @@ public class EventoService {
             evento.setLugarId(lugar.getId());
             evento.setCiudad(lugar.getCiudad());
         }
-        return guardarCambioCatalogo(evento);
+        Evento guardado = guardarCambioCatalogo(evento);
+        if (guardado.getEstado() == EstadoEvento.PUBLICADO || guardado.getEstado() == EstadoEvento.AGOTADO) {
+            Lugar lugarActual = lugar != null ? lugar : lugarRepository.findById(guardado.getLugarId())
+                    .orElseThrow(() -> new ResourceNotFoundException("No existe el lugar del evento"));
+            AvisoOutbox aviso = ModificacionAvisoOutboxFactory.crear(
+                    guardado, lugarActual, outboxClock.instant(), comprasProperties);
+            aviso.setCorrelationId(Correlacion.actual());
+            outboxRepository.insert(aviso);
+        }
+        return guardado;
     }
 
     private static Instant parsearFechaHora(String valor) {

@@ -9,9 +9,9 @@
 
 ## 2. Aviso y transacción
 
-- [ ] 2.1 Crear el aviso de modificación con ID y versión posteriores a la escritura, payload completo y destino de Compras; probar fecha sola, lugar solo, ambos, estado agotado y ausencia de aviso en borrador o sin cambios.
-- [ ] 2.2 Guardar cambio y aviso en una transacción MongoDB e invalidar con `CatalogoCacheInvalidador` tras el commit; verificar con Testcontainers rollback ante fallo del aviso y que una búsqueda cacheada refleje los datos nuevos.
-- [ ] 2.3 Antes de corregir nada, listar las rutas de escritura de eventos que no incrementan la versión, incluido el backfill; modificar solo las necesarias, probar con Testcontainers versiones crecientes e IDs de aviso distintos tras escrituras sucesivas y correr toda la suite.
+- [x] 2.1 Crear el aviso de modificación con ID y versión posteriores a la escritura, payload completo y destino de Compras; probar fecha sola, lugar solo, ambos, estado agotado y ausencia de aviso en borrador o sin cambios.
+- [x] 2.2 Guardar cambio y aviso en una transacción MongoDB e invalidar con `CatalogoCacheInvalidador` tras el commit; verificar con Testcontainers rollback ante fallo del aviso y que una búsqueda cacheada refleje los datos nuevos.
+- [x] 2.3 Antes de corregir nada, listar las rutas de escritura de eventos que no incrementan la versión, incluido el backfill; modificar solo las necesarias, probar con Testcontainers versiones crecientes e IDs de aviso distintos tras escrituras sucesivas y correr toda la suite.
 - [ ] 2.4 Reutilizar la entrega outbox fuera de la transacción; probar `200` y `202`, `400` y `403`, `5xx`, timeout y conexión, headers, payload estable, 8 reclamos y backoff de 30 s duplicado hasta 15 min.
 - [ ] 2.5 Documentar en README, OpenAPI y Postman el aviso completo, configuración, reintentos, fallos definitivos y limitaciones de caché y sectores; verificar coherencia con el contrato de Compras.
 

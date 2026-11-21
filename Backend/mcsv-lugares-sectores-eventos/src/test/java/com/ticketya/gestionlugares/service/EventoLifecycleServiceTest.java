@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
@@ -270,7 +271,8 @@ class EventoLifecycleServiceTest {
         when(eventoRepository.save(any(Evento.class)))
                 .thenThrow(new OptimisticLockingFailureException("version desactualizada"));
         EventoService versionedEventService = new EventoService(eventoRepository, lugarRepository,
-                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
+                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class), outboxAvisoRepository,
+                new ComprasProperties(), Clock.systemUTC());
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 versionedEventService, outboxAvisoRepository, new ComprasProperties(),
                 new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),
@@ -297,7 +299,8 @@ class EventoLifecycleServiceTest {
                 java.util.Optional.of(leidoPorCallback));
         when(eventoRepository.save(any(Evento.class))).thenAnswer(invocation -> invocation.getArgument(0));
         EventoService realEventService = new EventoService(eventoRepository, lugarRepository,
-                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
+                org.mockito.Mockito.mock(CatalogoCacheInvalidador.class), outboxAvisoRepository,
+                new ComprasProperties(), Clock.systemUTC());
         EventoCancelacionOutboxService cancellationService = new EventoCancelacionOutboxService(
                 realEventService, outboxAvisoRepository, new ComprasProperties(),
                 new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 
 import com.ticketya.gestionlugares.api.CreateEventoRequest;
 import com.ticketya.gestionlugares.api.ModificarEventoRequest;
+import com.ticketya.gestionlugares.compras.http.ComprasProperties;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
@@ -34,6 +36,7 @@ import com.ticketya.gestionlugares.domain.Sector;
 import com.ticketya.gestionlugares.domain.TipoSector;
 import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
+import com.ticketya.gestionlugares.repository.OutboxAvisoRepository;
 
 @ExtendWith(MockitoExtension.class)
 class EventoServiceTest {
@@ -45,12 +48,14 @@ class EventoServiceTest {
     @Mock private EventoRepository eventoRepository;
     @Mock private LugarRepository lugarRepository;
     @Mock private CatalogoCacheInvalidador catalogoCacheInvalidador;
+    @Mock private OutboxAvisoRepository outboxAvisoRepository;
 
     private EventoService service;
 
     @BeforeEach
     void setUp() {
-        service = new EventoService(eventoRepository, lugarRepository, catalogoCacheInvalidador);
+        service = new EventoService(eventoRepository, lugarRepository, catalogoCacheInvalidador,
+                outboxAvisoRepository, new ComprasProperties(), Clock.systemUTC());
         lenient().when(eventoRepository.save(any(Evento.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }

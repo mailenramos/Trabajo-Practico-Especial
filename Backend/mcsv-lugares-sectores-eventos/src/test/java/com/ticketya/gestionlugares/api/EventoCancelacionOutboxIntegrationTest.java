@@ -187,6 +187,7 @@ class EventoCancelacionOutboxIntegrationTest {
         existente.setIntentos(4);
         existente.setPayload(Map.of("original", "no sobrescribir"));
         outboxRepository.insert(existente);
+        long versionAntesBackfill = eventoRepository.findById(migrable.getId()).orElseThrow().getVersion();
 
         Instant inicio = Instant.now();
         EventoCancelacionOutboxBackfill.Resultado primero = backfill.migrarPendientes();
@@ -208,6 +209,8 @@ class EventoCancelacionOutboxIntegrationTest {
         assertEquals(Map.of("original", "no sobrescribir"), sinCambios.getPayload());
         assertFalse(tieneFlagLegacy(migrable.getId()));
         assertFalse(tieneFlagLegacy(yaMigrado.getId()));
+        assertEquals(versionAntesBackfill + 1,
+                eventoRepository.findById(migrable.getId()).orElseThrow().getVersion());
 
         EventoCancelacionOutboxBackfill.Resultado segundo = backfill.migrarPendientes();
         assertEquals(new EventoCancelacionOutboxBackfill.Resultado(0, 0, 3), segundo);
