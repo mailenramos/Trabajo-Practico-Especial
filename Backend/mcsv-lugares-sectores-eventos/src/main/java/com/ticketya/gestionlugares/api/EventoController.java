@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -69,10 +70,41 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}")
+    @Operation(summary = "Modificar fecha, horario o lugar",
+            description = "Requiere ORGANIZADOR titular o ADMIN. Al menos un campo; sin cambios reales no incrementa la versión ni crea aviso. "
+                    + "En publicado o agotado, el aviso completo a Compras queda en outbox. Cambiar lugar conserva sectores, precios y disponibilidad.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Evento actualizado o sin cambios",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class),
+                            examples = @ExampleObject(name = "Evento actualizado", value = ApiExamples.EVENTO_PUBLICADO))),
+            @ApiResponse(responseCode = "400", description = "Body vacío o inválido, fecha no futura o lugar inexistente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "401", description = "Falta identidad o lista de roles",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "Rol insuficiente u organizador no titular",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "404", description = "Evento inexistente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "409", description = "Evento cancelado, finalizado, con cancelación pendiente o conflicto de versión",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "500", description = "Error interno",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
+    })
     public Evento modificar(
             @PathVariable String eventoId,
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true)
             @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @Parameter(name = "X-User-Roles", in = ParameterIn.HEADER, required = true,
+                    description = "Lista de roles; requiere ORGANIZADOR titular o ADMIN.")
             @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+                    description = "Fecha futura en UTC y/o ID del nuevo lugar.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ModificarEventoRequest.class),
+                            examples = {
+                                    @ExampleObject(name = "Cambiar fecha", value = "{\"fechaHora\":\"2035-02-01T12:00:00Z\"}"),
+                                    @ExampleObject(name = "Cambiar lugar", value = "{\"lugarId\":\"507f1f77bcf86cd799439011\"}")
+                            }))
             @RequestBody ModificarEventoRequest request) {
         return eventoService.modificarEvento(eventoId, request, userId, userRolesHeader);
     }

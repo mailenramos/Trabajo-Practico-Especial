@@ -97,6 +97,7 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | POST | `/eventos` | `ORGANIZADOR` | Crea un evento en borrador. |
 | GET | `/eventos` | Público, sin token | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
 | GET | `/eventos/{eventoId}` | Público para `publicado`/`agotado`; borrador requiere autenticación | Solo el organizador titular o `ADMIN` puede consultar un borrador; otros usuarios reciben `404`. |
+| PUT | `/eventos/{eventoId}` | `ORGANIZADOR` titular o `ADMIN` | Modifica fecha/hora y/o lugar; el Gateway publica la ruta. |
 | PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | `ORGANIZADOR` dueño | Define el precio de un sector del evento en borrador. |
 | PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | `ORGANIZADOR` dueño | Actualiza el límite por cliente durante el borrador. |
 | PUT | `/eventos/{eventoId}/publicar` | `ORGANIZADOR` dueño | Inicializa la disponibilidad con Reservas y publica el evento. |
@@ -139,6 +140,25 @@ El perfil `dev` carga dos lugares y sus sectores: Teatro Central en Buenos Aires
 Estos eventos se insertan directamente en la base de este servicio, sin pasar por Reservas. Por eso, el detalle de los eventos publicados muestra `disponibilidad: null` y suspender o cancelar esos eventos responde `503`, porque Reservas no los conoce. La cancelación puede dejar una intención y un trabajo `ERROR_FINAL` si Reservas responde `404`. Para probar el flujo completo, creá y publicá eventos por la API con Reservas encendido (carpeta 12 de Postman).
 
 Las rutas de gestión de eventos y lugares devuelven errores controlados con `timestamp`, `status`, `error` y `mensaje`; `campos` se incluye como lista de `{campo, mensaje}` cuando corresponde.
+
+## Modificar un evento
+
+`PUT /eventos/{eventoId}` requiere `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN`. El Gateway valida el JWT y propaga ambos headers; el Gateway la publica. El body JSON contiene al menos uno de `fechaHora` (futura, ISO-8601 UTC) y `lugarId` (lugar existente):
+
+```json
+{"fechaHora":"2035-02-01T12:00:00Z","lugarId":"507f1f77bcf86cd799439011"}
+```
+
+| Código | Cuándo |
+|---|---|
+| `200` | Devuelve el evento actualizado; si los valores coinciden, no escribe ni incrementa la versión ni crea aviso. |
+| `400` | Body vacío o inválido, fecha inválida o no futura, o lugar inexistente. |
+| `401` | Falta identidad o lista de roles. |
+| `403` | Rol insuficiente u organizador no titular sin rol `ADMIN`. |
+| `404` | Evento inexistente. |
+| `409` | Evento cancelado, finalizado, con cancelación pendiente o conflicto de versión. |
+
+**Limitación:** cambiar el lugar conserva sectores y precios del evento y la disponibilidad existente; no llama a Reservas ni migra asientos. En un borrador los sectores siguen siendo los del lugar anterior, lo que puede dificultar asignar precios o publicarlo.
 
 ## Búsqueda y detalle de eventos
 
@@ -229,6 +249,13 @@ URL base configurable con `compras.base-url` (default Docker `http://compras:808
 
 - **Consulta interna de evento:** Compras llama directamente `GET /internal/eventos/{eventoId}` sin headers de usuario. Devuelve eventoId, nombre, `fechaInicio` en ISO-8601 UTC, estado en minúsculas y sectores con precio decimal o `null` si todavía no se definió. Responde `200` o `404`.
 - **Aviso de cancelación:** después de que Reservas confirma la cancelación, este servicio guarda el evento y el aviso en una transacción MongoDB y llama `POST /eventos-cancelados` después del commit. Envía el ID estable en `X-Aviso-Id` sin modificar el payload. Cualquier respuesta `2xx` marca el aviso como `ENTREGADO`; `3xx` y el resto de `4xx` son definitivos; timeouts, errores de conexión, `5xx`, `408` y `429` se reintentan. El dispatcher usa timeout fijo de 2 s para conexión y 5 s para lectura. El fallo de Compras no revierte la cancelación ni cambia la respuesta `200` al administrador.
+- **Aviso de modificación:** solo si un evento `PUBLICADO` o `AGOTADO` cambia realmente de fecha/hora o lugar, MS1 guarda el evento y el aviso en la misma transacción; en borrador o sin cambios no hay aviso. El scheduler envía `POST {COMPRAS_BASE_URL}/internal/eventos-modificados` con ID `modificacion-{eventoId}-v{version}`. El body contiene siempre el estado completo posterior:
+
+  ```json
+  {"eventoId":"672a1f77bcf86cd799439011","version":2,"fechaHora":"2035-02-01T12:00:00Z","lugar":"Teatro Central","ciudad":"Buenos Aires"}
+  ```
+
+  `version` es el entero ≥ 1 del evento ya guardado; `lugar` es su nombre, no su ID. Compras deduplica por `eventoId` y `version`: responde `202` para una versión nueva, `200` si ya la procesó o es anterior, `400` para body inválido y `403` para token inválido. Cualquier `2xx` entrega el aviso; `400` y `403` son definitivos. Timeout, conexión y `5xx` se reintentan con la política de outbox, con el mismo ID, versión y body. Un fallo de Compras no revierte el evento ni hace fallar el `PUT`.
 
 MS7 también recibe siempre `PUT {FILAS_BASE_URL}/internal/filas/eventos/{eventoId}/cancelacion` sin body, incluso si `requiereFila=false`. Se envía el aviso `cancelacion-fila-{eventoId}` con los headers comunes de outbox. Cualquier `2xx` confirma su entrega; una falla no afecta al aviso de Compras.
 
@@ -270,7 +297,7 @@ Los avisos se guardan en la colección MongoDB `outbox`:
 
 Todos los avisos salientes incluyen `X-Service-Token`, `X-Aviso-Id` y `X-Correlation-Id`. Sin `SERVICIO_TOKEN` en perfiles distintos de `docker`, se registra un aviso al arrancar y el dispatcher no procesa ni reclama avisos: permanecen pendientes sin consumir intentos ni perderse. Configurá el token y reiniciá MS1 para reanudar la entrega. `408`, `429`, `5xx` y errores de transporte se reintentan; `3xx` y los demás `4xx`, incluido `403`, son definitivos.
 
-La entrega inmediata de `PUBLICACION` es síncrona después del commit; si Preferencias no responde, puede demorar hasta unos 7 s (timeouts de conexión y lectura). Ese fallo no revierte la publicación ni cambia su respuesta exitosa. Los reintentos posteriores son asíncronos, a cargo del dispatcher.
+La entrega inmediata de `PUBLICACION` es síncrona después del commit; si Preferencias no responde, puede demorar hasta unos 7 s (timeouts de conexión y lectura). Ese fallo no revierte la publicación ni cambia su respuesta exitosa. Los reintentos posteriores son asíncronos, a cargo del dispatcher. Los avisos `MODIFICACION` se entregan por el scheduler después del commit. La invalidación de caché es local y posterior al commit: otras instancias o un corte antes de invalidar pueden conservar datos anteriores hasta el TTL.
 
 Para inspeccionar avisos con `mongosh`:
 
@@ -338,13 +365,15 @@ El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destin
 En `postman/` están las dos colecciones:
 
 - `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 22**.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 23**.
 
 Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
 La carpeta **20 Política de fila** usa `eventoCompraId` preparado por la carpeta 08. Comprueba activación, consulta actual, repetición, desactivación, body inválido y evento inexistente; la versión y los casos de cancelación se verifican en las pruebas automatizadas.
 
 La carpeta **21 Personal de acceso** prueba la gestión implementada. Configurá localmente `eventoPersonalId`, `organizadorPersonalId`, `correoPersonal` y `usuarioPersonalId`. La carpeta **22 Cancelación recuperable** contiene requests para el caso feliz, la repetición, la intención pendiente y los controles de los stubs; ejecutá sus escenarios por separado como se indica más abajo.
+
+La carpeta **23 Modificar evento** usa `eventoPublicadoId`, `borradorId`, `eventoCancelaId`, `lugarOtroId` y `orgTitular`; prepará eventos y lugares existentes y configurá el ID del organizador titular. Ejecutá los casos individualmente: cambiar fecha y repetir usan el mismo valor, y los casos de borrador y cancelado requieren eventos en esos estados. Para probar avisos ejecutá `node postman/compras-eventos-stub.js` con MS1 apuntando a `COMPRAS_BASE_URL` y `SERVICIO_TOKEN` configurado. Consultá `GET http://localhost:8083/_stub/avisos`; para simular una falla usá `POST http://localhost:8083/_stub/modo/error`, modificá un evento publicado y esperá al scheduler hasta ver la respuesta `500` en los avisos. Luego restaurá `POST http://localhost:8083/_stub/modo/ok` y esperá el próximo reintento. El stub es una simulación local, no garantiza que el receptor real de Compras esté desplegado.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 

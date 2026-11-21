@@ -210,6 +210,28 @@ class OpenApiDocumentationTest {
     }
 
     @Test
+    void documentaModificacionConBearerEjemplosYCodigos() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode api = new ObjectMapper().readTree(body);
+        JsonNode put = api.path("paths").path("/eventos/{eventoId}").path("put");
+        assertEventErrors(put.path("responses"), "200", "400", "401", "403", "404", "409", "500");
+        assertTrue(put.path("security").get(0).has("bearerAuth"));
+        assertTrue(api.path("components").path("securitySchemes").path("bearerAuth").path("scheme")
+                .asText().equals("bearer"));
+        for (String identityHeader : List.of("X-User-Id", "X-User-Roles")) {
+            assertTrue(java.util.stream.StreamSupport.stream(put.path("parameters").spliterator(), false)
+                    .anyMatch(parameter -> parameter.path("name").asText().equals(identityHeader)
+                            && parameter.path("required").asBoolean()));
+        }
+        JsonNode request = put.path("requestBody").path("content").path("application/json");
+        assertTrue(request.path("examples").has("Cambiar fecha"));
+        assertTrue(request.path("examples").has("Cambiar lugar"));
+        assertTrue(put.path("responses").path("200").path("content").path("application/json")
+                .path("examples").has("Evento actualizado"));
+    }
+
+    @Test
     void documentaGestionYConsultaInternaDePersonal() throws Exception {
         String body = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();

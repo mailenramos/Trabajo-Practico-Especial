@@ -12756,6 +12756,84 @@
           ]
         }
       ]
+    },
+    {
+      "name": "23 Modificar evento",
+      "description": "Preparar eventoPublicadoId, borradorId, eventoCancelaId, lugarOtroId y orgTitular. Ejecutar individualmente; repetir fecha después de cambiarla. El lugar nuevo debe diferir del actual.",
+      "item": [
+        {
+          "name": "Cambiar fecha (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Cambia la fecha del evento publicado; puede generar aviso a Compras.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "CLIENTE, ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-02-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Repetir misma fecha (200, sin cambio)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Ejecutar después de cambiar fecha; no crea otro aviso ni aumenta la versión.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-02-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Cambiar lugar (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Usa un lugar existente distinto; conserva sectores, precios y disponibilidad.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"lugarId\":\"{{lugarOtroId}}\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Body vacío (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 400', () => pm.response.to.have.status(400));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Debe enviarse al menos un campo.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Fecha pasada (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 400', () => pm.response.to.have.status(400));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "La fecha debe ser futura.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2020-01-01T00:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Lugar inexistente (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 400', () => pm.response.to.have.status(400));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "El lugar indicado no existe.", "header": [{ "key": "X-User-Id", "value": "{{orgTitular}}" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"lugarId\":\"000000000000000000000000\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Otro organizador (403)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 403', () => pm.response.to.have.status(403));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Usar un organizador distinto del titular configurado.", "header": [{ "key": "X-User-Id", "value": "organizador-ajeno" }, { "key": "X-User-Roles", "value": "ORGANIZADOR" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-03-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Administrador no titular (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "ADMIN puede modificar un evento ajeno.", "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "CLIENTE, ADMIN" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-04-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Sin headers de identidad (401)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 401', () => pm.response.to.have.status(401));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "No enviar X-User-Id ni X-User-Roles.", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-03-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoPublicadoId}}" },
+          "response": []
+        },
+        {
+          "name": "Evento inexistente (404)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 404', () => pm.response.to.have.status(404));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Identificador de evento inexistente.", "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-03-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/000000000000000000000000" },
+          "response": []
+        },
+        {
+          "name": "Evento cancelado (409)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 409', () => pm.response.to.have.status(409));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Configurar eventoCancelaId con un evento cancelado.", "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-03-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{eventoCancelaId}}" },
+          "response": []
+        },
+        {
+          "name": "Modificar borrador (200, sin aviso)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "PUT", "description": "Configurar borradorId con un borrador; no crea aviso a Compras.", "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fechaHora\":\"2035-03-01T12:00:00Z\"}" }, "url": "{{baseUrl}}/eventos/{{borradorId}}" },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
