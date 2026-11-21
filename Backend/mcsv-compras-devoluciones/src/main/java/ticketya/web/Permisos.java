@@ -6,9 +6,10 @@ import org.springframework.stereotype.Component;
 import ticketya.error.ApiException;
 
 /**
- * Permisos según X-User-Role. El grupo confirmó ADMIN como rol de administrador; se deja
- * configurable con compras.rol-administrador (por defecto ADMIN) y se compara sin
- * distinguir mayúsculas.
+ * Permisos según los roles del usuario (X-User-Roles). Es administrador quien tiene, entre sus
+ * roles, el configurado en compras.rol-administrador (por defecto ADMIN, confirmado por el
+ * grupo). Se decide por pertenencia: no se elige un rol entre varios. Se compara sin distinguir
+ * mayúsculas ni espacios.
  */
 @Component
 public class Permisos {
@@ -20,7 +21,7 @@ public class Permisos {
     }
 
     public boolean esAdministrador(UsuarioActual usuario) {
-        return usuario.rol() != null && usuario.rol().equalsIgnoreCase(rolAdministrador);
+        return usuario.tieneRol(rolAdministrador);
     }
 
     /** Solo un administrador puede seguir; si no, 403 SOLO_ADMINISTRADOR. */

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ConnectException;
+import java.util.concurrent.TimeoutException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,5 +49,16 @@ class GatewayUnavailableFilterTests {
 
         assertEquals(failure, thrown);
         assertNull(exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void convertsDestinationTimeoutToServiceUnavailable() throws Exception {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/eventos").build());
+
+        filter.filter(exchange, ignored -> Mono.error(new TimeoutException("Timed out"))).block();
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
+        assertTrue(exchange.getResponse().getBodyAsString().block().contains("SERVICIO_NO_DISPONIBLE"));
     }
 }

@@ -1,0 +1,8 @@
+# Usar junto con docker-compose.yml; los puertos quedan ligados a loopback.
+services:
+  fila-virtual:
+    ports:
+      - "127.0.0.1:${MS7_DEV_APP_PORT:-8088}:${SERVER_PORT:-8088}"
+  mysql-fila-virtual:
+    ports:
+      - "127.0.0.1:${MS7_DEV_DB_PORT:-3309}:3306"

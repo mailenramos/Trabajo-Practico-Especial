@@ -1,0 +1,6 @@
+# Prueba local con Docker (contiene secretos de prueba)
+local-test/
+
+# Archivos locales de Claude Code
+.claude/
+Claude outputs/

@@ -21,6 +21,17 @@ public interface AsientoDisponibilidadRepository extends JpaRepository<AsientoDi
 
     List<AsientoDisponibilidad> findAllByEventoIdAndEstado(String eventoId, EstadoAsiento estado);
 
+    @Query("SELECT a.sectorId AS sectorId, a.estado AS estado, COUNT(a) AS cantidad "
+            + "FROM AsientoDisponibilidad a WHERE a.eventoId = :eventoId "
+            + "GROUP BY a.sectorId, a.estado")
+    List<ConteoEstadoSector> contarPorSectorYEstado(@Param("eventoId") String eventoId);
+
+    interface ConteoEstadoSector {
+        String getSectorId();
+        EstadoAsiento getEstado();
+        long getCantidad();
+    }
+
     @Modifying(flushAutomatically = true)
     @Query("UPDATE AsientoDisponibilidad a SET a.estado = :nuevoEstado "
             + "WHERE a.eventoId = :eventoId AND a.sectorId = :sectorId "

@@ -1,7 +1,7 @@
 # api-gateway Specification
 
 ## Purpose
-Define el acceso local de la Entrega 1 a las APIs públicas de TicketYa a través de un API Gateway, sin autenticación real y sin exponer las rutas internas de comunicación entre servicios.
+Define el acceso a las APIs públicas de TicketYa a través de un API Gateway, validando JWT y roles, registrando la trazabilidad HTTP y sin exponer las rutas internas de comunicación entre servicios.
 
 ## Requirements
 
@@ -42,22 +42,25 @@ El Gateway SHALL NOT enrutar callbacks, operaciones internas entre microservicio
 - **WHEN** un cliente solicita `PUT /eventos/{eventoId}/disponibilidad` o `POST /eventos-cancelados` por el Gateway
 - **THEN** el Gateway no reenvía la solicitud
 
-### Requirement: Propagar identidad de Entrega 1 sin autenticar
+### Requirement: Autenticar y autorizar solicitudes públicas con JWT
 
-El Gateway SHALL conservar `X-User-Id` y `X-User-Role` recibidos en las solicitudes públicas cuando estén presentes. El Gateway SHALL NOT autenticar usuarios, crear una identidad por defecto ni interpretar esos encabezados como credenciales verificadas; cada servicio SHALL aplicar sus validaciones actuales.
+El Gateway SHALL validar JWT HS256 firmados con una clave externa de al menos 32 bytes UTF-8, exigir `sub`, `roles` y `exp`, y permitir únicamente los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. `roles` puede ser una lista o un string separado por comas; el claim singular `role` se admite durante la transición. Las rutas públicas SHALL aplicar autorización por rol; `X-User-Id`, `X-User-Roles` y `X-User-Role` SHALL derivarse de los claims validados y los valores entrantes SHALL descartarse.
 
-#### Scenario: Solicitud con identidad de prueba
-- **WHEN** una solicitud pública contiene `X-User-Id` y/o `X-User-Role`
-- **THEN** el Gateway reenvía esos valores sin alterarlos
+#### Scenario: Solicitud sin token válido
+- **WHEN** se solicita una ruta pública sin bearer token, con firma incorrecta, vencido o con claims/rol inválidos
+- **THEN** el Gateway responde HTTP 401 y no llama al servicio destino
 
-#### Scenario: Solicitud sin identidad requerida por el servicio
-- **WHEN** una ruta pública se solicita sin el header requerido por su contrato
-- **THEN** el Gateway reenvía la solicitud sin inventar una identidad
-- **AND** la respuesta de validación del servicio se devuelve al cliente
+#### Scenario: Rol sin permiso
+- **WHEN** un token válido solicita una operación que no está autorizada para su rol
+- **THEN** el Gateway responde HTTP 403 y no llama al servicio destino
+
+#### Scenario: Identidad enviada por el cliente
+- **WHEN** una solicitud autenticada contiene `X-User-Id` o `X-User-Role` distintos a los claims del token
+- **THEN** el Gateway reemplaza ambos headers por `sub` y `role` validados antes del reenvío
 
 ### Requirement: Permitir consumo desde el frontend local
 
-El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos y headers requeridos por las APIs públicas y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
+El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Request-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
 
 #### Scenario: Preflight desde origen configurado
 - **WHEN** el navegador envía un preflight desde un origen permitido para un método y headers públicos admitidos
@@ -79,3 +82,37 @@ El Gateway SHALL obtener el puerto de escucha, las URLs de los servicios destino
 - **WHEN** el Gateway no puede conectar con el servicio dueño de una ruta pública
 - **THEN** responde HTTP 503
 - **AND** no devuelve una respuesta de éxito vacía o simulada
+
+### Requirement: Enrutar actualización y asignación de personal de acceso de MS1
+
+El Gateway SHALL enrutar `PUT /eventos/{eventoId}`, `POST /eventos/{eventoId}/personal-acceso`, `GET /eventos/{eventoId}/personal-acceso` y `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}` a MS1 conservando método, path, query, cuerpo y headers. Las cuatro operaciones SHALL requerir JWT; las de personal de acceso SHALL admitir organizador o administrador.
+
+#### Scenario: Modificar evento
+- **WHEN** se solicita `PUT /eventos/{eventoId}` con una identidad autorizada
+- **THEN** el Gateway reenvía la solicitud a MS1 sin modificar su contrato
+
+#### Scenario: Gestionar personal de acceso
+- **WHEN** un organizador o administrador asigna, lista o revoca personal de acceso
+- **THEN** el Gateway enruta el método y path exactos a MS1
+- **AND** envía `X-User-Id` desde `sub` y todos los roles en `X-User-Roles` separados por comas
+
+#### Scenario: Ruta interna o de operación de MS1
+- **WHEN** se solicita `/internal/**`, `/actuator/**` o `PUT /eventos/{eventoId}/disponibilidad`
+- **THEN** el Gateway no reenvía la solicitud a ningún servicio
+
+### Requirement: Trazar solicitudes y limitar espera de servicios
+
+El Gateway SHALL registrar método, path, usuario autenticado cuando exista, roles, status y duración de cada solicitud. SHALL conservar un `X-Correlation-Id` válido de hasta 100 caracteres con caracteres alfanuméricos, punto, guion o guion bajo, o generar un identificador nuevo; devolverlo al cliente y propagarlo al destino. `X-Request-Id` puede mantenerse como alias de compatibilidad. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
+
+#### Scenario: Solicitud procesada
+- **WHEN** una solicitud llega al Gateway
+- **THEN** queda un log HTTP con método, path, status, duración y `X-Request-Id`
+- **AND** la respuesta y el destino reciben el mismo `X-Correlation-Id`
+
+#### Scenario: Destino excede el timeout
+- **WHEN** el servicio destino no responde dentro del plazo configurado
+- **THEN** el Gateway responde HTTP 503 sin simular éxito
+
+#### Scenario: Ruta interna solicitada
+- **WHEN** una solicitud no autenticada apunta a una ruta interna no publicada
+- **THEN** el Gateway responde 404 sin reenviarla

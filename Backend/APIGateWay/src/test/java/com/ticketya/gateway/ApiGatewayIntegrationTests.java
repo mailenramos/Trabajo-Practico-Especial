@@ -13,11 +13,19 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Order;
@@ -30,7 +38,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "gateway.security.jwt-secret=integration-test-secret-with-at-least-32-bytes")
 @TestMethodOrder(OrderAnnotation.class)
 class ApiGatewayIntegrationTests {
 
@@ -74,16 +83,23 @@ class ApiGatewayIntegrationTests {
     @Test
     @Order(1)
     void forwardsEventSearchAndIdentityHeaders() throws Exception {
-        HttpResponse<String> response = send("GET", "/eventos?q=rock&page=0", null,
-                "X-User-Id", "cliente-1", "X-User-Role", "CLIENTE");
+        String requestId = "orders.v2-abc_1";
+        HttpResponse<String> response = sendAs("GET", "/eventos?q=rock&page=0", null,
+                "CLIENTE", "cliente-1", "X-Request-Id", requestId,
+                "X-User-Id", "spoofed-user", "X-User-Role", "ADMIN");
 
         assertEquals(200, response.statusCode());
         assertEquals("{\"ok\":true}", response.body());
         CapturedRequest forwarded = MS1.take();
+        assertEquals(requestId, response.headers().firstValue("X-Correlation-Id").orElseThrow());
+        assertEquals(requestId, response.headers().firstValue("X-Request-Id").orElseThrow());
+        assertEquals(requestId, forwarded.header("X-Correlation-Id"));
+        assertEquals(requestId, forwarded.header("X-Request-Id"));
         assertEquals("GET", forwarded.method());
         assertEquals("/eventos?q=rock&page=0", forwarded.path());
         assertEquals("cliente-1", forwarded.header("X-User-Id"));
         assertEquals("CLIENTE", forwarded.header("X-User-Role"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Roles"));
         assertNull(MS2.poll());
         assertNull(MS3.poll());
         assertNull(MS5.poll());
@@ -93,7 +109,8 @@ class ApiGatewayIntegrationTests {
     @Order(2)
     void forwardsReservationBodyAndUserId() throws Exception {
         String body = "{\"solicitudId\":\"request-1\",\"detalles\":[{\"sectorId\":\"sector-1\",\"fila\":1,\"numero\":3}]}";
-        HttpResponse<String> response = send("POST", "/disponibilidad/eventos/evento-1/reservas", body,
+        HttpResponse<String> response = sendAs("POST", "/disponibilidad/eventos/evento-1/reservas", body,
+                "CLIENTE", "cliente-1",
                 "Content-Type", "application/json", "X-User-Id", "cliente-1");
 
         assertEquals(200, response.statusCode());
@@ -109,7 +126,8 @@ class ApiGatewayIntegrationTests {
     @Order(3)
     void forwardsPurchasePaymentAndIdempotencyKey() throws Exception {
         String body = "{\"medioDePago\":\"CREDIT_CARD\"}";
-        HttpResponse<String> response = send("POST", "/compras/123e4567-e89b-12d3-a456-426614174000/pago", body,
+        HttpResponse<String> response = sendAs("POST", "/compras/123e4567-e89b-12d3-a456-426614174000/pago", body,
+                "CLIENTE", "cliente-1",
                 "Content-Type", "application/json", "X-User-Id", "cliente-1",
                 "Idempotency-Key", "payment-request-1");
 
@@ -125,7 +143,8 @@ class ApiGatewayIntegrationTests {
     @Test
     @Order(4)
     void forwardsTicketQuery() throws Exception {
-        HttpResponse<String> response = send("GET", "/entradas?estado=VIGENTE&page=1", null,
+        HttpResponse<String> response = sendAs("GET", "/entradas?estado=VIGENTE&page=1", null,
+                "CLIENTE", "cliente-1",
                 "X-User-Id", "cliente-1");
 
         assertEquals(200, response.statusCode());
@@ -137,47 +156,64 @@ class ApiGatewayIntegrationTests {
 
     @Test
     @Order(5)
-    void doesNotInventIdentityHeaders() throws Exception {
+    void rejectsMissingTokenAndDoesNotCallBackend() throws Exception {
         HttpResponse<String> response = send("GET", "/eventos", null);
 
-        assertEquals(200, response.statusCode());
-        CapturedRequest forwarded = MS1.take();
-        assertNull(forwarded.header("X-User-Id"));
-        assertNull(forwarded.header("X-User-Role"));
+        assertEquals(401, response.statusCode());
+        assertTrue(response.body().contains("NO_AUTENTICADO"));
+        assertNull(MS1.poll());
     }
 
     @Test
     @Order(6)
+    void rejectsWrongRoleAndUnknownRoleWithoutCallingBackend() throws Exception {
+        HttpResponse<String> forbidden = sendAs("POST", "/eventos", "{}", "CLIENTE", "cliente-1",
+                "Content-Type", "application/json");
+        assertEquals(403, forbidden.statusCode());
+        assertTrue(forbidden.body().contains("ACCESO_DENEGADO"));
+
+        HttpResponse<String> invalidRole = send("GET", "/eventos", null,
+                "Authorization", "Bearer " + token("user-1", "VISITANTE"));
+        assertEquals(401, invalidRole.statusCode());
+        assertNull(MS1.poll());
+    }
+
+    @Test
+    @Order(7)
     void routesEveryPublishedOperationToItsOwningService() throws Exception {
         java.util.List<RouteCase> routes = java.util.List.of(
-                new RouteCase("GET", "/lugares", MS1),
-                new RouteCase("POST", "/lugares", MS1),
-                new RouteCase("GET", "/lugares/lugar-1", MS1),
-                new RouteCase("GET", "/lugares/lugar-1/sectores", MS1),
-                new RouteCase("POST", "/lugares/lugar-1/sectores", MS1),
-                new RouteCase("GET", "/eventos", MS1),
-                new RouteCase("POST", "/eventos", MS1),
-                new RouteCase("GET", "/eventos/evento-1", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/sectores/sector-1/precio", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/limite-entradas-por-cliente", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/publicar", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/venta/suspender", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/venta/reactivar", MS1),
-                new RouteCase("PUT", "/eventos/evento-1/cancelar", MS1),
-                new RouteCase("POST", "/disponibilidad/eventos/evento-1/reservas", MS2),
-                new RouteCase("GET", "/compras", MS3),
-                new RouteCase("POST", "/compras", MS3),
-                new RouteCase("GET", "/compras/compra-1", MS3),
-                new RouteCase("POST", "/compras/compra-1/pago", MS3),
-                new RouteCase("GET", "/devoluciones", MS3),
-                new RouteCase("POST", "/devoluciones", MS3),
-                new RouteCase("GET", "/devoluciones/devolucion-1", MS3),
-                new RouteCase("POST", "/devoluciones/devolucion-1/aprobacion", MS3),
-                new RouteCase("POST", "/devoluciones/devolucion-1/rechazo", MS3),
-                new RouteCase("GET", "/reintegros", MS3),
-                new RouteCase("POST", "/reintegros/reintegro-1/reintento", MS3),
-                new RouteCase("GET", "/entradas", MS5),
-                new RouteCase("GET", "/entradas/entrada-1", MS5));
+                new RouteCase("GET", "/lugares", MS1, "CLIENTE"),
+                new RouteCase("POST", "/lugares", MS1, "ORGANIZADOR"),
+                new RouteCase("GET", "/lugares/lugar-1", MS1, "CLIENTE"),
+                new RouteCase("GET", "/lugares/lugar-1/sectores", MS1, "CLIENTE"),
+                new RouteCase("POST", "/lugares/lugar-1/sectores", MS1, "ORGANIZADOR"),
+                new RouteCase("GET", "/eventos", MS1, "CLIENTE"),
+                new RouteCase("POST", "/eventos", MS1, "ORGANIZADOR"),
+                new RouteCase("GET", "/eventos/evento-1", MS1, "CLIENTE"),
+                new RouteCase("PUT", "/eventos/evento-1", MS1, "ORGANIZADOR"),
+                new RouteCase("POST", "/eventos/evento-1/personal-acceso", MS1, "ORGANIZADOR"),
+                new RouteCase("GET", "/eventos/evento-1/personal-acceso", MS1, "ADMIN"),
+                new RouteCase("DELETE", "/eventos/evento-1/personal-acceso/usuario-1", MS1, "ADMIN"),
+                new RouteCase("PUT", "/eventos/evento-1/sectores/sector-1/precio", MS1, "ORGANIZADOR"),
+                new RouteCase("PUT", "/eventos/evento-1/limite-entradas-por-cliente", MS1, "ORGANIZADOR"),
+                new RouteCase("PUT", "/eventos/evento-1/publicar", MS1, "ORGANIZADOR"),
+                new RouteCase("PUT", "/eventos/evento-1/venta/suspender", MS1, "ADMIN"),
+                new RouteCase("PUT", "/eventos/evento-1/venta/reactivar", MS1, "ADMIN"),
+                new RouteCase("PUT", "/eventos/evento-1/cancelar", MS1, "ADMIN"),
+                new RouteCase("POST", "/disponibilidad/eventos/evento-1/reservas", MS2, "CLIENTE"),
+                new RouteCase("GET", "/compras", MS3, "CLIENTE"),
+                new RouteCase("POST", "/compras", MS3, "CLIENTE"),
+                new RouteCase("GET", "/compras/compra-1", MS3, "CLIENTE"),
+                new RouteCase("POST", "/compras/compra-1/pago", MS3, "CLIENTE"),
+                new RouteCase("GET", "/devoluciones", MS3, "CLIENTE"),
+                new RouteCase("POST", "/devoluciones", MS3, "CLIENTE"),
+                new RouteCase("GET", "/devoluciones/devolucion-1", MS3, "CLIENTE"),
+                new RouteCase("POST", "/devoluciones/devolucion-1/aprobacion", MS3, "ADMIN"),
+                new RouteCase("POST", "/devoluciones/devolucion-1/rechazo", MS3, "ADMIN"),
+                new RouteCase("GET", "/reintegros", MS3, "ADMIN"),
+                new RouteCase("POST", "/reintegros/reintegro-1/reintento", MS3, "ADMIN"),
+                new RouteCase("GET", "/entradas", MS5, "CLIENTE"),
+                new RouteCase("GET", "/entradas/entrada-1", MS5, "CLIENTE"));
 
         for (RouteCase route : routes) {
             MS1.clear();
@@ -185,14 +221,16 @@ class ApiGatewayIntegrationTests {
             MS3.clear();
             MS5.clear();
 
-            HttpResponse<String> response = send(route.method(), route.path(),
-                    "GET".equals(route.method()) ? null : "{}", "Content-Type", "application/json");
+            HttpResponse<String> response = sendAs(route.method(), route.path(),
+                    "GET".equals(route.method()) ? null : "{}", route.role(), "user-1",
+                    "Content-Type", "application/json");
 
             assertEquals(200, response.statusCode(), route.method() + " " + route.path());
             assertEquals("{\"ok\":true}", response.body());
             CapturedRequest forwarded = route.backend().take();
             assertEquals(route.method(), forwarded.method());
             assertEquals(route.path(), forwarded.path());
+            assertNull(route.backend().poll(), "El Gateway no debe reenviar la solicitud más de una vez");
             assertFalse(route.backend() != MS1 && MS1.poll() != null);
             assertFalse(route.backend() != MS2 && MS2.poll() != null);
             assertFalse(route.backend() != MS3 && MS3.poll() != null);
@@ -201,7 +239,25 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
+    void forwardsFullRoleListAndEnforcesSpecificAssignmentPermissions() throws Exception {
+        HttpResponse<String> forbidden = sendAs("GET", "/eventos/evento-1/personal-acceso", null,
+                "CLIENTE", "cliente-1");
+        assertEquals(403, forbidden.statusCode());
+        assertNull(MS1.poll());
+
+        HttpResponse<String> response = sendWithRoles("POST", "/eventos/evento-1/personal-acceso", "{}",
+                List.of("CLIENTE", "ORGANIZADOR"), "organizador-1", "Content-Type", "application/json");
+        assertEquals(200, response.statusCode());
+
+        CapturedRequest forwarded = MS1.take();
+        assertEquals("organizador-1", forwarded.header("X-User-Id"));
+        assertEquals("CLIENTE,ORGANIZADOR", forwarded.header("X-User-Roles"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Role"));
+    }
+
+    @Test
+    @Order(9)
     void doesNotForwardInternalOrUnknownRoutes() throws Exception {
         assertNotPublished("GET", "/internal/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/eventos/evento-1", null);
@@ -210,6 +266,7 @@ class ApiGatewayIntegrationTests {
         assertNotPublished("POST", "/eventos-cancelados", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/internal/entradas/emision", "{}", "Content-Type", "application/json");
         assertNotPublished("GET", "/internal/pagos/compra/1", null);
+        assertNotPublished("GET", "/actuator/health", null);
         assertNotPublished("DELETE", "/eventos", null);
         assertNotPublished("GET", "/not-a-public-route", null);
 
@@ -220,17 +277,17 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(8)
+    @Order(10)
     void appliesCorsOnlyToConfiguredOrigin() throws Exception {
         HttpResponse<String> allowed = send("OPTIONS", "/eventos", null,
                 "Origin", corsAllowedOrigins,
                 "Access-Control-Request-Method", "POST",
-                "Access-Control-Request-Headers", "content-type,x-user-id,idempotency-key");
+                "Access-Control-Request-Headers", "authorization,x-request-id,idempotency-key");
 
         assertTrue(allowed.statusCode() < 400);
         assertEquals(corsAllowedOrigins, allowed.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
         assertTrue(allowed.headers().firstValue("Access-Control-Allow-Headers").orElse("")
-                .toLowerCase().contains("x-user-id"));
+                .toLowerCase().contains("authorization"));
 
         HttpResponse<String> denied = send("OPTIONS", "/eventos", null,
                 "Origin", "http://malicious.example",
@@ -239,10 +296,10 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(9)
+    @Order(11)
     void returnsServiceUnavailableWhenDestinationIsDown() throws Exception {
         MS1.stop();
-        HttpResponse<String> response = send("GET", "/eventos", null);
+        HttpResponse<String> response = sendAs("GET", "/eventos", null, "CLIENTE", "cliente-1");
 
         assertEquals(503, response.statusCode());
         assertTrue(response.body().contains("SERVICIO_NO_DISPONIBLE"));
@@ -265,6 +322,61 @@ class ApiGatewayIntegrationTests {
         return httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    private HttpResponse<String> sendAs(
+            String method,
+            String path,
+            String body,
+            String role,
+            String userId,
+            String... headers) throws Exception {
+        List<String> allHeaders = new ArrayList<>();
+        allHeaders.add("Authorization");
+        allHeaders.add("Bearer " + token(userId, role));
+        allHeaders.addAll(List.of(headers));
+        return send(method, path, body, allHeaders.toArray(String[]::new));
+    }
+
+    private HttpResponse<String> sendWithRoles(
+            String method,
+            String path,
+            String body,
+            List<String> roles,
+            String userId,
+            String... headers) throws Exception {
+        List<String> allHeaders = new ArrayList<>();
+        allHeaders.add("Authorization");
+        allHeaders.add("Bearer " + token(userId, roles));
+        allHeaders.addAll(List.of(headers));
+        return send(method, path, body, allHeaders.toArray(String[]::new));
+    }
+
+    private static String token(String userId, String role) {
+        return token(userId, List.of(role));
+    }
+
+    private static String token(String userId, List<String> roles) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String header = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(mapper.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")));
+            String payload = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(mapper.writeValueAsBytes(Map.of(
+                            "sub", userId,
+                            "roles", roles,
+                            "exp", System.currentTimeMillis() / 1000 + 3600)));
+            String signingInput = header + "." + payload;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    "integration-test-secret-with-at-least-32-bytes".getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"));
+            String signature = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8)));
+            return signingInput + "." + signature;
+        } catch (Exception exception) {
+            throw new IllegalStateException("No se pudo crear el JWT de prueba", exception);
+        }
+    }
+
     private void assertNotPublished(String method, String path, String body, String... headers) throws Exception {
         HttpResponse<String> response = send(method, path, body, headers);
         assertEquals(404, response.statusCode(), method + " " + path);
@@ -276,7 +388,7 @@ class ApiGatewayIntegrationTests {
         }
     }
 
-    private record RouteCase(String method, String path, Backend backend) {
+    private record RouteCase(String method, String path, Backend backend, String role) {
     }
 
     private static final class Backend {

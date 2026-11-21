@@ -66,6 +66,7 @@ public class CompraService {
         compra.setEventoId(evento.eventoId());
         compra.setEventoNombre(evento.nombre());
         compra.setEventoFechaInicio(evento.fechaInicio());
+        compra.setTipoEvento(tipoEvento(evento));
 
         BigDecimal total = BigDecimal.ZERO;
         for (DetalleReserva lugar : reserva.detalles()) {
@@ -156,6 +157,12 @@ public class CompraService {
                     "La reserva " + reservaId + " está vencida, liberada o ya confirmada. Hay que reservar de nuevo");
         }
         return reserva;
+    }
+
+    /** El tipo del evento sin espacios de más; vacío o ausente queda en nulo (no cuenta en el historial). */
+    static String tipoEvento(Evento evento) {
+        String tipo = evento.tipo();
+        return tipo == null || tipo.isBlank() ? null : tipo.trim();
     }
 
     /** Consulta el evento de la reserva: nombre, fecha de inicio y precios de los sectores. */

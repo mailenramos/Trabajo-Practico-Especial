@@ -8,6 +8,9 @@ spring:
     gateway:
       server:
         webflux:
+          httpclient:
+            connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
+            response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
           routes:
             - id: ms1-lugares-lista
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
@@ -33,7 +36,17 @@ spring:
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
               predicates:
                 - Path=/eventos/{eventoId}
-                - Method=GET
+                - Method=GET,PUT
+            - id: ms1-evento-personal-acceso
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/personal-acceso
+                - Method=GET,POST
+            - id: ms1-evento-personal-acceso-revocar
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/personal-acceso/{usuarioId}
+                - Method=DELETE
             - id: ms1-evento-precio-sector
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
               predicates:
@@ -128,3 +141,5 @@ spring:
 gateway:
   cors:
     allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    jwt-secret: ${JWT_SECRET:}

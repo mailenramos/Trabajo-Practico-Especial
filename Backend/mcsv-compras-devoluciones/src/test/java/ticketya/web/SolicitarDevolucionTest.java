@@ -80,6 +80,19 @@ class SolicitarDevolucionTest extends PruebaDevoluciones {
     }
 
     @Test
+    void unaEntradaUtilizadaSeRechazaNombrandoSuEstado() throws Exception {
+        String entradaId = unaEntradaDePlatea(CLIENTE);
+        entradas.agregar(entradaId, CLIENTE, EstadoEntrada.UTILIZADA, Instant.now().plus(Duration.ofDays(30)));
+
+        solicitarDevolucion(CLIENTE, entradaId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("ENTRADA_NO_VIGENTE"))
+                .andExpect(jsonPath("$.mensaje").value(org.hamcrest.Matchers.containsString("UTILIZADA")));
+
+        assertThat(solicitudes.count()).isZero();
+    }
+
+    @Test
     void laEntradaDeOtroClienteSeRechaza() throws Exception {
         String entradaId = unaEntradaDePlatea(CLIENTE);
 

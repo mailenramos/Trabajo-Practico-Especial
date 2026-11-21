@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  title: TicketYa MS7 - Gestión de fila virtual
+  version: 0.1.0
+  description: >-
+    Contrato HTTP implementado para la fila virtual simplificada. Las rutas
+    públicas deben accederse mediante Gateway. Los encabezados X-User-Id y
+    X-User-Roles son propagados por Gateway, no deben aceptarse directamente del
+    cliente externo. La validación JWT y la protección de red siguen pendientes
+    de integración. Las rutas internas se utilizan entre servicios por la red
+    privada y no autentican individualmente al llamador. MS1 debe completar los
+    campos y la operación de política acordados. El consumo de MS2 está implementado
+    y se probó con MS2 y MS7 reales y MS1 simulado; falta la integración grupal.
+    Todas las respuestas incluyen X-Correlation-Id, incluso en errores. Si el
+    encabezado recibido falta o es inválido, MS7 genera un UUID; el identificador
+    también se propaga en las llamadas sincrónicas a MS1.
+servers:
+  - url: http://localhost:8088
+    description: MS7 local; acceso directo para desarrollo controlado
+tags:
+  - name: Public - Gateway
+    description: Operaciones públicas previstas a través de Gateway.
+  - name: Internal - MS2
+    description: Consumo de turno por MS2, fuera del Gateway.
+  - name: Internal - MS1
+    description: Cancelación del evento por MS1, fuera del Gateway.
+paths:
+  /filas/eventos/{eventoId}/ingresos:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/UsuarioId'
+      - $ref: '#/components/parameters/Roles'
+    post:
+      tags: [Public - Gateway]
+      operationId: ingresarFila
+      summary: Ingresar a la fila o recuperar el turno activo
+      description: >-
+        Rol CLIENTE. MS7 consulta MS1 para verificar que el evento no esté
+        cancelado ni finalizado y que requiera fila. Si ya hay un turno activo,
+        lo devuelve incluso si la fila está pausada; no crea otro. Si la fila
+        está activa y no existe turno activo, crea uno y puede habilitarlo.
+        Si el evento no requiere fila, el conflicto informa que el cliente
+        puede reservar directamente.
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Turno nuevo creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnoResponse' }
+              examples:
+                habilitado:
+                  value: { turnoId: 125, eventoId: evento-123, estado: HABILITADO, ingresadoEn: '2026-11-17T15:00:00Z', habilitadoEn: '2026-11-17T15:00:00Z', expiraEn: '2026-11-17T15:05:00Z' }
+        '200':
+          description: Turno activo existente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnoResponse' }
+              example: { turnoId: 126, eventoId: evento-123, estado: ESPERANDO, posicion: 1, ingresadoEn: '2026-11-17T15:00:00Z' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /filas/eventos/{eventoId}/mi-turno:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/UsuarioId'
+      - $ref: '#/components/parameters/Roles'
+    get:
+      tags: [Public - Gateway]
+      operationId: consultarMiTurno
+      summary: Consultar el turno del cliente
+      description: >-
+        Rol CLIENTE. Devuelve el turno activo; si no existe, el histórico más
+        reciente. Antes de consultar procesa vencimientos y habilitaciones locales.
+        La posición empieza en 1 y solo se informa para ESPERANDO.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Turno encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnoResponse' }
+              example: { turnoId: 125, eventoId: evento-123, estado: ESPERANDO, posicion: 3, ingresadoEn: '2026-11-17T15:00:00Z' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /filas/eventos/{eventoId}:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/UsuarioId'
+      - $ref: '#/components/parameters/Roles'
+    get:
+      tags: [Public - Gateway]
+      operationId: consultarFila
+      summary: Consultar el estado general de la fila
+      description: >-
+        ORGANIZADOR propietario o ADMIN. Consulta MS1 también para ADMIN;
+        procesa vencimientos y habilitaciones locales antes de responder.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Estado local de la fila.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FilaEventoResponse' }
+              example: { eventoId: evento-123, estado: ACTIVA, cancelado: false, cupo: 10, duracionMinutos: 5, cantidadEsperando: 23, cantidadHabilitados: 10 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /filas/eventos/{eventoId}/configuracion:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/UsuarioId'
+      - $ref: '#/components/parameters/Roles'
+    put:
+      tags: [Public - Gateway]
+      operationId: configurarFila
+      summary: Configurar cupo y duración
+      description: >-
+        ORGANIZADOR propietario o ADMIN. Verifica el evento con MS1. Si la fila
+        no existe, la crea DESACTIVADA con los valores proporcionados. Un aumento
+        de cupo puede habilitar turnos inmediatamente; una reducción no revoca
+        habilitaciones y la nueva duración solo se aplica a habilitaciones futuras.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfiguracionFilaRequest' }
+            example: { cupo: 10, duracionMinutos: 5 }
+      responses:
+        '204': { description: Configuración aplicada o repetida. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /filas/eventos/{eventoId}/estado:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/UsuarioId'
+      - $ref: '#/components/parameters/Roles'
+    put:
+      tags: [Public - Gateway]
+      operationId: cambiarEstadoFila
+      summary: Activar, pausar, reanudar o desactivar
+      description: >-
+        ORGANIZADOR propietario o ADMIN. Activar desde DESACTIVADA prepara la
+        fila, solicita requiereFila=true a MS1 y luego activa localmente.
+        Desactivar invalida turnos activos localmente y solicita false a MS1.
+        Pausa y reanudación no envían un PUT de política. Para reanudar desde
+        PAUSADA, MS1 debe informar requiereFila=true. Un fallo remoto no confirma
+        la operación; repetir el mismo PUT es idempotente. No deben ejecutarse
+        cambios opuestos simultáneamente sobre el mismo evento.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EstadoFilaRequest' }
+            example: { estado: ACTIVA }
+      responses:
+        '204': { description: Estado aplicado y coordinación requerida confirmada. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /internal/filas/eventos/{eventoId}/consumos:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+    post:
+      tags: [Internal - MS2]
+      operationId: consumirTurno
+      summary: Verificar y consumir un turno habilitado
+      description: >-
+        Operación atómica e idempotente por usuarioId y solicitudId. Una repetición
+        idéntica recupera el consumo histórico sin consumir otro turno, incluso
+        después del vencimiento; otro evento o huella produce 409. El campo
+        autorizacionVigente no demuestra la existencia de una reserva. Es falso
+        cuando el turno venció, la fila está desactivada o fue cancelada.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsumirTurnoRequest' }
+            example: { usuarioId: cliente-123, solicitudId: SOL-9b8d, huellaSolicitud: 'v1:huella' }
+      responses:
+        '200':
+          description: Consumo registrado o repetición idéntica.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsumoTurnoResponse' }
+              example: { turnoId: 125, eventoId: evento-123, solicitudId: SOL-9b8d, estado: CONSUMIDO, expiraEn: '2026-11-17T15:05:00Z', autorizacionVigente: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /internal/filas/eventos/{eventoId}/cancelacion:
+    parameters:
+      - $ref: '#/components/parameters/EventoId'
+      - $ref: '#/components/parameters/CorrelationId'
+    put:
+      tags: [Internal - MS1]
+      operationId: cancelarFila
+      summary: Registrar cancelación e invalidar turnos activos
+      description: >-
+        Operación idempotente. Crea la fila cancelada si todavía no existe,
+        invalida turnos esperando y habilitados y conserva los consumidos.
+      security: []
+      responses:
+        '204': { description: Cancelación registrada o repetida. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Validación prevista en Gateway; MS7 no valida el JWT directamente.
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Hasta 128 caracteres alfanuméricos, punto, guion, guion bajo o dos puntos; si falta o es inválido se genera un UUID. Se devuelve en la respuesta y se propaga a MS1.
+      schema: { type: string }
+    EventoId:
+      name: eventoId
+      in: path
+      required: true
+      description: Identificador no blanco; máximo 255 unidades UTF-16 de Java.
+      schema: { type: string, minLength: 1, x-java-max-utf16-length: 255 }
+    UsuarioId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Identidad validada y propagada por Gateway; no debe confiarse en un valor enviado por el cliente externo.
+      schema: { type: string, minLength: 1, maxLength: 255 }
+    Roles:
+      name: X-User-Roles
+      in: header
+      required: true
+      description: Roles validados por Gateway separados por coma; CLIENTE, ORGANIZADOR, ADMIN o PERSONAL_ACCESO.
+      schema: { type: string, example: 'CLIENTE, ORGANIZADOR' }
+  schemas:
+    ConfiguracionFilaRequest:
+      type: object
+      additionalProperties: false
+      required: [cupo, duracionMinutos]
+      properties:
+        cupo: { type: integer, format: int32, minimum: 1, maximum: 2147483647 }
+        duracionMinutos: { type: integer, format: int32, minimum: 1, maximum: 2147483647 }
+    EstadoFilaRequest:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoFila' }
+    ConsumirTurnoRequest:
+      type: object
+      additionalProperties: false
+      required: [usuarioId, solicitudId, huellaSolicitud]
+      properties:
+        usuarioId: { type: string, minLength: 1, maxLength: 255 }
+        solicitudId: { type: string, minLength: 1, maxLength: 255 }
+        huellaSolicitud: { type: string, minLength: 1, maxLength: 255 }
+    EstadoFila:
+      type: string
+      enum: [ACTIVA, PAUSADA, DESACTIVADA]
+    EstadoTurno:
+      type: string
+      enum: [ESPERANDO, HABILITADO, CONSUMIDO, VENCIDO]
+    TurnoResponse:
+      type: object
+      additionalProperties: false
+      required: [turnoId, eventoId, estado, ingresadoEn]
+      properties:
+        turnoId: { type: integer, format: int64 }
+        eventoId: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoTurno' }
+        posicion: { type: integer, format: int64, minimum: 1, description: Solo se incluye para ESPERANDO. }
+        ingresadoEn: { type: string, format: date-time }
+        habilitadoEn: { type: string, format: date-time }
+        expiraEn: { type: string, format: date-time }
+    FilaEventoResponse:
+      type: object
+      additionalProperties: false
+      required: [eventoId, estado, cancelado, cupo, duracionMinutos, cantidadEsperando, cantidadHabilitados]
+      properties:
+        eventoId: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoFila' }
+        cancelado: { type: boolean }
+        cupo: { type: integer, format: int32, minimum: 1 }
+        duracionMinutos: { type: integer, format: int32, minimum: 1 }
+        cantidadEsperando: { type: integer, format: int64, minimum: 0 }
+        cantidadHabilitados: { type: integer, format: int64, minimum: 0 }
+    ConsumoTurnoResponse:
+      type: object
+      additionalProperties: false
+      required: [turnoId, eventoId, solicitudId, estado, expiraEn, autorizacionVigente]
+      properties:
+        turnoId: { type: integer, format: int64 }
+        eventoId: { type: string }
+        solicitudId: { type: string }
+        estado: { type: string, const: CONSUMIDO }
+        expiraEn: { type: string, format: date-time }
+        autorizacionVigente: { type: boolean }
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [timestamp, status, error, mensaje]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        error: { type: string }
+        mensaje: { type: string }
+        campos:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [campo, mensaje]
+            properties:
+              campo: { type: string }
+              mensaje: { type: string }
+      example:
+        timestamp: '2026-11-17T15:00:00Z'
+        status: 400
+        error: Bad Request
+        mensaje: La solicitud contiene datos inválidos.
+        campos:
+          - { campo: cupo, mensaje: debe ser mayor que 0 }
+  responses:
+    BadRequest:
+      description: Solicitud o parámetro inválido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Identidad propagada ausente o inválida.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Rol insuficiente o evento ajeno al organizador.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Evento, fila o turno inexistente, según la operación.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Estado incompatible, turno no habilitado o reutilización incompatible de clave.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Tipo de contenido no admitido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalServerError:
+      description: Error inesperado del servicio.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unavailable:
+      description: MS1 no disponible o respuesta necesaria incompleta; una respuesta perdida no prueba que el cambio remoto haya fallado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }

@@ -31,10 +31,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.CrearReservaRequest;
+import ar.edu.unicen.ms_disponibilidad_reservas.client.IntegracionException;
+import ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient;
+import ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.DetalleReservaConsultaResponse;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.DetalleReservaSolicitud;
 import ar.edu.unicen.ms_disponibilidad_reservas.dto.LiberarReservaRequest;
@@ -75,6 +79,8 @@ public class ReservaService {
     private final DisponibilidadAgotamientoService agotamientoService;
     private final Validator validator;
     private final Clock clock;
+    private final Ms1EventoClient ms1;
+    private final Ms7FilaClient ms7;
     private final TransactionTemplate transaccion;
     private final TransactionTemplate transaccionConfirmacion;
 
@@ -91,6 +97,8 @@ public class ReservaService {
             DisponibilidadAgotamientoService agotamientoService,
             Validator validator,
             Clock clock,
+            Ms1EventoClient ms1,
+            Ms7FilaClient ms7,
             PlatformTransactionManager transactionManager) {
         this.eventosRepository = eventosRepository;
         this.sectoresRepository = sectoresRepository;
@@ -101,18 +109,39 @@ public class ReservaService {
         this.agotamientoService = agotamientoService;
         this.validator = validator;
         this.clock = clock;
+        this.ms1 = ms1;
+        this.ms7 = ms7;
         this.transaccion = new TransactionTemplate(transactionManager);
         this.transaccion.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.transaccionConfirmacion = new TransactionTemplate(transactionManager);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ResultadoCreacionReserva crear(String eventoId, String usuarioId, CrearReservaRequest request) {
+        return crear(eventoId, usuarioId, request, null);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ResultadoCreacionReserva crear(String eventoId, String usuarioId, CrearReservaRequest request, String correlationId) {
         validarEntrada(eventoId, usuarioId, request);
         String huella = calcularHuella(eventoId, request);
+        ResultadoCreacionReserva previa = buscarResultadoIdempotente(usuarioId, request.solicitudId(), eventoId, huella);
+        if (previa != null) return previa;
+        Instant vencimientoAutorizacion = null;
+        try {
+            if (ms1.consultar(eventoId, correlationId).requiereFila()) {
+                vencimientoAutorizacion = ms7.consumir(eventoId, usuarioId, request.solicitudId(), huella, correlationId).expiraEn();
+            }
+        } catch (IntegracionException falloRemoto) {
+            ResultadoCreacionReserva concurrente = buscarResultadoIdempotente(usuarioId, request.solicitudId(), eventoId, huella);
+            if (concurrente != null) return concurrente;
+            throw falloRemoto;
+        }
+        final Instant autorizacion = vencimientoAutorizacion;
         for (int intento = 1; intento <= MAX_INTENTOS_TRANSACCION_CREACION; intento++) {
             try {
                 return transaccion.execute(
-                        status -> crearEnTransaccion(eventoId, usuarioId, request, huella));
+                        status -> crearEnTransaccion(eventoId, usuarioId, request, huella, autorizacion));
             } catch (DataIntegrityViolationException violacionPersistencia) {
                 // Una carrera por la clave idempotente puede resolverse como violación de
                 // unicidad. Buscar al ganador solo después de que TransactionTemplate hizo
@@ -136,6 +165,12 @@ public class ReservaService {
             }
         }
         throw new IllegalStateException("No se pudo completar la transacción de creación de reserva.");
+    }
+
+    private ResultadoCreacionReserva buscarResultadoIdempotente(String usuarioId, String solicitudId,
+            String eventoId, String huella) {
+        return transaccion.execute(status -> reservasRepository.findByUsuarioIdAndClaveIdempotencia(usuarioId, solicitudId)
+                .map(reserva -> resolverReintento(reserva, eventoId, huella, clock.instant())).orElse(null));
     }
 
     private Reserva buscarReservaIdempotenteTrasRollback(String usuarioId, String solicitudId) {
@@ -356,17 +391,22 @@ public class ReservaService {
     }
 
     private ResultadoCreacionReserva crearEnTransaccion(
-            String eventoId, String usuarioId, CrearReservaRequest request, String huella) {
+            String eventoId, String usuarioId, CrearReservaRequest request, String huella, Instant autorizacion) {
         EventoDisponibilidad evento = eventosRepository.findByEventoIdForUpdate(eventoId).orElse(null);
 
         Reserva existente = reservasRepository
-                .findByUsuarioIdAndClaveIdempotencia(usuarioId, request.solicitudId()).orElse(null);
+                .findByUsuarioIdAndClaveIdempotenciaForUpdate(usuarioId, request.solicitudId()).orElse(null);
         if (existente != null) {
             return resolverReintento(existente, eventoId, huella, clock.instant());
         }
         if (evento == null) {
             throw new DisponibilidadNoRegistradaException(
                     "No hay disponibilidad registrada en MS2 para el evento solicitado");
+        }
+
+        if (autorizacion != null && !autorizacion.isAfter(clock.instant())) {
+            throw new IntegracionException(IntegracionException.Tipo.AUTORIZACION_NO_VIGENTE,
+                    "La autorización del turno ya no está vigente.");
         }
 
         validarEventoReservable(evento);
@@ -388,16 +428,24 @@ public class ReservaService {
         // El INSERT/flush hace que la clave única arbitre las carreras antes de tocar inventario.
         reserva = reservasRepository.saveAndFlush(reserva);
 
+        long unidadesVencidas = reservasRepository.findUnidadesVencidasForUpdate(usuarioId, eventoId,
+                LocalDateTime.ofInstant(ahora, ZoneOffset.UTC)).stream()
+                .mapToLong(Integer::longValue).reduce(0L, Math::addExact);
         CantidadClienteEvento cantidad = cantidadesService.obtenerOCrear(usuarioId, eventoId);
+        if (unidadesVencidas > cantidad.getCantidadReservada()) {
+            throw new IllegalStateException("Las cantidades vencidas no coinciden con las cantidades reservadas.");
+        }
         int limite = evento.getLimiteEntradasPorCliente();
-        long totalClienteEvento = (long) cantidad.getCantidadReservada() + cantidad.getCantidadConfirmada()
+        long totalClienteEvento = (long) cantidad.getCantidadReservada() - unidadesVencidas + cantidad.getCantidadConfirmada()
                 + unidadesSolicitadas;
         if (totalClienteEvento > limite) {
-            throw new ReservaConflictException("La reserva supera el límite de entradas por cliente para el evento.");
+            throw new ReservaConflictException("La reserva supera el límite de entradas por cliente para el evento: " + limite + ".");
         }
 
         try {
             disponibilidadService.reservar(detalles);
+        } catch (DisponibilidadInsuficienteException insuficiente) {
+            throw new ReservaConflictException(insuficiente.getMessage());
         } catch (DisponibilidadException conflictoInventario) {
             throw new ReservaConflictException(
                     "Uno o más lugares solicitados ya no están disponibles para reservar.");
@@ -464,6 +512,13 @@ public class ReservaService {
         }
         if (longitudCaracteres(request.solicitudId()) > 255) {
             throw new IllegalArgumentException("solicitudId no puede superar 255 caracteres.");
+        }
+        Set<ClaveAsiento> asientos = new HashSet<>();
+        for (DetalleReservaSolicitud detalle : request.detalles()) {
+            if (detalle.fila() != null && detalle.numero() != null && detalle.cantidad() == null
+                    && !asientos.add(new ClaveAsiento(detalle.sectorId(), detalle.fila(), detalle.numero()))) {
+                throw new IllegalArgumentException("La solicitud repite un asiento numerado.");
+            }
         }
     }
 

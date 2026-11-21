@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import ticketya.cliente.EntradasCliente;
 import ticketya.cliente.EntradasCliente.EstadoEntrada;
+import ticketya.cliente.EntradasCliente.ResultadoCierre;
 import ticketya.cliente.PagosCliente;
 import ticketya.cliente.PagosCliente.EstadoPago;
 import ticketya.cliente.PagosCliente.Pago;
@@ -68,6 +69,7 @@ public class CancelacionService {
     private final TransactionTemplate transaccion;
     private final TaskExecutor ejecutor;
     private final Duration plazoEnProceso;
+    private final AvisoService avisos;
 
     public CancelacionService(CancelacionEventoRepository cancelaciones, CompraRepository compras,
                               SolicitudDevolucionRepository solicitudes, ReintegroRepository reintegros,
@@ -75,7 +77,8 @@ public class CancelacionService {
                               EntradasCliente entradas, PagosCliente pagos,
                               TransactionTemplate transaccion,
                               @Qualifier("applicationTaskExecutor") TaskExecutor ejecutor,
-                              @Value("${compras.cancelacion.plazo-en-proceso:5m}") Duration plazoEnProceso) {
+                              @Value("${compras.cancelacion.plazo-en-proceso:5m}") Duration plazoEnProceso,
+                              AvisoService avisos) {
         this.cancelaciones = cancelaciones;
         this.compras = compras;
         this.solicitudes = solicitudes;
@@ -87,6 +90,7 @@ public class CancelacionService {
         this.transaccion = transaccion;
         this.ejecutor = ejecutor;
         this.plazoEnProceso = plazoEnProceso;
+        this.avisos = avisos;
     }
 
     /** Respuesta al aviso: aceptado (202) o ya procesado (200). */
@@ -97,10 +101,16 @@ public class CancelacionService {
      * segundo plano. Un aviso repetido no lanza otro procesamiento, salvo que la cancelación
      * haya quedado en proceso más allá del plazo: entonces la retoma si gana la toma atómica
      * a la reanudación automática, que de todos modos la retomaría sin ese aviso.
+     * <p>
+     * En la misma transacción que el registro se guarda un aviso EVENTO_CANCELADO por cada
+     * cliente con una compra confirmada del evento; un aviso repetido no los vuelve a generar.
      */
     public ResultadoAviso recibir(String eventoId, String motivo, Instant canceladoEn) {
         try {
-            cancelaciones.saveAndFlush(new CancelacionEvento(eventoId, motivo, canceladoEn));
+            transaccion.executeWithoutResult(estado -> {
+                cancelaciones.saveAndFlush(new CancelacionEvento(eventoId, motivo, canceladoEn));
+                avisos.eventoCancelado(eventoId);
+            });
             lanzar(eventoId);
             return ResultadoAviso.ACEPTADO;
         } catch (DataIntegrityViolationException yaRecibido) {
@@ -163,20 +173,29 @@ public class CancelacionService {
     }
 
     /**
-     * Marca las entradas del evento en Entradas (solo informativo) y procesa cada compra
-     * pendiente y confirmada por separado. Si una compra falla por algo inesperado, se sigue con las
-     * demás y la cancelación queda en proceso: la reanudación automática la retoma pasado el
-     * plazo. La marcación se pide solo si no se hizo antes con éxito.
+     * Pide a Entradas que marque las entradas del evento y registre su cierre, y procesa cada
+     * compra pendiente y confirmada por separado. La cancelación se da por completa solo si todas
+     * las compras se procesaron y Entradas confirmó el cierre ({@code cerrado: true}); si no, queda
+     * en proceso con el error guardado y la reanudación automática la retoma pasado el plazo.
+     * La marcación se pide solo si no se confirmó antes; es idempotente en Entradas.
      */
     public void procesar(String eventoId) {
-        // La marcación se pide hasta que salga bien; al retomar no se repite si ya se hizo
+        // La marcación se pide hasta que Entradas confirme el cierre; al retomar no se repite si ya lo hizo
         boolean marcacionHecha = cancelaciones.findById(eventoId).map(CancelacionEvento::isMarcacionHecha).orElse(false);
         if (!marcacionHecha) {
             try {
-                int marcadas = entradas.marcarEntradasDelEvento(eventoId);
-                cancelaciones.registrarMarcacion(eventoId, marcadas);
+                ResultadoCierre cierre = entradas.marcarEntradasDelEvento(eventoId);
+                if (cierre.cerrado()) {
+                    cancelaciones.registrarMarcacion(eventoId, cierre.entradasMarcadas());
+                    marcacionHecha = true;
+                } else {
+                    log.warn("Entradas marcó {} entradas del evento {} pero no confirmó el cierre",
+                            cierre.entradasMarcadas(), eventoId);
+                    cancelaciones.registrarCierreNoConfirmado(eventoId, cierre.entradasMarcadas(),
+                            "MARCACION: Entradas no confirmó el cierre del evento (cerrado ausente o false)");
+                }
             } catch (ServicioExternoException e) {
-                // Cada entrada se consulta y se pasa a devuelta de a una con el reintegro exitoso
+                // Los reintegros siguen igual: cada entrada se consulta y se pasa a devuelta de a una
                 log.warn("Entradas no marcó las entradas del evento {}: {}", eventoId, e.getMessage());
                 cancelaciones.registrarFallaDeMarcacion(eventoId,
                         CancelacionEvento.recortar("MARCACION: " + e.getMessage()));
@@ -191,7 +210,7 @@ public class CancelacionService {
         todasProcesadas &= procesarCada(eventoId, EstadoCompra.PENDIENTE, this::procesarPendiente);
         // 3. Se vuelven a buscar las confirmadas, incluidas las que se confirmaron antes de tocarlas
         todasProcesadas &= procesarCada(eventoId, EstadoCompra.CONFIRMADA, this::procesarCompra);
-        if (todasProcesadas) {
+        if (todasProcesadas && marcacionHecha) {
             cancelaciones.terminar(eventoId);
         }
     }

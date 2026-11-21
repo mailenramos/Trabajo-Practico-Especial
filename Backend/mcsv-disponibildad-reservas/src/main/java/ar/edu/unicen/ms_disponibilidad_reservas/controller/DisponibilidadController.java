@@ -3,6 +3,7 @@ package ar.edu.unicen.ms_disponibilidad_reservas.controller;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 import org.springframework.http.ResponseEntity;
+import org.slf4j.MDC;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -70,9 +71,9 @@ public class DisponibilidadController {
     @PostMapping(path = "/{eventoId}/reservas", consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
     public ResponseEntity<ar.edu.unicen.ms_disponibilidad_reservas.dto.ReservaCreadaResponse> crearReserva(
             @PathVariable String eventoId,
-            @RequestHeader("X-User-Id") String usuarioId,
+            @RequestHeader(value = "X-User-Id", required = false) String usuarioId,
             @Valid @RequestBody CrearReservaRequest request) {
-        ResultadoCreacionReserva resultado = reservaService.crear(eventoId, usuarioId, request);
+        ResultadoCreacionReserva resultado = reservaService.crear(eventoId, usuarioId, request, MDC.get(CorrelacionFilter.CORRELACION));
         return ResponseEntity.status(resultado.status()).body(resultado.reserva());
     }
 

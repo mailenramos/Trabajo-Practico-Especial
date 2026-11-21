@@ -58,6 +58,11 @@ import ar.edu.unicen.ms_disponibilidad_reservas.repository.ReservaRepository;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext
 class ReservaConfirmacionServiceTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
 
     private static final String EVENTO = "EVT-CONFIRMACION";
     private static final String CLIENTE = "CLIENTE-CONFIRMACION";
@@ -326,6 +331,62 @@ class ReservaConfirmacionServiceTests {
                 "SELECT estado FROM reservas WHERE id=?", String.class, created.reserva().reservaId()));
         assertEquals("LIBRE", asientoEstado());
         assertEquals(0, cantidadCliente("cantidad_reservada"));
+    }
+
+    @Test
+    void limiteExcluyeVencidaEnElInstanteExactoYSchedulerDescuentaUnaVez() {
+        String evento = "EVT-LIMITE-INSTANTE";
+        inicializarConLimite(evento, 10);
+        var solicitud = request("SOL-ANTERIOR", cantidad("SEC-GEN", 4));
+        var anterior = reservaService.crear(evento, CLIENTE, solicitud);
+        clock.setInstant(anterior.reserva().expiraEn().minusNanos(1000));
+        assertThrows(ReservaConflictException.class, () -> reservaService.crear(evento, CLIENTE,
+                request("SOL-ANTES", cantidad("SEC-GEN", 1))));
+        clock.setInstant(anterior.reserva().expiraEn());
+        assertThrows(ReservaConflictException.class, () -> reservaService.crear(evento, CLIENTE, solicitud));
+        var nueva = reservaService.crear(evento, CLIENTE, request("SOL-DESPUES", cantidad("SEC-GEN", 1)));
+        assertEquals(201, nueva.status().value());
+        assertEquals(5, cantidadCliente(CLIENTE, evento, "cantidad_reservada"));
+        assertEquals(1, reservaService.expirarReservasVencidas());
+        assertEquals(0, reservaService.expirarReservasVencidas());
+        assertEquals(1, cantidadCliente(CLIENTE, evento, "cantidad_reservada"));
+    }
+
+    @Test
+    void limiteCombinaConfirmadasVigentesVencidasYLiberadas() {
+        String evento = "EVT-LIMITE-MEZCLA";
+        inicializarConLimite(evento, 10);
+        var vendida = reservaService.crear(evento, CLIENTE, request("SOL-VENDIDA", cantidad("SEC-GEN", 1)));
+        reservaService.confirmar(vendida.reserva().reservaId());
+        var vencida = reservaService.crear(evento, CLIENTE, request("SOL-VENCIDA", cantidad("SEC-GEN", 1)));
+        reservaService.crear(evento, CLIENTE, request("SOL-VIGENTE", cantidad("SEC-GEN", 1)));
+        var liberada = reservaService.crear(evento, CLIENTE, request("SOL-LIBERADA", cantidad("SEC-GEN", 1)));
+        reservaService.liberarPorPagoRechazado(liberada.reserva().reservaId());
+        jdbc.update("UPDATE reservas SET expira_en = ? WHERE id = ?",
+                java.time.LocalDateTime.ofInstant(AHORA.minusSeconds(1), ZoneOffset.UTC), vencida.reserva().reservaId());
+        assertEquals(201, reservaService.crear(evento, CLIENTE, request("SOL-NUEVA", cantidad("SEC-GEN", 2))).status().value());
+        assertEquals(1, cantidadCliente(CLIENTE, evento, "cantidad_confirmada"));
+        assertEquals(4, cantidadCliente(CLIENTE, evento, "cantidad_reservada"));
+        assertThrows(ReservaConflictException.class, () -> reservaService.crear(evento, CLIENTE,
+                request("SOL-EXCEDE", cantidad("SEC-GEN", 1))));
+        assertEquals(1, reservaService.expirarReservasVencidas());
+        assertEquals(3, cantidadCliente(CLIENTE, evento, "cantidad_reservada"));
+    }
+
+    @Test
+    void vencimientoLogicoNoLiberaInventarioYReservaFallidaRevierteCambios() {
+        String evento = "EVT-LIMITE-INVENTARIO";
+        inicializarConLimite(evento, 4);
+        var anterior = reservaService.crear(evento, CLIENTE, request("SOL-LLENO", cantidad("SEC-GEN", 4)));
+        clock.setInstant(anterior.reserva().expiraEn());
+        var error = assertThrows(ReservaConflictException.class, () -> reservaService.crear(evento, CLIENTE,
+                request("SOL-SIN-LUGAR", cantidad("SEC-GEN", 1))));
+        assertTrue(error.getMessage().contains("Lugares disponibles: 0"));
+        assertEquals(4, cantidadCliente(CLIENTE, evento, "cantidad_reservada"));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM reservas WHERE evento_id=?", Integer.class, evento));
+        assertEquals(1, reservaService.expirarReservasVencidas());
+        assertEquals(201, reservaService.crear(evento, CLIENTE,
+                request("SOL-SIN-LUGAR", cantidad("SEC-GEN", 1))).status().value());
     }
 
     @Test

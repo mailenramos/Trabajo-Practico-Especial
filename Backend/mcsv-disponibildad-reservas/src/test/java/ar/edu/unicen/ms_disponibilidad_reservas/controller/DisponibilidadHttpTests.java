@@ -38,6 +38,11 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @DirtiesContext
 class DisponibilidadHttpTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
 
     private static final String BASE_PATH = "/disponibilidad/eventos/EVT-HTTP";
     private static final String INITIALIZATION = """
@@ -69,6 +74,111 @@ class DisponibilidadHttpTests {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ar.edu.unicen.ms_disponibilidad_reservas.service.ReservaService reservaService;
+
+    @Test
+    void devolucionYReservaVencidaPendienteAjustanLimiteSinDuplicarDescuentos() throws Exception {
+        String cliente = "CLIENTE-REFUND-VENCIDA";
+        String confirmada = crearYConfirmarReserva(cliente,
+                "{\"solicitudId\":\"vendida\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":2}]}");
+        String vencidaBody = mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", cliente)
+                .header("X-User-Roles", "CLIENTE").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"solicitudId\":\"vencida\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":2}]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String vencida = com.jayway.jsonpath.JsonPath.read(vencidaBody, "$.reservaId");
+        jdbcTemplate.update("UPDATE reservas SET expira_en=DATEADD('SECOND', -1, CURRENT_TIMESTAMP) WHERE id=?", vencida);
+        String refund = "{\"motivo\":\"DEVOLUCION_APROBADA\",\"devolucionId\":\"4f2504e0-4f89-41d3-9a0c-0305e82c3301\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":1}]}";
+        for (int i = 0; i < 2; i++) mockMvc.perform(post("/disponibilidad/reservas/{reservaId}/liberacion", confirmada)
+                .contentType(MediaType.APPLICATION_JSON).content(refund)).andExpect(status().isNoContent());
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", cliente).header("X-User-Roles", "CLIENTE")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"solicitudId\":\"nueva\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":3}]}"))
+                .andExpect(status().isCreated());
+        org.junit.jupiter.api.Assertions.assertEquals(5, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM cantidades_cliente_evento WHERE usuario_id=?", Integer.class, cliente));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("SELECT cantidad_confirmada FROM cantidades_cliente_evento WHERE usuario_id=?", Integer.class, cliente));
+        reservaService.expirarReservasVencidas();
+        reservaService.expirarReservasVencidas();
+        org.junit.jupiter.api.Assertions.assertEquals(3, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM cantidades_cliente_evento WHERE usuario_id=?", Integer.class, cliente));
+        org.junit.jupiter.api.Assertions.assertEquals(3, jdbcTemplate.queryForObject("SELECT cantidad_reservada FROM sectores_disponibilidad WHERE evento_id='EVT-HTTP' AND sector_id='SEC-GEN'", Integer.class));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("SELECT cantidad_vendida FROM sectores_disponibilidad WHERE evento_id='EVT-HTTP' AND sector_id='SEC-GEN'", Integer.class));
+    }
+
+    @Test
+    void conflictosInformanDisponibilidadNoNumeradaYLimiteDelEvento() throws Exception {
+        mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
+                .andExpect(status().isNoContent());
+        jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "u" + i)
+                    .header("X-User-Roles", "CLIENTE").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"solicitudId\":\"s" + i + "\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":3}]}"))
+                    .andExpect(status().isCreated());
+        }
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "otro")
+                .header("X-User-Roles", "CLIENTE").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"solicitudId\":\"sin-capacidad\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":2}]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje", is("Disponibilidad insuficiente en el sector SEC-GEN. Lugares disponibles: 1.")));
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "u0")
+                .header("X-User-Roles", "CLIENTE").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"solicitudId\":\"limite\",\"detalles\":[{\"sectorId\":\"SEC-GEN\",\"cantidad\":2}]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje", is("La reserva supera el límite de entradas por cliente para el evento: 4.")));
+        org.junit.jupiter.api.Assertions.assertEquals(3, count("reservas"));
+    }
+
+    @Test
+    void reservasExigenIdentidadYRolConFormatoDeErrorHabitual() throws Exception {
+        String body = "{\"solicitudId\":\"SEC-TEST\",\"detalles\":[{\"sectorId\":\"SEC-NUM\",\"fila\":2,\"numero\":1}]}";
+        mockMvc.perform(post(BASE_PATH + "/reservas").contentType(MediaType.APPLICATION_JSON).content("{mal"))
+                .andExpect(status().isUnauthorized());
+        for (String usuario : List.of("", "   ", "u".repeat(256))) {
+            mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", usuario)
+                    .header("X-User-Roles", "CLIENTE").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.timestamp").exists())
+                    .andExpect(jsonPath("$.status", is(401))).andExpect(jsonPath("$.error", is("Unauthorized")))
+                    .andExpect(jsonPath("$.mensaje").isNotEmpty());
+        }
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "usuario")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.status", is(403)));
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "usuario")
+                .header("X-User-Roles", "ADMIN, ORGANIZADOR").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error", is("Forbidden")));
+        mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void correlacionYRolesMultiplesLleganALosClientesYSeLimpian() throws Exception {
+        mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
+                .andExpect(status().isNoContent());
+        jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
+        org.mockito.Mockito.doReturn(new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient.EventoResponse(true))
+                .when(ms1EventoClient).consultar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.doAnswer(inv -> new ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient.ConsumoResponse(
+                1, inv.getArgument(0), inv.getArgument(2), "CONSUMIDO", Instant.now().plusSeconds(60), true))
+                .when(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "cliente")
+                .header("X-User-Roles", "ADMIN, CLIENTE, ORGANIZADOR").header("X-Correlation-Id", "corr-123")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"solicitudId\":\"CORR\",\"detalles\":[{\"sectorId\":\"SEC-NUM\",\"fila\":2,\"numero\":1}]}"))
+                .andExpect(status().isCreated())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Correlation-Id", "corr-123"));
+        org.mockito.Mockito.verify(ms1EventoClient).consultar("EVT-HTTP", "corr-123");
+        org.mockito.Mockito.verify(ms7FilaClient).consumir(org.mockito.ArgumentMatchers.eq("EVT-HTTP"),
+                org.mockito.ArgumentMatchers.eq("cliente"), org.mockito.ArgumentMatchers.eq("CORR"),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("corr-123"));
+        org.junit.jupiter.api.Assertions.assertNull(org.slf4j.MDC.get(CorrelacionFilter.CORRELACION));
+        org.junit.jupiter.api.Assertions.assertNull(org.slf4j.MDC.get(CorrelacionFilter.USUARIO));
+        var siguiente = mockMvc.perform(get(BASE_PATH).header("X-Correlation-Id", "corr-456"))
+                .andExpect(status().isOk()).andReturn();
+        org.junit.jupiter.api.Assertions.assertEquals("corr-456", siguiente.getResponse().getHeader("X-Correlation-Id"));
+        org.junit.jupiter.api.Assertions.assertNull(org.slf4j.MDC.get(CorrelacionFilter.CORRELACION));
+    }
 
     @BeforeEach
     void limpiarDatosH2() {
@@ -140,7 +250,7 @@ class DisponibilidadHttpTests {
             mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
         }
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "OWNER")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "OWNER")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"clienteId\":\"OTHER\",\"solicitudId\":\"S\","
                         + "\"detalles\":[{\"sectorId\":\"SEC\",\"cantidad\":1}]}"))
@@ -184,7 +294,7 @@ class DisponibilidadHttpTests {
                 """;
 
         String firstBody = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated())
@@ -196,7 +306,7 @@ class DisponibilidadHttpTests {
         Instant responseInstant = Instant.parse(serializedExpiry);
 
         String retryBody = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
@@ -219,7 +329,7 @@ class DisponibilidadHttpTests {
     }
 
     @Test
-    void reservationRequiresUserHeaderAndRejectsIdentifiersLongerThan255WithCommonBadRequest() throws Exception {
+    void reservationRequiresUserHeaderAndRejectsIdentifiersLongerThan255() throws Exception {
         mockMvc.perform(put(BASE_PATH).contentType(MediaType.APPLICATION_JSON).content(INITIALIZATION))
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
@@ -228,23 +338,23 @@ class DisponibilidadHttpTests {
                 """;
 
         mockMvc.perform(post(BASE_PATH + "/reservas").contentType(MediaType.APPLICATION_JSON).content(valid))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status", is(400)))
-                .andExpect(jsonPath("$.error", is("Bad Request")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status", is(401)))
+                .andExpect(jsonPath("$.error", is("Unauthorized")))
                 .andExpect(jsonPath("$.mensaje").isNotEmpty());
 
         String longRequestId = "x".repeat(256);
         mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(valid.replace("SOL-HTTP", longRequestId)))
                 .andExpect(status().isBadRequest());
 
         mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "u".repeat(256))
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "u".repeat(256))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(valid))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
 
         org.junit.jupiter.api.Assertions.assertEquals(0, count("reservas"));
         org.junit.jupiter.api.Assertions.assertEquals(0, count("cantidades_cliente_evento"));
@@ -264,7 +374,7 @@ class DisponibilidadHttpTests {
                 """.formatted(solicitudId);
 
         mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", userId)
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -279,7 +389,7 @@ class DisponibilidadHttpTests {
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
 
         mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-BAD-SHAPE","detalles":[
@@ -298,7 +408,7 @@ class DisponibilidadHttpTests {
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
 
         mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-NULL-DETAIL")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-NULL-DETAIL")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"solicitudId\":\"SOL-NULL-DETAIL\",\"detalles\":[null]}"))
                 .andExpect(status().isBadRequest())
@@ -324,7 +434,7 @@ class DisponibilidadHttpTests {
         String first = """
                 {"solicitudId":"SOL-TAKEN","detalles":[{"sectorId":"SEC-NUM","fila":2,"numero":1}]}
                 """;
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-A")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-A")
                         .contentType(MediaType.APPLICATION_JSON).content(first))
                 .andExpect(status().isCreated());
 
@@ -334,7 +444,7 @@ class DisponibilidadHttpTests {
                 {"sectorId":"SEC-NUM","fila":2,"numero":1},
                 {"sectorId":"SEC-GEN","cantidad":2}]}
                 """;
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-B")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-B")
                         .contentType(MediaType.APPLICATION_JSON).content(mixed))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status", is(409)))
@@ -537,7 +647,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-CONSULTA")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-CONSULTA")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-CONSULTA-NUM","detalles":[
@@ -593,7 +703,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-CONSULTA-GEN")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-CONSULTA-GEN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-CONSULTA-GEN","detalles":[
@@ -649,7 +759,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-CONFIRMAR-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-CONFIRMAR-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-CONFIRMAR-HTTP","detalles":[
@@ -691,7 +801,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-LIBERAR-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-LIBERAR-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-LIBERAR-HTTP","detalles":[
@@ -832,7 +942,7 @@ class DisponibilidadHttpTests {
                         .contentType(MediaType.APPLICATION_JSON).content(first))
                 .andExpect(status().isNoContent());
         String secondCreated = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-REFUND-OTHER-RESERVATION")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-REFUND-OTHER-RESERVATION")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"solicitudId\":\"SOL-REFUND-OTHER-RESERVATION\",\"detalles\":["
                                 + "{\"sectorId\":\"SEC-NUM\",\"fila\":10,\"numero\":1}] }"))
@@ -867,7 +977,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-REFUND-OWNERSHIP-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-REFUND-OWNERSHIP-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"solicitudId\":\"SOL-REFUND-OWNERSHIP-HTTP\",\"detalles\":["
                                 + "{\"sectorId\":\"SEC-NUM\",\"fila\":2,\"numero\":1}]}"))
@@ -954,7 +1064,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", clienteId).contentType(MediaType.APPLICATION_JSON).content(request))
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", clienteId).contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         String reservaId = com.jayway.jsonpath.JsonPath.read(created, "$.reservaId");
@@ -969,7 +1079,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         jdbcTemplate.update("UPDATE eventos_disponibilidad SET estado_evento='PUBLICADO' WHERE evento_id='EVT-HTTP'");
         String created = mockMvc.perform(post(BASE_PATH + "/reservas")
-                        .header("X-User-Id", "CLIENTE-CONFLICT-HTTP")
+                        .header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-CONFLICT-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-EXPIRADA-HTTP","detalles":[
@@ -1034,7 +1144,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         assertEventSaleState("PUBLICADO", false);
 
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-STATE")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-STATE")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-STATE-ACTIVE","detalles":[
@@ -1065,7 +1175,7 @@ class DisponibilidadHttpTests {
         mockMvc.perform(put(BASE_PATH + "/venta").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"estado\":\"ACTIVA\"}"))
                 .andExpect(status().isNoContent());
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-SUSPEND")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-SUSPEND")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-ANTES-SUSPENDER","detalles":[
@@ -1088,7 +1198,7 @@ class DisponibilidadHttpTests {
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 customerQuantity("CLIENTE-SUSPEND", "cantidad_confirmada"));
 
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-DURING-SUSPENSION")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-DURING-SUSPENSION")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-DURANTE-SUSPENSION","detalles":[
@@ -1109,7 +1219,7 @@ class DisponibilidadHttpTests {
                         .content("{\"estado\":\"ACTIVA\"}"))
                 .andExpect(status().isNoContent());
         assertEventSaleState("PUBLICADO", false);
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-AFTER-RESUME")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-AFTER-RESUME")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-DESPUES-REACTIVAR","detalles":[
@@ -1192,7 +1302,7 @@ class DisponibilidadHttpTests {
         mockMvc.perform(put(BASE_PATH + "/venta").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"estado\":\"FINALIZADA\"}"))
                 .andExpect(status().isConflict());
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-POST-CANCEL")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-POST-CANCEL")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-POST-CANCEL","detalles":[
@@ -1260,7 +1370,7 @@ class DisponibilidadHttpTests {
         assertEventSaleState("FINALIZADO", false);
         assertCustomerQuantities("CLIENTE-FINALIZE-HOLD", 0, 0);
         assertCustomerQuantities("CLIENTE-FINALIZE-SOLD", 0, 4);
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-POST-FINALIZE")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-POST-FINALIZE")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-POST-FINALIZE","detalles":[
@@ -1345,7 +1455,7 @@ class DisponibilidadHttpTests {
         mockMvc.perform(put(BASE_PATH + "/venta").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"estado\":\"ACTIVA\"}"))
                 .andExpect(status().isNoContent());
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-ROLLBACK-STATE")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-ROLLBACK-STATE")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-ROLLBACK-STATE","detalles":[
@@ -1383,7 +1493,7 @@ class DisponibilidadHttpTests {
                 .andExpect(status().isNoContent());
         activateEvent();
 
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-IDEMPOTENCY-HTTP","detalles":[
@@ -1391,7 +1501,7 @@ class DisponibilidadHttpTests {
                                 """))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-IDEMPOTENCY-HTTP","detalles":[
@@ -1408,7 +1518,7 @@ class DisponibilidadHttpTests {
         mockMvc.perform(put(otherEvent + "/venta").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"estado\":\"ACTIVA\"}"))
                 .andExpect(status().isNoContent());
-        mockMvc.perform(post(otherEvent + "/reservas").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
+        mockMvc.perform(post(otherEvent + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-IDEMPOTENCY-HTTP")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"SOL-IDEMPOTENCY-HTTP","detalles":[
@@ -1437,13 +1547,13 @@ class DisponibilidadHttpTests {
                 {"solicitudId":"SOL-EXPIRED-HTTP","detalles":[
                   {"sectorId":"SEC-NUM","fila":2,"numero":1}]}
                 """;
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-EXPIRED-HTTP")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-EXPIRED-HTTP")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
         jdbcTemplate.update("UPDATE reservas SET expira_en = DATEADD('SECOND', -1, CURRENT_TIMESTAMP) "
                 + "WHERE usuario_id='CLIENTE-EXPIRED-HTTP' AND clave_idempotencia='SOL-EXPIRED-HTTP'");
 
-        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", "CLIENTE-EXPIRED-HTTP")
+        mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", "CLIENTE-EXPIRED-HTTP")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status", is(409)))
@@ -1497,7 +1607,7 @@ class DisponibilidadHttpTests {
 
     private String createMixedReservation(String userId, String requestId, int fila, int seatNumber, int generalCount)
             throws Exception {
-        String response = mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Id", userId)
+        String response = mockMvc.perform(post(BASE_PATH + "/reservas").header("X-User-Roles", "CLIENTE").header("X-User-Id", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"solicitudId":"%s","detalles":[

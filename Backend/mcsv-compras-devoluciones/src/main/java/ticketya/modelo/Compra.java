@@ -40,6 +40,11 @@ public class Compra {
     @Column(nullable = false)
     private Instant eventoFechaInicio;
 
+    // Tipo del evento (RECITAL, TEATRO, ...) copiado de Eventos al iniciar la compra. Lo usa el
+    // historial de preferencias. Las compras anteriores a la Entrega 2 quedan en nulo.
+    @Column(name = "tipo_evento", length = 64)
+    private String tipoEvento;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
 
@@ -79,6 +84,8 @@ public class Compra {
     public void setEventoNombre(String eventoNombre) { this.eventoNombre = eventoNombre; }
     public Instant getEventoFechaInicio() { return eventoFechaInicio; }
     public void setEventoFechaInicio(Instant eventoFechaInicio) { this.eventoFechaInicio = eventoFechaInicio; }
+    public String getTipoEvento() { return tipoEvento; }
+    public void setTipoEvento(String tipoEvento) { this.tipoEvento = tipoEvento; }
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public String getMedioDePago() { return medioDePago; }

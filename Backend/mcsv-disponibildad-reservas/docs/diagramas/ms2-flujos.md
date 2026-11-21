@@ -1,6 +1,6 @@
 # Flujos principales de MS2
 
-Los diagramas describen las interacciones actualmente documentadas. Las llamadas internas entre microservicios son REST/JSON directas, fuera del Gateway y sin autenticación de servicio. La autorización del cliente corresponde al Gateway, que propaga `X-User-Id` a MS2.
+Los diagramas describen las interacciones actualmente documentadas. Las llamadas internas entre microservicios son REST/JSON directas, fuera del Gateway y sin autenticación de servicio. La autorización del cliente corresponde al Gateway, que propaga `X-User-Id` y `X-User-Roles` a MS2.
 
 ## Inicialización y consulta de disponibilidad
 
@@ -26,29 +26,34 @@ La inicialización deja el evento en `PENDIENTE_PUBLICACION`. MS1 publica ventas
 ```mermaid
 sequenceDiagram
     actor Cliente
-    participant GW as API Gateway
+    participant GW as Gateway
     participant MS2 as MS2 Disponibilidad
-    participant DB as MySQL de MS2
+    participant DB as MySQL MS2
+    participant MS1 as MS1 Eventos
+    participant MS7 as MS7 Fila
     participant MS3 as MS3 Compras
-    participant MS4 as MS4 Pagos
     Cliente->>GW: Solicitar reserva
-    GW->>MS2: POST /disponibilidad/eventos/{eventoId}/reservas\nX-User-Id + solicitudId + detalles
-    MS2->>DB: Validar límite e inventario; guardar reserva y contadores
-    DB-->>MS2: Commit
-    MS2-->>GW: 201 (o 200 para retry idéntico vigente)
-    GW-->>Cliente: Resultado de reserva
-    Cliente->>MS3: Iniciar compra con reservaId
-    MS3->>MS2: GET /disponibilidad/reservas/{reservaId}
-    MS2-->>MS3: Titular, estado, vencimiento y detalles
-    MS3->>MS4: Procesar pago
-    MS4-->>MS3: Pago aprobado
-    MS3->>MS2: POST /disponibilidad/reservas/{reservaId}/confirmacion
-    MS2->>DB: Confirmar y mover reservado a vendido atómicamente
-    DB-->>MS2: Commit
+    GW->>MS2: POST reserva + X-User-Id + X-User-Roles
+    MS2->>DB: Buscar reserva por usuario y solicitud
+    alt Existe idéntica y vigente
+        MS2-->>GW: 200 reserva existente
+    else Solicitud nueva
+        MS2->>MS1: GET /internal/eventos/{eventoId}
+        MS1-->>MS2: requiereFila
+        opt requiereFila
+            MS2->>MS7: POST consumos (usuario, solicitud, huella)
+            MS7-->>MS2: autorización y expiraEn
+        end
+        MS2->>DB: Bloquear evento; comprobar idempotencia, vencimiento e inventario
+        DB-->>MS2: Commit de reserva y cantidades
+        MS2-->>GW: 201 o 200 si otra solicitud ganó
+    end
+    MS3->>MS2: Confirmar reserva después del pago
+    MS2->>DB: Mover reservado a vendido atómicamente
     MS2-->>MS3: 204
 ```
 
-Si el pago fue aprobado pero MS2 no puede confirmar la reserva, MS3 coordina el tratamiento compensatorio con MS4; MS2 no procesa pagos ni compensaciones.
+Las llamadas HTTP se realizan fuera de la transacción local de creación. Ante un error remoto se busca nuevamente la reserva concurrente; un consumo incierto no se revierte y el turno puede quedar consumido sin reserva. MS3 coordina las compensaciones de pago si falla la confirmación.
 
 ## Liberación por vencimiento o pago rechazado
 

@@ -1,0 +1,287 @@
+{
+  "info": {
+    "_postman_id": "d46157b6-f765-4303-ae45-85d00f105a82",
+    "name": "TicketYa MS7 - Fila virtual",
+    "description": "Los endpoints públicos requieren Gateway e identidad confiable; los internos se usan únicamente en redes de servicio. Las operaciones administrativas y ciertos ingresos consultan MS1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Ingresar a la fila",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "{{usuarioId}}"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/ingresos",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "ingresos"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Consultar mi turno",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "{{usuarioId}}"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "CLIENTE"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/mi-turno",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "mi-turno"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Consultar fila",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "{{usuarioId}}"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "ADMIN"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "filas",
+            "eventos",
+            "{{eventoId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Configurar fila",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "{{usuarioId}}"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "ADMIN"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/configuracion",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "configuracion"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cupo\": 10,\n  \"duracionMinutos\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cambiar estado",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-User-Id",
+            "value": "{{usuarioId}}"
+          },
+          {
+            "key": "X-User-Roles",
+            "value": "ADMIN"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/estado",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "estado"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"estado\": \"ACTIVA\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Consumir turno (interno MS2)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/internal/filas/eventos/{{eventoId}}/consumos",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "internal",
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "consumos"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"solicitudId\": \"{{solicitudId}}\",\n  \"huellaSolicitud\": \"{{huellaSolicitud}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cancelar evento (interno MS1)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/internal/filas/eventos/{{eventoId}}/cancelacion",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "internal",
+            "filas",
+            "eventos",
+            "{{eventoId}}",
+            "cancelacion"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8088"
+    },
+    {
+      "key": "eventoId",
+      "value": "evento-123"
+    },
+    {
+      "key": "usuarioId",
+      "value": "cliente-123"
+    },
+    {
+      "key": "solicitudId",
+      "value": "solicitud-123"
+    },
+    {
+      "key": "huellaSolicitud",
+      "value": "v1:huella"
+    }
+  ]
+}

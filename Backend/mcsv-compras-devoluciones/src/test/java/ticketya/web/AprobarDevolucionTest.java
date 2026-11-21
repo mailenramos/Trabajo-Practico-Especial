@@ -60,6 +60,30 @@ class AprobarDevolucionTest extends PruebaDevoluciones {
         assertThat(reintegros.count()).isEqualTo(1);
     }
 
+    @Test
+    void siLaEntradaSeUsoAntesDeAprobarQuedaAprobadaConElErrorYNoSeMueveDinero() throws Exception {
+        String entradaId = unaEntradaDePlatea(CLIENTE);
+        UUID id = devolucionPendiente(CLIENTE, entradaId);
+        // Se valida el QR en el acceso entre la solicitud y la aprobación
+        entradas.agregar(entradas.entrada(entradaId).orElseThrow()
+                .conEstado(ticketya.cliente.EntradasCliente.EstadoEntrada.UTILIZADA));
+
+        // 202: la coordinación quedó incompleta
+        aprobar(ADMIN, "ADMIN", id)
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.estado").value("APROBADA"))
+                .andExpect(jsonPath("$.coordinacion.completa").value(false))
+                .andExpect(jsonPath("$.coordinacion.ultimoError")
+                        .value(org.hamcrest.Matchers.containsString("ENTRADA_UTILIZADA")));
+
+        var s = solicitudes.findById(id).orElseThrow();
+        assertThat(s.getEstado()).isEqualTo(EstadoSolicitud.APROBADA);
+        assertThat(s.getUltimoError()).startsWith("ENTRADA_EN_REINTEGRO").contains("ENTRADA_UTILIZADA");
+        assertThat(s.isEntradaEnReintegro()).isFalse();
+        assertThat(pagos.pedidosDeReintegro()).isZero();
+        assertThat(reservas.pedidosDeLiberacionPorDevolucion()).isZero();
+    }
+
     // ------------------------------------------------------------------ 5.3 coordinación
 
     @Test

@@ -1,0 +1,17 @@
+target/
+.git
+.gitignore
+.idea
+.vscode
+.mvn
+mvnw
+mvnw.cmd
+.env
+*.env
+*.log
+docs/
+openspec/
+postman/
+README.md
+Dockerfile
+docker-compose*.yml

@@ -1,0 +1,43 @@
+sequenceDiagram
+    autonumber
+    participant MS1 as Eventos (MS1)
+    participant MS3 as Compras (MS3)
+    participant BD as Base de MS3
+    participant MS9 as Notificaciones (MS9)
+
+    rect rgb(235, 242, 250)
+    Note over MS1,BD: 1. Modificación de un evento (Entrega 2)
+    MS1->>MS3: POST /internal/eventos-modificados (X-Service-Token) {eventoId, version, fechaHora?, lugar?, ciudad?}
+    alt token ausente o incorrecto
+        MS3-->>MS1: 403 SERVICIO_NO_AUTORIZADO
+    else cuerpo inválido
+        MS3-->>MS1: 400 VALIDACION (campos)
+    else versión ya procesada o anterior a la mayor procesada
+        MS3-->>MS1: 200 YA_PROCESADA o VERSION_ANTERIOR (no cambia nada)
+    else versión nueva
+        Note over MS3,BD: una sola transacción (todo o nada)
+        MS3->>BD: inserta modificaciones_evento (evento_id, version) único
+        opt vino fechaHora
+            MS3->>BD: UPDATE eventoFechaInicio en compras y solicitudes_devolucion del evento
+        end
+        MS3->>BD: un aviso EVENTO_MODIFICADO por cliente con compra CONFIRMADA
+        MS3-->>MS1: 202 ACEPTADA
+    end
+    end
+
+    rect rgb(238, 247, 238)
+    Note over MS3,MS9: 2. Envío de avisos (tarea programada, cada 10 s)
+    MS3->>BD: recupera los PROCESANDO vencidos (a PENDIENTE o ERROR_FINAL)
+    MS3->>BD: toma cada aviso listo: PENDIENTE a PROCESANDO si nadie lo tomó (toma condicional)
+    MS3->>MS9: POST /internal/notificaciones (X-Service-Token) {acontecimientoId, tipo, versionEsquema, ...}
+    alt 2xx (nuevo o duplicado)
+        MS9-->>MS3: 202
+        MS3->>BD: ENVIADO
+    else 400, 415 o 422 (rechazo definitivo)
+        MS9-->>MS3: error de validación
+        MS3->>BD: ERROR_FINAL
+    else sin respuesta, 403 u otro error
+        MS3->>BD: PENDIENTE con intentos + 1 y espera creciente (30 s, 60 s, 120 s...), o ERROR_FINAL si agotó los 5 intentos
+    end
+    Note over MS3,MS9: La operación que generó el aviso ya terminó: una falla de Notificaciones nunca la revierte
+    end

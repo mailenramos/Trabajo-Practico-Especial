@@ -53,6 +53,11 @@ import ar.edu.unicen.ms_disponibilidad_reservas.repository.ReservaRepository;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext
 class ReservaServiceTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(answers = org.mockito.Answers.RETURNS_DEEP_STUBS)
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms1EventoClient ms1EventoClient;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    ar.edu.unicen.ms_disponibilidad_reservas.client.Ms7FilaClient ms7FilaClient;
+
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ValidationConfig {
@@ -300,6 +305,22 @@ class ReservaServiceTests {
                 request("SOL-CONFIRMED-LIMIT", seat("SEC-NUM", 1, 5))));
         assertEquals(0, reservaRepository.count());
         assertEquals("LIBRE", seatState("EVT-CONFIRMED-LIMIT", "SEC-NUM", 1, 5));
+    }
+
+    @Test
+    void reservaVencidaAunRetenidaNoDebeContarParaLimite() {
+        inicializar("EVT-LIMITE-VENCIDA", 1, true, false);
+        var anterior = reservaService.crear("EVT-LIMITE-VENCIDA", "CLIENTE",
+                request("SOL-ANTERIOR", seat("SEC-NUM", 1, 5)));
+        jdbc.update("UPDATE reservas SET expira_en = DATEADD('SECOND', -1, CURRENT_TIMESTAMP) WHERE id = ?",
+                anterior.reserva().reservaId());
+
+        var nueva = reservaService.crear("EVT-LIMITE-VENCIDA", "CLIENTE",
+                request("SOL-NUEVA", seat("SEC-NUM", 2, 6)));
+        assertEquals(201, nueva.status().value());
+        assertEquals("RESERVADO", seatState("EVT-LIMITE-VENCIDA", "SEC-NUM", 1, 5));
+        assertEquals(2, cantidadesRepository.findByUsuarioIdAndEventoId("CLIENTE", "EVT-LIMITE-VENCIDA")
+                .orElseThrow().getCantidadReservada());
     }
 
     @Test

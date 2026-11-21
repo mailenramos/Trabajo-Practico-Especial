@@ -19,6 +19,26 @@ En PowerShell, configurar `DB_PASSWORD` en el entorno y ejecutar:
 
 Hibernate actualiza las tablas y `schema.sql` agrega el índice parcial de pagos aprobados. Swagger UI está disponible en `/swagger-ui/index.html`.
 
+### Docker
+
+El `Dockerfile` es multi-stage (Maven + Java 21) y no depende de nada instalado en la máquina. `docker-compose.yml` levanta el servicio `pagos` (puerto 8084) y su base `pagos-db` (PostgreSQL 16, volumen `pagos-db-data`) en la red externa `ticketya-net`, sin publicar puertos. Los puertos para desarrollo local están en `docker-compose.dev.yml` (app en `127.0.0.1:8084`, base en `127.0.0.1:5434`). Las variables están en `.env.example`.
+
+```powershell
+docker network create ticketya-net
+Copy-Item .env.example .env   # completar DB_PASSWORD
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+`/actuator/health` queda expuesto para los healthchecks. Pagos es interno y no se debe publicar directamente en Internet ni enrutar desde el Gateway.
+
+### Token entre servicios
+
+Con `PAGOS_EXIGIR_TOKEN_SERVICIO=true`, `/internal/**` exige el header `X-Service-Token` con el valor de `SERVICIO_TOKEN` y responde 403 `SERVICIO_NO_AUTORIZADO` si falta o no coincide (sin token configurado rechaza todo). Por defecto está en `false` porque Compras todavía no envía el header a Pagos.
+
+### Logs
+
+Cada solicitud acepta `X-Request-Id` solo si es un UUID; si falta o no es válido genera uno y lo devuelve en la respuesta. También toma `X-Correlation-Id` (si falta o no es válido usa el request ID), lo devuelve en la respuesta y lo incluye en cada línea de log. El log HTTP incluye correlation ID, request ID, método, path, status y duración. Los logs de operaciones críticas identifican pagos/reintegros sin incluir claves de idempotencia ni datos sensibles; salen por consola para que la plataforma los recolecte.
+
 El perfil de pruebas usa la base aislada `ticketya_payments_test`, `DB_PASSWORD` y `spring.jpa.hibernate.ddl-auto=create-drop`. Crear primero la base vacía en pgAdmin. Las pruebas PostgreSQL de concurrencia se ejecutan optativamente con `RUN_POSTGRESQL_TESTS=true`.
 
 Para correr la suite completa, incluidas las pruebas PostgreSQL, configurar `DB_PASSWORD` y ejecutar en PowerShell:
