@@ -11,89 +11,77 @@ También permite consultar entradas, gestionar reintegros y registrar devolucion
 ## 2. Tecnologías utilizadas
 
 - Java.
-- Spring Boot.
+- Spring Boot 3.5 (Java 21).
 - Spring Data JPA.
 - PostgreSQL 16.
 - Flyway para el control de versiones y migraciones de la base de datos.
 - Maven Wrapper (`mvnw.cmd` en Windows); no hace falta instalar Maven.
 
-## 3. Configuración
-
-### Inicio local en Windows (PowerShell)
-
-Requisitos: JDK 17 o superior y PostgreSQL disponible en `localhost:5433`, con la base `entradas` y las credenciales configuradas abajo. No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez, por lo que se requiere Internet. Desde la raíz del repositorio:
-
-En una instalación nueva, crea primero PostgreSQL para desarrollo local:
-
-```powershell
-docker run --name ticketya-entradas-postgres --restart unless-stopped -e POSTGRES_DB=entradas -e POSTGRES_USER=entradas -e POSTGRES_PASSWORD=entradas -p 5433:5432 -d postgres:16
-```
-
-En siguientes ejecuciones, si el contenedor ya existe, iniciálo con `docker start ticketya-entradas-postgres`. El contenedor conserva sus datos; no lo elimines ni borres su volumen para reiniciarlo.
-
-Luego inicia MS5:
-
-```powershell
-cd .\Backend\msvc-entradas
-.\mvnw.cmd spring-boot:run
-```
-
-La aplicación escucha en `http://localhost:8085`.
-
-### Ejecución con Docker
-
-Desde la carpeta `Backend\msvc-entradas`, construye la imagen:
-
-```powershell
-docker build -t ticketya/msvc-entradas:local .
-```
-
-Si PostgreSQL está publicado en el host en el puerto `5433`, ejecuta el servicio así:
-
-```powershell
-docker run --rm --name ticketya-entradas `
-  -p 8085:8085 `
-  -e DB_URL=jdbc:postgresql://host.docker.internal:5433/entradas `
-  -e DB_USER=entradas `
-  -e DB_PASSWORD=entradas `
-  ticketya/msvc-entradas:local
-```
-
-`host.docker.internal` permite que el contenedor alcance PostgreSQL publicado en Windows. El puerto `8085` queda disponible en `http://localhost:8085`.
+## 3. Configuración y ejecución
 
 | Propiedad | Valor |
 |---|---|
-| Nombre | `msvc-entradas` |
-| Puerto | `8085` |
-| Base de datos | PostgreSQL |
-| Base de datos (nombre) | `entradas` |
-| Gestión de migraciones | Flyway |
-| Estrategia de Hibernate | `validate` |
+| Servicio en Docker | `entradas`, puerto `8085` (`http://entradas:8085` dentro de la red `ticketya-net`) |
+| Base de datos | PostgreSQL 16, servicio `postgres-entradas` (volumen `postgres-entradas-data`), base `entradas`. En desarrollo se publica en `localhost:5433`. |
+| Gestión de migraciones | Flyway (Hibernate solo valida: `ddl-auto: validate`) |
+| Salud | `GET /actuator/health` (healthcheck de Docker; sin detalles) |
+| Logs | Consola (stdout) con `correlationId` (el `X-Correlation-Id` del pedido) |
 
-La aplicación utiliza Flyway para mantener actualizada la estructura de la base de datos y Hibernate para validar que las entidades coincidan con el esquema existente.
+### Ejecución con Docker (recomendada)
 
-| Variable | Predeterminado | Descripción |
-|---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5433/entradas` | URL JDBC de PostgreSQL. En Docker, usa `host.docker.internal` si la base corre en el host. |
-| `DB_USER` / `DB_PASSWORD` | `entradas` / `entradas` | Credenciales de PostgreSQL. |
+Requiere la red compartida (una sola vez) y un `.env` con los valores obligatorios:
+
+```powershell
+docker network create ticketya-net
+```
+
+```powershell
+cd .\Backend\msvc-entradas
+Copy-Item .env.example .env
+```
+
+Completá en `.env` `DB_PASSWORD` y `SERVICIO_TOKEN` (el mismo en todos los servicios). Después:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+- `docker-compose.yml` levanta `postgres-entradas` y `entradas` en `ticketya-net`, sin publicar puertos (así lo usa el compose general de la plataforma).
+- `docker-compose.dev.yml` publica, solo en desarrollo, la app en `127.0.0.1:8085` y la base en `127.0.0.1:5433`.
+- El servicio arranca cuando la base está sana, y su propio healthcheck consulta `/actuator/health`.
+- El `Dockerfile` es multi-etapa (Maven + JDK 21 para compilar, JRE 21 para ejecutar) y corre con un usuario sin privilegios. No copia secretos a la imagen.
 
 ### Ejecución local en Windows (PowerShell)
 
-Se necesita un JDK 17 o superior y PostgreSQL disponible en `localhost:5433`. No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 automáticamente la primera vez (se necesita conexión a Internet). Desde la carpeta `Backend\msvc-entradas`:
+Requisitos: JDK 21. No hace falta instalar Maven: el wrapper descarga Maven 3.10.0 la primera vez (se necesita Internet).
 
-```powershell
-.\mvnw.cmd spring-boot:run
-```
+1. Base de datos, solo el contenedor de PostgreSQL (puerto 5433):
 
-También se puede ejecutar `.\mvnw.cmd test` para las pruebas. En Linux o macOS, usar `./mvnw`.
+   ```powershell
+   cd .\Backend\msvc-entradas
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-entradas
+   ```
+
+2. Servicio, con la contraseña de la base del `.env`:
+
+   ```powershell
+   $env:DB_PASSWORD = '<la contraseña de la base del .env>'
+   .\mvnw.cmd spring-boot:run
+   ```
+
+La aplicación escucha en `http://localhost:8085`. Para las pruebas: `.\mvnw.cmd test` (en Linux o macOS, `./mvnw`).
 
 ### Variables de configuración
 
+Todas las variables, con sus valores por defecto y cuáles son obligatorias, están en [.env.example](../.env.example).
+
 | Variable | Predeterminado | Descripción |
 |---|---|---|
-| `SERVICE_TOKEN` | vacío | Secreto compartido para `X-Service-Token` en `/internal/**`. Vacío = validación desactivada (se avisa al arrancar), mientras el grupo define si todos los servicios lo validan. |
-| `MS1_URL` | `http://localhost:8081` | Lugares, sectores y eventos (autorización del personal de acceso). |
-| `MS1_CONNECT_TIMEOUT` / `MS1_READ_TIMEOUT` | `1s` / `2s` | Tiempos máximos de la consulta a MS1. Si se exceden, la validación responde 503. |
+| `DB_URL` | `jdbc:postgresql://localhost:5433/entradas` (en Docker: `jdbc:postgresql://postgres-entradas:5432/entradas`) | URL JDBC de PostgreSQL. |
+| `DB_USER` / `DB_PASSWORD` | `entradas` / `entradas` (en Docker, `DB_PASSWORD` es obligatoria) | Credenciales de PostgreSQL. |
+| `SERVICIO_TOKEN` | vacío (obligatoria en Docker) | Token compartido entre servicios. Si está configurado, `/internal/**` exige `X-Service-Token` con ese valor, y se envía en la llamada a Lugares. Vacío = sin validación (solo desarrollo local; se avisa al arrancar). |
+| `EVENTOS_URL` | `http://localhost:8081` (en Docker: `http://lugares:8081`) | Lugares, sectores y eventos (autorización del personal de acceso). |
+| `EVENTOS_CONNECT_TIMEOUT` / `EVENTOS_READ_TIMEOUT` | `1s` / `2s` | Tiempos máximos de la consulta a MS1. Si se exceden, la validación responde 503. |
 
 ## 4. Endpoints
 
@@ -123,7 +111,7 @@ Un usuario con solo `PERSONAL_ACCESO` no puede consultar entradas (`403`): su op
 | POST | `/internal/entradas/{id}/devolucion` | `EN_REINTEGRO` → `DEVUELTA`. Idempotente. |
 | POST | `/internal/eventos/{idEvento}/entradas/reintegro` | Cierre del evento cancelado (ver sección 7): `{idEvento, entradasMarcadas, cerrado: true}`. Idempotente. |
 
-El API Gateway no enruta `/internal/**` (responde 404). Si `SERVICE_TOKEN` está configurado, estas rutas exigen `X-Service-Token` con ese valor; si falta o no coincide: `401 SERVICIO_NO_AUTENTICADO`. El token nunca se escribe en el log.
+El API Gateway no enruta `/internal/**` (responde 404). Si `SERVICIO_TOKEN` está configurado, estas rutas exigen `X-Service-Token` con ese valor; si falta o no coincide: `401 SERVICIO_NO_AUTENTICADO`. El token nunca se escribe en el log.
 
 **Correlación:** cada pedido acepta `X-Correlation-Id` (UUID) o genera uno; se devuelve en la respuesta, se registra en el log y se reenvía en la llamada a MS1.
 

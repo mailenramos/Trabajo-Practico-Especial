@@ -22,9 +22,10 @@ import java.security.MessageDigest;
 import java.time.Instant;
 
 /**
- * Protege /internal/**: exige X-Service-Token igual a SERVICE_TOKEN. Si SERVICE_TOKEN no está
- * configurado, la validación queda desactivada (el grupo todavía no definió si todos los servicios
- * lo validan) y se avisa al arrancar. El token nunca se escribe en el log.
+ * Protege /internal/**: exige X-Service-Token igual a SERVICIO_TOKEN (acuerdo del grupo: mismo
+ * encabezado y mismo valor en todos los servicios). Si SERVICIO_TOKEN no está configurado, la
+ * validación queda desactivada y se avisa al arrancar (solo desarrollo local; en Docker es
+ * obligatorio). El token nunca se escribe en el log.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
@@ -43,7 +44,7 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
                 : configurado.getBytes(StandardCharsets.UTF_8);
         this.objectMapper = objectMapper;
         if (token == null) {
-            LOG.warn("SERVICE_TOKEN no está configurado: las rutas /internal/** no validan X-Service-Token");
+            LOG.warn("SERVICIO_TOKEN no está configurado: las rutas /internal/** no validan X-Service-Token");
         }
     }
 

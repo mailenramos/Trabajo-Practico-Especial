@@ -7,7 +7,7 @@ info:
     acceso al evento y registra el ingreso.
 
     Los endpoints públicos llegan por el API Gateway con `X-User-Id` y `X-User-Roles` derivados
-    del JWT. Los de `/internal` son para Compras y devoluciones; si `SERVICE_TOKEN` está
+    del JWT. Los de `/internal` son para Compras y devoluciones; si `SERVICIO_TOKEN` está
     configurado, exigen `X-Service-Token`. Todos aceptan y devuelven `X-Correlation-Id`.
 
     Estados: `VIGENTE` -> `UTILIZADA` (validación de QR) o `VIGENTE` -> `EN_REINTEGRO` ->
@@ -316,7 +316,7 @@ components:
       type: apiKey
       in: header
       name: X-Service-Token
-      description: Credencial de servicio para /internal/** (exigida si SERVICE_TOKEN está configurado).
+      description: Credencial de servicio para /internal/** (exigida si SERVICIO_TOKEN está configurado).
 
   parameters:
     IdEntrada:
@@ -353,7 +353,7 @@ components:
           schema: {$ref: '#/components/schemas/Error'}
           example: {timestamp: '2026-11-08T14:30:00Z', status: 401, error: FALTA_IDENTIFICACION, mensaje: Falta el encabezado X-User-Id}
     ServicioNoAutenticado:
-      description: Falta o es incorrecto X-Service-Token (solo si SERVICE_TOKEN está configurado).
+      description: Falta o es incorrecto X-Service-Token (solo si SERVICIO_TOKEN está configurado).
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}

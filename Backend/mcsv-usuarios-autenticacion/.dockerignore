@@ -1,0 +1,15 @@
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+*.log
+hs_err_pid*
+replay_pid*
+postman/
+openspec/
+# Nunca mandar secretos al contexto de build
+.env
+.env.*
+*.pem
+*.key

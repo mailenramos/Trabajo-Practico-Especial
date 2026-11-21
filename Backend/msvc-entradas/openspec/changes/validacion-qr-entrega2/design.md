@@ -24,7 +24,7 @@ User stories: `docs/historias-ms5-entrega2.md` (US-5.1 a US-5.9). Contratos con 
 - `marcarEnReintegro` sobre `UTILIZADA` → `409 ENTRADA_UTILIZADA`.
 - `GET /internal/compras/{idCompra}/entradas` → `{idCompra, entradas: [...]}` (lista vacía = no se emitió).
 - Consultas públicas: `CLIENTE` solo las propias; `ADMIN` todas (filtro opcional `idCliente`); solo `PERSONAL_ACCESO` → 403.
-- `/internal/**`: si `SERVICE_TOKEN` está configurado, exige `X-Service-Token` (comparación en tiempo constante) → `401 SERVICIO_NO_AUTENTICADO`; si no, se registra una advertencia al arrancar (decisión del grupo pendiente).
+- `/internal/**`: si `SERVICIO_TOKEN` está configurado, exige `X-Service-Token` (comparación en tiempo constante) → `401 SERVICIO_NO_AUTENTICADO`; si no, se registra una advertencia al arrancar (decisión del grupo pendiente).
 - Filtro de `X-Correlation-Id` (MDC + respuesta). Quitar el `System.out.println` del controller.
 - Gateway: ruta `POST /eventos/{eventoId}/ingresos` → MS5, roles `PERSONAL_ACCESO` y `ADMIN`.
 

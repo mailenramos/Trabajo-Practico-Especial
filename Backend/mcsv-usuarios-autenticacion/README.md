@@ -2,24 +2,51 @@
 
 Registra usuarios, verifica credenciales y emite tokens JWT (feature F12, US-12.3 a US-12.8). El API Gateway valida esos tokens y propaga la identidad a los demás microservicios con `X-User-Id` y `X-User-Roles`.
 
-- Puerto: `8087`.
-- Base de datos: PostgreSQL 16 en `localhost:5436` (base, usuario y contraseña `usuarios`, solo para desarrollo).
+- Servicio en Docker: `usuarios`, puerto `8087` (`http://usuarios:8087` dentro de la red `ticketya-net`).
+- Base de datos: PostgreSQL 16, servicio `postgres-usuarios` (volumen `postgres-usuarios-data`). En desarrollo se publica en `localhost:5436`.
 - Esquema con Flyway (`src/main/resources/db/migration`); Hibernate solo valida (`ddl-auto: validate`).
 - Contraseñas con BCrypt (salt aleatorio por contraseña). Nunca aparecen en respuestas ni en logs.
+- Salud: `GET /actuator/health` (healthcheck de Docker; sin detalles).
+- Logs a la consola (stdout) con `correlationId` (el `X-Correlation-Id` del pedido).
 - Swagger UI: `http://localhost:8087/swagger-ui.html`.
+
+## Ejecución con Docker (recomendada)
+
+Requiere la red compartida (una sola vez) y un `.env` con los valores obligatorios:
+
+```powershell
+docker network create ticketya-net
+```
+
+```powershell
+cd .\Backend\mcsv-usuarios-autenticacion
+Copy-Item .env.example .env
+```
+
+Completá en `.env` `DB_PASSWORD`, `JWT_SECRET` (el mismo que el Gateway, mínimo 32 caracteres), `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `SERVICIO_TOKEN` (el mismo en todos los servicios). Después:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+- `docker-compose.yml` levanta `postgres-usuarios` y `usuarios` en `ticketya-net`, sin publicar puertos (así lo usa el compose general de la plataforma).
+- `docker-compose.dev.yml` publica, solo en desarrollo, la app en `127.0.0.1:8087` y la base en `127.0.0.1:5436`.
+- El servicio arranca cuando la base está sana, y su propio healthcheck consulta `/actuator/health`.
+- El `Dockerfile` es multi-etapa (Maven + JDK 21 para compilar, JRE 21 para ejecutar) y corre con un usuario sin privilegios. No copia secretos a la imagen.
 
 ## Ejecución local (PowerShell)
 
-1. Base de datos:
+1. Base de datos, solo el contenedor de PostgreSQL (puerto 5436):
 
    ```powershell
    cd .\Backend\mcsv-usuarios-autenticacion
-   docker compose up -d postgres
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-usuarios
    ```
 
-2. Servicio. `JWT_SECRET` debe ser **el mismo valor** que usa el Gateway (mínimo 32 bytes). `ADMIN_EMAIL` y `ADMIN_PASSWORD` son obligatorias: sin ellas el servicio no arranca.
+2. Servicio. `JWT_SECRET` debe ser **el mismo valor** que usa el Gateway (mínimo 32 bytes). `ADMIN_EMAIL` y `ADMIN_PASSWORD` son obligatorias: sin ellas el servicio no arranca. `DB_PASSWORD` es la del `.env`.
 
    ```powershell
+   $env:DB_PASSWORD = '<la contraseña de la base del .env>'
    $env:JWT_SECRET = '<clave compartida con el Gateway, al menos 32 caracteres>'
    $env:ADMIN_EMAIL = 'admin@ticketya.local'
    $env:ADMIN_PASSWORD = '<contraseña con 8+ caracteres, letras y números>'
@@ -31,30 +58,6 @@ Registra usuarios, verifica credenciales y emite tokens JWT (feature F12, US-12.
    ```powershell
    .\mvnw.cmd test
    ```
-
-## Ejecución con Docker
-
-Desde `Backend\mcsv-usuarios-autenticacion`, construye la imagen:
-
-```powershell
-docker build -t ticketya/usuarios-autenticacion:local .
-```
-
-La base de datos debe estar levantada con `docker compose up -d postgres`. Para que el servicio en el contenedor llegue a PostgreSQL publicado en Windows, ejecuta:
-
-```powershell
-docker run --rm --name ticketya-usuarios `
-  -p 8087:8087 `
-  -e DB_URL=jdbc:postgresql://host.docker.internal:5436/usuarios `
-  -e DB_USER=usuarios `
-  -e DB_PASSWORD=usuarios `
-  -e JWT_SECRET='<la misma clave que usa el Gateway, al menos 32 caracteres>' `
-  -e ADMIN_EMAIL=admin@ticketya.local `
-  -e ADMIN_PASSWORD='<contraseña con 8+ caracteres, letras y números>' `
-  ticketya/usuarios-autenticacion:local
-```
-
-La aplicación queda disponible en `http://localhost:8087`. No incluyas secretos en la imagen: pásalos al iniciar el contenedor.
 
 ## Configuración
 
@@ -69,6 +72,9 @@ La aplicación queda disponible en `http://localhost:8087`. No incluyas secretos
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Obligatorias | Administrador inicial. Se crea solo si no hay ningún ADMIN activo; no se duplica en reinicios. Si el correo ya existe, se le agrega el rol ADMIN sin cambiar su contraseña. |
 | `ADMIN_NOMBRE` / `ADMIN_APELLIDO` | `Administrador` / `TicketYa` | Datos del administrador inicial. |
 | `USUARIOS_DATOS_PRUEBA` | `true` | Crea un usuario de prueba por rol (ver abajo). Poner `false` fuera de desarrollo. |
+| `SERVICIO_TOKEN` | vacío (obligatoria en Docker) | Token compartido entre servicios. Si está configurado, `/internal/**` exige `X-Service-Token` con ese valor (`401 SERVICIO_NO_AUTENTICADO`). Vacío = sin validación (solo desarrollo local). |
+
+Todas las variables, con sus valores por defecto y cuáles son obligatorias, están en [.env.example](.env.example).
 
 ## Usuarios de prueba
 
@@ -101,7 +107,7 @@ Rutas protegidas (el Gateway exige JWT y completa `X-User-Id` / `X-User-Roles`):
 | `PUT /usuarios/{id}/roles` | ADMIN | `{roles: [...]}` reemplaza los roles. `409 ULTIMO_ADMINISTRADOR` si deja el sistema sin administradores activos. Rige desde el próximo login. |
 | `PUT /usuarios/{id}/estado` | ADMIN | `{activo: true|false}`. Borrado lógico. `409 AUTODESACTIVACION` si un admin intenta desactivarse. |
 
-Rutas internas (el Gateway **no** las enruta; responde 404 desde afuera):
+Rutas internas (el Gateway **no** las enruta; responde 404 desde afuera). Exigen `X-Service-Token` cuando `SERVICIO_TOKEN` está configurado:
 
 | Método y ruta | Consumidor | Respuesta |
 |---|---|---|

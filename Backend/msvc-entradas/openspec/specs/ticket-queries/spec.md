@@ -36,7 +36,7 @@ Registrar los endpoints de consulta de entradas, los permisos por rol, la consul
 - **THEN** devuelve el estado actual sin modificar datos
 
 ### Requirement: Proteger las rutas internas (US-5.8)
-Si `SERVICE_TOKEN` está configurado, toda ruta `/internal/**` MUST exigir `X-Service-Token` con ese valor (comparación en tiempo constante) y, si falta o no coincide, MUST responder `401 SERVICIO_NO_AUTENTICADO` sin ejecutar la operación. El token MUST NOT escribirse en el log. Las rutas públicas MUST NOT exigirlo. Si `SERVICE_TOKEN` está vacío, la validación queda desactivada y se avisa al arrancar.
+Si `SERVICIO_TOKEN` está configurado, toda ruta `/internal/**` MUST exigir `X-Service-Token` con ese valor (comparación en tiempo constante) y, si falta o no coincide, MUST responder `401 SERVICIO_NO_AUTENTICADO` sin ejecutar la operación. El token MUST NOT escribirse en el log. Las rutas públicas MUST NOT exigirlo. Si `SERVICIO_TOKEN` está vacío, la validación queda desactivada y se avisa al arrancar.
 
 #### Scenario: Pedido interno sin credencial
 - **WHEN** se invoca una ruta interna sin `X-Service-Token` o con uno incorrecto

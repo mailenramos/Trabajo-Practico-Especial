@@ -63,7 +63,7 @@ La identidad MUST tomarse de `X-User-Id` y `X-User-Roles` (respaldo: `X-User-Rol
 - **THEN** no se consulta a MS1 y el ingreso queda con `excepcional: true`
 
 ## Technical Decisions and Constraints
-- La consulta a MS1 se hace fuera de la transacción de base de datos, con timeouts configurables (`MS1_CONNECT_TIMEOUT`, `MS1_READ_TIMEOUT`; 1 s y 2 s por defecto).
+- La consulta a MS1 se hace fuera de la transacción de base de datos, con timeouts configurables (`EVENTOS_CONNECT_TIMEOUT`, `EVENTOS_READ_TIMEOUT`; 1 s y 2 s por defecto).
 - Una validación que ya obtuvo la autorización puede completarse aunque la asignación se revoque durante el procesamiento (sin coordinación distribuida).
 - No hay ventana horaria: se valida mientras la entrada esté `VIGENTE` y el evento no esté cerrado.
 - El QR es el UUID `codigo_qr`; el servicio no genera la imagen.

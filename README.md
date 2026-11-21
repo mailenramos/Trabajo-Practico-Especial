@@ -7,9 +7,9 @@ Esta guia permite levantar la aplicacion desde PowerShell. No hace falta instala
 ### Requisitos
 
 - Docker Desktop iniciado.
-- JDK 21 (necesario para MS1, MS2 y MS3; sirve tambien para MS4, MS5 y el Gateway).
+- JDK 21 (necesario para MS1, MS2, MS3, MS5 y MS6; sirve tambien para MS4 y el Gateway).
 - Node.js 20.19+ o 22.12+ para el frontend.
-- PostgreSQL de MS5 configurado y disponible en el puerto indicado abajo. Los README de cada servicio describen cómo iniciar sus bases.
+- Las bases de MS5 y MS6 se levantan con el docker-compose de cada servicio (ver abajo). Los README de cada servicio describen cómo iniciar sus bases.
 
 Si PowerShell abre en `C:\Windows\System32`, primero cambia a la carpeta donde clonaste el repositorio. Reemplaza esta ruta por la ubicacion de tu copia:
 
@@ -54,23 +54,21 @@ Inicia las bases de datos antes que sus microservicios:
    ```
 
    El `.env.example` usa credenciales de demostracion solo para desarrollo local. Si ya hay otro PostgreSQL ocupando `5435`, no inicies otro contenedor en ese puerto; revisa [Backend/mcvs-pagos/README.md](Backend/mcvs-pagos/README.md) para configurar el servicio con la base existente.
-5. **PostgreSQL de MS5 (Entradas)**: en una instalación nueva, crea el contenedor local:
+5. **PostgreSQL de MS5 (Entradas)** y 6. **PostgreSQL de MS6 (Usuarios)**: cada uno se levanta con su propio compose. Requieren la red compartida (una sola vez) y un `.env` en cada carpeta, copiado de `.env.example`, con al menos `DB_PASSWORD`:
 
    ```powershell
-   docker run --name ticketya-entradas-postgres --restart unless-stopped -e POSTGRES_DB=entradas -e POSTGRES_USER=entradas -e POSTGRES_PASSWORD=entradas -p 5433:5432 -d postgres:16
+   docker network create ticketya-net
    ```
 
-   En siguientes ejecuciones, usa `docker start ticketya-entradas-postgres`. La base, el usuario y la contraseña de desarrollo son `entradas`; más detalles en [Backend/msvc-entradas/Documentacion/README.md](Backend/msvc-entradas/Documentacion/README.md).
-
-6. **PostgreSQL de MS6 (Usuarios)**:
-
    ```powershell
-   cd .\Backend\mcsv-usuarios-autenticacion
-   docker compose up -d postgres
+   cd .\Backend\msvc-entradas
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-entradas
+   cd ..\mcsv-usuarios-autenticacion
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-usuarios
    cd ..\..
    ```
 
-   Publica el puerto `5436`. La base, el usuario y la contraseña de desarrollo son `usuarios`; más detalles en [Backend/mcsv-usuarios-autenticacion/README.md](Backend/mcsv-usuarios-autenticacion/README.md).
+   Publican los puertos `5433` (Entradas) y `5436` (Usuarios) en `127.0.0.1`. Para levantar cada servicio completo en Docker (base + aplicación), ver [Backend/msvc-entradas/Documentacion/README.md](Backend/msvc-entradas/Documentacion/README.md) y [Backend/mcsv-usuarios-autenticacion/README.md](Backend/mcsv-usuarios-autenticacion/README.md).
 
 Espera a que Docker indique que las bases están iniciadas antes de lanzar los microservicios.
 
@@ -117,17 +115,19 @@ $env:DB_PASSWORD = $config.DB_PASSWORD
 
 Si Pagos ya usa una base existente en `localhost:5435`, configura `DB_PASSWORD` con la contraseña real de esa base en vez de copiar las credenciales de ejemplo.
 
-**MS5 - Entradas**:
+**MS5 - Entradas** (`DB_PASSWORD` es la del `.env` de su carpeta):
 
 ```powershell
 cd .\Backend\msvc-entradas
+$env:DB_PASSWORD = '<la contraseña del .env>'
 .\mvnw.cmd spring-boot:run
 ```
 
-**MS6 - Usuarios y autenticación** (emite los JWT; `JWT_SECRET` debe ser el mismo valor en MS6 y en el Gateway, de al menos 32 caracteres; `ADMIN_EMAIL` y `ADMIN_PASSWORD` crean el administrador inicial y son obligatorias):
+**MS6 - Usuarios y autenticación** (emite los JWT; `JWT_SECRET` debe ser el mismo valor en MS6 y en el Gateway, de al menos 32 caracteres; `ADMIN_EMAIL` y `ADMIN_PASSWORD` crean el administrador inicial y son obligatorias; `DB_PASSWORD` es la del `.env` de su carpeta):
 
 ```powershell
 cd .\Backend\mcsv-usuarios-autenticacion
+$env:DB_PASSWORD = '<la contraseña del .env>'
 $env:JWT_SECRET = '<clave compartida con el Gateway, al menos 32 caracteres>'
 $env:ADMIN_EMAIL = 'admin@ticketya.local'
 $env:ADMIN_PASSWORD = '<contraseña con 8+ caracteres, letras y números>'

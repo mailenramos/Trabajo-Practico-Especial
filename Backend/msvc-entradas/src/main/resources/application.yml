@@ -22,13 +22,29 @@ spring:
 
 entradas:
   seguridad:
-    # Secreto compartido para X-Service-Token en /internal/**. Vacío = validación desactivada.
-    service-token: ${SERVICE_TOKEN:}
+    # Token compartido entre servicios (X-Service-Token) para /internal/**. Vacío = validación
+    # desactivada (solo desarrollo local; en Docker es obligatorio).
+    service-token: ${SERVICIO_TOKEN:}
   ms1:
     # Lugares, sectores y eventos: autorización del personal de acceso.
-    url: ${MS1_URL:http://localhost:8081}
-    connect-timeout: ${MS1_CONNECT_TIMEOUT:1s}
-    read-timeout: ${MS1_READ_TIMEOUT:2s}
+    url: ${EVENTOS_URL:http://localhost:8081}
+    connect-timeout: ${EVENTOS_CONNECT_TIMEOUT:1s}
+    read-timeout: ${EVENTOS_READ_TIMEOUT:2s}
+
+# Monitoreo: por HTTP solo se expone /actuator/health (healthcheck de Docker), sin detalles.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Logs a la consola (stdout) con el identificador de correlación de cada pedido.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name}] [%thread] [correlationId=%X{correlationId:-}] %logger{36} : %m%n%wEx"
 
 springdoc:
   api-docs:

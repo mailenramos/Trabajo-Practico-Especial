@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TicketYa - MS5 Entradas (Entrega 2)",
-    "description": "Validación de QR, consultas por rol y operaciones internas. Las carpetas 01 y 02 van por el API Gateway con el JWT de MS6 (ver la colección de MS6 para obtener los tokens). La carpeta 03 llama directo a MS5 (puerto 8085) porque el Gateway no enruta /internal/**; si SERVICE_TOKEN está configurado, completá serviceToken.",
+    "description": "Validación de QR, consultas por rol y operaciones internas. Las carpetas 01 y 02 van por el API Gateway con el JWT de MS6 (ver la colección de MS6 para obtener los tokens). La carpeta 03 llama directo a MS5 (puerto 8085) porque el Gateway no enruta /internal/**; si SERVICIO_TOKEN está configurado, completá serviceToken.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -92,7 +92,7 @@
           "request": { "method": "POST", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/eventos/{{eventoId}}/entradas/reintegro" }
         },
         {
-          "name": "Sin X-Service-Token (401 si SERVICE_TOKEN está configurado)",
+          "name": "Sin X-Service-Token (401 si SERVICIO_TOKEN está configurado)",
           "request": { "method": "GET", "header": [], "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas" }
         }
       ]

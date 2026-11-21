@@ -4,7 +4,7 @@
 MS6 registra usuarios, verifica credenciales, emite JWT y administra roles y estado de las cuentas (feature F12, US-12.3 a US-12.8). El API Gateway valida los tokens; este servicio recibe la identidad por `X-User-Id` y `X-User-Roles`.
 
 ## Status
-- **Implementado y probado** (tests HTTP con MockMvc sobre H2 en modo PostgreSQL; 34 tests): todos los requisitos de esta spec.
+- **Implementado y probado** (tests HTTP con MockMvc sobre H2 en modo PostgreSQL; 38 tests): todos los requisitos de esta spec.
 - **No verificado automáticamente:** ejecución contra PostgreSQL real y flujo de punta a punta con el Gateway.
 
 ## Requirements
@@ -121,5 +121,16 @@ MS6 SHALL exponer `GET /internal/usuarios/{id}/contacto` (`{correo}`, también p
 - **WHEN** Notificaciones pide el contacto de un usuario inactivo
 - **THEN** MS6 devuelve su correo
 
+### Requirement: Proteger las rutas internas y operar en Docker
+Si `SERVICIO_TOKEN` está configurado, toda ruta `/internal/**` MUST exigir `X-Service-Token` con ese valor (comparación en tiempo constante) y, si falta o no coincide, MUST responder `401 SERVICIO_NO_AUTENTICADO` sin ejecutar la operación; las rutas públicas MUST NOT exigirlo. El servicio MUST exponer `GET /actuator/health` sin detalles y MUST escribir los logs en la consola con el `correlationId` del pedido.
+
+#### Scenario: Pedido interno sin credencial
+- **WHEN** Notificaciones o Lugares llaman a una ruta interna sin `X-Service-Token` o con uno incorrecto
+- **THEN** MS6 responde `401 SERVICIO_NO_AUTENTICADO`
+
+#### Scenario: Healthcheck de Docker
+- **WHEN** Docker consulta `GET /actuator/health`
+- **THEN** responde `200 {"status":"UP"}` sin componentes
+
 ## Verification Evidence
-- `AutenticacionTest` (11 tests), `UsuariosTest` (18) e `InicializacionTest` (5): `.\mvnw.cmd test`, sin Docker.
+- `AutenticacionTest` (11 tests), `UsuariosTest` (18), `InicializacionTest` (5) e `InfraestructuraTest` (4): `.\mvnw.cmd test`, sin Docker.

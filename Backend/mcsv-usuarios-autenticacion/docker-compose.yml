@@ -1,16 +1,57 @@
+# Usuarios (MS6) + su base. Sin puertos publicados: se alcanza por ticketya-net
+# (el Gateway y Notificaciones usan http://usuarios:8087). Para exponer los puertos en desarrollo:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Requiere: docker network create ticketya-net, y un .env (ver .env.example).
 services:
-  postgres:
+  postgres-usuarios:
     image: postgres:16
-    container_name: ticketya-usuarios-postgres
-    restart: unless-stopped
+    container_name: ticketya-postgres-usuarios
     environment:
       POSTGRES_DB: usuarios
-      POSTGRES_USER: usuarios
-      POSTGRES_PASSWORD: usuarios
-    ports:
-      - "5436:5432"
+      POSTGRES_USER: "${DB_USER:-usuarios}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
     volumes:
-      - usuarios-data:/var/lib/postgresql/data
+      - postgres-usuarios-data:/var/lib/postgresql/data
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d usuarios"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  usuarios:
+    build: .
+    container_name: ticketya-usuarios
+    environment:
+      DB_URL: "${DB_URL:-jdbc:postgresql://postgres-usuarios:5432/usuarios}"
+      DB_USER: "${DB_USER:-usuarios}"
+      DB_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      JWT_SECRET: "${JWT_SECRET:?Configure JWT_SECRET en .env (el mismo que el Gateway)}"
+      JWT_ISSUER: "${JWT_ISSUER:-ticketya-usuarios}"
+      JWT_EXPIRATION: "${JWT_EXPIRATION:-PT1H}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:?Configure ADMIN_EMAIL en .env}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Configure ADMIN_PASSWORD en .env}"
+      ADMIN_NOMBRE: "${ADMIN_NOMBRE:-Administrador}"
+      ADMIN_APELLIDO: "${ADMIN_APELLIDO:-TicketYa}"
+      USUARIOS_DATOS_PRUEBA: "${USUARIOS_DATOS_PRUEBA:-true}"
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN en .env}"
+    depends_on:
+      postgres-usuarios:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8087/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
 volumes:
-  usuarios-data:
+  postgres-usuarios-data:
+    name: postgres-usuarios-data
+
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net

@@ -35,6 +35,25 @@ usuarios:
   datos-prueba:
     # Crea un usuario de prueba por cada rol (ver README). Desactivar fuera de desarrollo.
     habilitados: ${USUARIOS_DATOS_PRUEBA:true}
+  seguridad:
+    # Token compartido entre servicios (X-Service-Token) para /internal/**. Vacío = validación
+    # desactivada (solo desarrollo local; en Docker es obligatorio).
+    servicio-token: ${SERVICIO_TOKEN:}
+
+# Monitoreo: por HTTP solo se expone /actuator/health (healthcheck de Docker), sin detalles.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Logs a la consola (stdout) con el identificador de correlación de cada pedido.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name}] [%thread] [correlationId=%X{correlationId:-}] %logger{36} : %m%n%wEx"
 
 springdoc:
   api-docs:

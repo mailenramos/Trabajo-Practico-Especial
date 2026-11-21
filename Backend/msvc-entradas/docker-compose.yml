@@ -1,0 +1,52 @@
+# Entradas (MS5) + su base. Sin puertos publicados: se alcanza por ticketya-net
+# (el Gateway y Compras usan http://entradas:8085). Para exponer los puertos en desarrollo:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Requiere: docker network create ticketya-net, y un .env (ver .env.example).
+services:
+  postgres-entradas:
+    image: postgres:16
+    container_name: ticketya-postgres-entradas
+    environment:
+      POSTGRES_DB: entradas
+      POSTGRES_USER: "${DB_USER:-entradas}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+    volumes:
+      - postgres-entradas-data:/var/lib/postgresql/data
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d entradas"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  entradas:
+    build: .
+    container_name: ticketya-entradas
+    environment:
+      DB_URL: "${DB_URL:-jdbc:postgresql://postgres-entradas:5432/entradas}"
+      DB_USER: "${DB_USER:-entradas}"
+      DB_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN en .env}"
+      EVENTOS_URL: "${EVENTOS_URL:-http://lugares:8081}"
+      EVENTOS_CONNECT_TIMEOUT: "${EVENTOS_CONNECT_TIMEOUT:-1s}"
+      EVENTOS_READ_TIMEOUT: "${EVENTOS_READ_TIMEOUT:-2s}"
+    depends_on:
+      postgres-entradas:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8085/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+volumes:
+  postgres-entradas-data:
+    name: postgres-entradas-data
+
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net
