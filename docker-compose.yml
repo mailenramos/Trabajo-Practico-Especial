@@ -21,6 +21,7 @@ include:
   - Backend/mcsv-fila-virtual/docker-compose.yml                    # MS7 fila-virtual:8088
   - Backend/mcsv-preferencias-recomendaciones/docker-compose.yml    # MS8 preferencias:8089
   - Backend/mcsv-notificaciones/docker-compose.yml                  # MS9 notificaciones:8090
+  - observabilidad/docker-compose.yml                               # Loki + Alloy+ Grafana (http://localhost:3000)
 
 services:
   gateway:
