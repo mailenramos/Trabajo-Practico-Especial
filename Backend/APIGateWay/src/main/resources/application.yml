@@ -36,7 +36,17 @@ spring:
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
               predicates:
                 - Path=/eventos/{eventoId}
-                - Method=GET
+                - Method=GET,PUT
+            - id: ms1-evento-personal-acceso
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/personal-acceso
+                - Method=GET,POST
+            - id: ms1-evento-personal-acceso-revocar
+              uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
+              predicates:
+                - Path=/eventos/{eventoId}/personal-acceso/{usuarioId}
+                - Method=DELETE
             - id: ms1-evento-precio-sector
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
               predicates:

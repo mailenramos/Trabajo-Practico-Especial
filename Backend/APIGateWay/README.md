@@ -57,19 +57,20 @@ Si un request público responde `503`, comprobá que su servicio destino esté e
 
 ## JWT y roles
 
-El Gateway funciona como resource server: **no emite tokens ni implementa inicio de sesión**. El emisor debe firmar JWT con HS256 y la misma `JWT_SECRET`, incluir `sub` (ID del usuario), `role` y `exp`, y usar uno de los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` o `PERSONAL_ACCESO`. La clave se debe inyectar desde un gestor de secretos/entorno, nunca versionar.
+El Gateway funciona como resource server: **no emite tokens ni implementa inicio de sesión**. El emisor debe firmar JWT con HS256 y la misma `JWT_SECRET`, incluir `sub` (ID del usuario), `exp` y `roles` como lista o string separado por comas. Se admiten `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. También se acepta temporalmente el claim singular `role` para compatibilidad con los tokens anteriores. La clave se debe inyectar desde un gestor de secretos/entorno, nunca versionar.
 
 | Operación | Roles admitidos |
 |---|---|
 | Consultar eventos y lugares | `CLIENTE`, `ORGANIZADOR`, `ADMIN`, `PERSONAL_ACCESO` |
 | Crear lugares/eventos/sectores, configurar y publicar eventos | `ORGANIZADOR`, `ADMIN` |
 | Suspender, reactivar o cancelar eventos | `ADMIN` |
+| Modificar evento y asignar/listar/revocar personal de acceso | `ORGANIZADOR`, `ADMIN` |
 | Reservar, comprar, pagar y solicitar devoluciones | `CLIENTE` |
 | Consultar compras/devoluciones | `CLIENTE`, `ADMIN` |
 | Aprobar/rechazar devoluciones y operar reintegros | `ADMIN` |
 | Consultar entradas | `CLIENTE`, `ADMIN`, `PERSONAL_ACCESO` |
 
-El Gateway elimina cualquier `X-User-Id` y `X-User-Role` entrante y los reconstruye desde los claims verificados. Los servicios mantienen la autorización de negocio que ya implementan; el Gateway no verifica propiedad de recursos. Las rutas desconocidas, métodos no permitidos y rutas internas siguen sin reenviarse. La búsqueda pública sin autenticación de Entrega 1 ahora requiere JWT.
+El Gateway elimina cualquier `X-User-Id`, `X-User-Role` y `X-User-Roles` entrante y reconstruye la identidad desde los claims verificados. Envía `X-User-Id` desde `sub`, `X-User-Roles` con la lista completa separada por comas y `X-User-Role` con el primer rol para compatibilidad con servicios existentes; MS1 debe autorizar usando la lista completa. El Gateway evalúa permisos cuando corresponde, pero no verifica propiedad de recursos, que sigue siendo responsabilidad del servicio dueño. Las rutas desconocidas, métodos no permitidos y rutas internas siguen sin reenviarse. La búsqueda pública sin autenticación de Entrega 1 ahora requiere JWT.
 
 ## Rutas públicas
 
@@ -77,15 +78,15 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 
 | Servicio | Operaciones públicas |
 |---|---|
-| Eventos/Lugares (MS1) | `GET, POST /lugares`; `GET /lugares/{id}`; `GET, POST /lugares/{id}/sectores`; `GET, POST /eventos`; `GET /eventos/{eventoId}`; `PUT /eventos/{eventoId}/sectores/{sectorId}/precio`; `PUT /eventos/{eventoId}/limite-entradas-por-cliente`; `PUT /eventos/{eventoId}/publicar`; `PUT /eventos/{eventoId}/venta/suspender`; `PUT /eventos/{eventoId}/venta/reactivar`; `PUT /eventos/{eventoId}/cancelar`. |
+| Eventos/Lugares (MS1) | `GET, POST /lugares`; `GET /lugares/{id}`; `GET, POST /lugares/{id}/sectores`; `GET, POST /eventos`; `GET, PUT /eventos/{eventoId}`; `POST, GET /eventos/{eventoId}/personal-acceso`; `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}`; `PUT /eventos/{eventoId}/sectores/{sectorId}/precio`; `PUT /eventos/{eventoId}/limite-entradas-por-cliente`; `PUT /eventos/{eventoId}/publicar`; `PUT /eventos/{eventoId}/venta/suspender`; `PUT /eventos/{eventoId}/venta/reactivar`; `PUT /eventos/{eventoId}/cancelar`. |
 | Disponibilidad/Reservas (MS2) | `POST /disponibilidad/eventos/{eventoId}/reservas`. |
 | Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
 | Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`. |
 
-No se enrutan `/internal/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
+No se enrutan `/internal/**`, `/actuator/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
 
 ## Trazabilidad y despliegue
 
-Cada solicitud recibe o genera un `X-Request-Id` UUID, se devuelve al cliente y se propaga al servicio destino. El log de consola registra ID, método, path, usuario, rol, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
+Cada solicitud conserva un `X-Correlation-Id` de hasta 100 caracteres `[A-Za-z0-9._-]` o genera uno nuevo; se devuelve al cliente y se propaga al destino. `X-Request-Id` se mantiene como alias compatible con el identificador de correlación. El log de consola registra ID, método, path, usuario, roles, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
 
 Para construir la imagen desde esta carpeta: `docker build -t ticketya/api-gateway .`. El contenedor requiere la clave JWT y las URLs destino por variables de entorno. Este Dockerfile no reemplaza el `docker-compose.yml` de la plataforma, que queda fuera del alcance de este cambio.

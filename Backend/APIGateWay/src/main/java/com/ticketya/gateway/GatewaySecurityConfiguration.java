@@ -2,6 +2,8 @@ package com.ticketya.gateway;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +41,32 @@ public class GatewaySecurityConfiguration {
 
     private static final Set<String> ROLES = Set.of("CLIENTE", "ORGANIZADOR", "ADMIN", "PERSONAL_ACCESO");
 
+    static List<String> rolesFrom(Jwt token) {
+        Object rolesClaim = token.getClaims().get("roles");
+        List<String> roles = new ArrayList<>();
+        if (rolesClaim instanceof Collection<?> values) {
+            values.stream().filter(String.class::isInstance).map(String.class::cast).forEach(roles::add);
+        } else if (rolesClaim instanceof String value) {
+            roles.addAll(List.of(value.split(",")));
+        } else {
+            String legacyRole = token.getClaimAsString("role");
+            if (legacyRole != null) {
+                roles.add(legacyRole);
+            }
+        }
+
+        List<String> normalized = roles.stream()
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .filter(role -> !role.isEmpty())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty() || !ROLES.containsAll(normalized)) {
+            return List.of();
+        }
+        return normalized;
+    }
+
     @Bean
     ReactiveJwtDecoder jwtDecoder(@Value("${gateway.security.jwt-secret}") String secret) {
         byte[] key = secret.getBytes(StandardCharsets.UTF_8);
@@ -55,11 +83,10 @@ public class GatewaySecurityConfiguration {
             if (timestampResult.hasErrors()) {
                 return timestampResult;
             }
-            String role = token.getClaimAsString("role");
             if (token.getSubject() == null || token.getSubject().isBlank()
-                    || token.getExpiresAt() == null || !ROLES.contains(role)) {
+                    || token.getExpiresAt() == null || rolesFrom(token).isEmpty()) {
                 return OAuth2TokenValidatorResult.failure(
-                        new OAuth2Error("invalid_token", "El token requiere sub y role válidos", null));
+                        new OAuth2Error("invalid_token", "El token requiere sub y roles válidos", null));
             }
             return OAuth2TokenValidatorResult.success();
         };
@@ -73,9 +100,12 @@ public class GatewaySecurityConfiguration {
             ReactiveJwtDecoder jwtDecoder,
             ObjectMapper objectMapper) {
         Converter<Jwt, Mono<AbstractAuthenticationToken>> authenticationConverter = jwt -> {
-            String role = jwt.getClaimAsString("role");
+            List<String> roles = rolesFrom(jwt);
             return Mono.just(new JwtAuthenticationToken(
-                    jwt, List.of(new SimpleGrantedAuthority("ROLE_" + role)), jwt.getSubject()));
+                    jwt, roles.stream()
+                            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                            .toList(),
+                    jwt.getSubject()));
         };
 
         return http
@@ -84,9 +114,17 @@ public class GatewaySecurityConfiguration {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/eventos/*/personal-acceso")
+                        .hasAnyRole("ORGANIZADOR", "ADMIN")
                         .pathMatchers(HttpMethod.GET, "/eventos", "/eventos/**", "/lugares", "/lugares/**")
                         .hasAnyRole("CLIENTE", "ORGANIZADOR", "ADMIN", "PERSONAL_ACCESO")
+                        .pathMatchers(HttpMethod.PUT, "/eventos/*")
+                        .hasAnyRole("ORGANIZADOR", "ADMIN")
                         .pathMatchers(HttpMethod.POST, "/eventos", "/lugares", "/lugares/*/sectores")
+                        .hasAnyRole("ORGANIZADOR", "ADMIN")
+                        .pathMatchers(HttpMethod.POST, "/eventos/*/personal-acceso")
+                        .hasAnyRole("ORGANIZADOR", "ADMIN")
+                        .pathMatchers(HttpMethod.DELETE, "/eventos/*/personal-acceso/*")
                         .hasAnyRole("ORGANIZADOR", "ADMIN")
                         .pathMatchers(HttpMethod.PUT,
                                 "/eventos/*/sectores/*/precio",

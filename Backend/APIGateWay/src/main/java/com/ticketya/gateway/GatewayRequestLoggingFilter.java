@@ -26,12 +26,18 @@ public class GatewayRequestLoggingFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String requestId = validRequestId(exchange.getRequest().getHeaders().getFirst("X-Request-Id"))
+        String correlationId = validCorrelationId(exchange.getRequest().getHeaders().getFirst("X-Correlation-Id"))
+                .or(() -> validCorrelationId(exchange.getRequest().getHeaders().getFirst("X-Request-Id")))
                 .orElseGet(() -> UUID.randomUUID().toString());
+        String requestId = correlationId;
         exchange.getAttributes().put(REQUEST_ID_ATTRIBUTE, requestId);
+        exchange.getResponse().getHeaders().set("X-Correlation-Id", correlationId);
         exchange.getResponse().getHeaders().set("X-Request-Id", requestId);
         ServerWebExchange tracedExchange = exchange.mutate()
-                .request(request -> request.headers(headers -> headers.set("X-Request-Id", requestId)))
+                .request(request -> request.headers(headers -> {
+                    headers.set("X-Correlation-Id", correlationId);
+                    headers.set("X-Request-Id", requestId);
+                }))
                 .build();
         long startNanos = System.nanoTime();
         return chain.filter(tracedExchange)
@@ -53,17 +59,10 @@ public class GatewayRequestLoggingFilter implements WebFilter {
                 elapsedMillis);
     }
 
-    private static java.util.Optional<String> validRequestId(String value) {
-        if (value == null) {
+    private static java.util.Optional<String> validCorrelationId(String value) {
+        if (value == null || value.length() > 100 || !value.matches("[A-Za-z0-9._-]+")) {
             return java.util.Optional.empty();
         }
-        try {
-            UUID parsed = UUID.fromString(value);
-            return parsed.toString().equalsIgnoreCase(value)
-                    ? java.util.Optional.of(value)
-                    : java.util.Optional.empty();
-        } catch (IllegalArgumentException exception) {
-            return java.util.Optional.empty();
-        }
+        return java.util.Optional.of(value);
     }
 }

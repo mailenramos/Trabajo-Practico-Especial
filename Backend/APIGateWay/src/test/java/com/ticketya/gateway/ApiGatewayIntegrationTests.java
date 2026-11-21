@@ -83,7 +83,7 @@ class ApiGatewayIntegrationTests {
     @Test
     @Order(1)
     void forwardsEventSearchAndIdentityHeaders() throws Exception {
-        String requestId = "45feec1c-77bb-4a01-9a10-0d19063a7772";
+        String requestId = "orders.v2-abc_1";
         HttpResponse<String> response = sendAs("GET", "/eventos?q=rock&page=0", null,
                 "CLIENTE", "cliente-1", "X-Request-Id", requestId,
                 "X-User-Id", "spoofed-user", "X-User-Role", "ADMIN");
@@ -91,12 +91,15 @@ class ApiGatewayIntegrationTests {
         assertEquals(200, response.statusCode());
         assertEquals("{\"ok\":true}", response.body());
         CapturedRequest forwarded = MS1.take();
+        assertEquals(requestId, response.headers().firstValue("X-Correlation-Id").orElseThrow());
         assertEquals(requestId, response.headers().firstValue("X-Request-Id").orElseThrow());
+        assertEquals(requestId, forwarded.header("X-Correlation-Id"));
         assertEquals(requestId, forwarded.header("X-Request-Id"));
         assertEquals("GET", forwarded.method());
         assertEquals("/eventos?q=rock&page=0", forwarded.path());
         assertEquals("cliente-1", forwarded.header("X-User-Id"));
         assertEquals("CLIENTE", forwarded.header("X-User-Role"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Roles"));
         assertNull(MS2.poll());
         assertNull(MS3.poll());
         assertNull(MS5.poll());
@@ -187,6 +190,10 @@ class ApiGatewayIntegrationTests {
                 new RouteCase("GET", "/eventos", MS1, "CLIENTE"),
                 new RouteCase("POST", "/eventos", MS1, "ORGANIZADOR"),
                 new RouteCase("GET", "/eventos/evento-1", MS1, "CLIENTE"),
+                new RouteCase("PUT", "/eventos/evento-1", MS1, "ORGANIZADOR"),
+                new RouteCase("POST", "/eventos/evento-1/personal-acceso", MS1, "ORGANIZADOR"),
+                new RouteCase("GET", "/eventos/evento-1/personal-acceso", MS1, "ADMIN"),
+                new RouteCase("DELETE", "/eventos/evento-1/personal-acceso/usuario-1", MS1, "ADMIN"),
                 new RouteCase("PUT", "/eventos/evento-1/sectores/sector-1/precio", MS1, "ORGANIZADOR"),
                 new RouteCase("PUT", "/eventos/evento-1/limite-entradas-por-cliente", MS1, "ORGANIZADOR"),
                 new RouteCase("PUT", "/eventos/evento-1/publicar", MS1, "ORGANIZADOR"),
@@ -233,6 +240,24 @@ class ApiGatewayIntegrationTests {
 
     @Test
     @Order(8)
+    void forwardsFullRoleListAndEnforcesSpecificAssignmentPermissions() throws Exception {
+        HttpResponse<String> forbidden = sendAs("GET", "/eventos/evento-1/personal-acceso", null,
+                "CLIENTE", "cliente-1");
+        assertEquals(403, forbidden.statusCode());
+        assertNull(MS1.poll());
+
+        HttpResponse<String> response = sendWithRoles("POST", "/eventos/evento-1/personal-acceso", "{}",
+                List.of("CLIENTE", "ORGANIZADOR"), "organizador-1", "Content-Type", "application/json");
+        assertEquals(200, response.statusCode());
+
+        CapturedRequest forwarded = MS1.take();
+        assertEquals("organizador-1", forwarded.header("X-User-Id"));
+        assertEquals("CLIENTE,ORGANIZADOR", forwarded.header("X-User-Roles"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Role"));
+    }
+
+    @Test
+    @Order(9)
     void doesNotForwardInternalOrUnknownRoutes() throws Exception {
         assertNotPublished("GET", "/internal/eventos/evento-1", null);
         assertNotPublished("GET", "/disponibilidad/eventos/evento-1", null);
@@ -241,6 +266,7 @@ class ApiGatewayIntegrationTests {
         assertNotPublished("POST", "/eventos-cancelados", "{}", "Content-Type", "application/json");
         assertNotPublished("POST", "/internal/entradas/emision", "{}", "Content-Type", "application/json");
         assertNotPublished("GET", "/internal/pagos/compra/1", null);
+        assertNotPublished("GET", "/actuator/health", null);
         assertNotPublished("DELETE", "/eventos", null);
         assertNotPublished("GET", "/not-a-public-route", null);
 
@@ -251,7 +277,7 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     void appliesCorsOnlyToConfiguredOrigin() throws Exception {
         HttpResponse<String> allowed = send("OPTIONS", "/eventos", null,
                 "Origin", corsAllowedOrigins,
@@ -270,7 +296,7 @@ class ApiGatewayIntegrationTests {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     void returnsServiceUnavailableWhenDestinationIsDown() throws Exception {
         MS1.stop();
         HttpResponse<String> response = sendAs("GET", "/eventos", null, "CLIENTE", "cliente-1");
@@ -310,7 +336,25 @@ class ApiGatewayIntegrationTests {
         return send(method, path, body, allHeaders.toArray(String[]::new));
     }
 
+    private HttpResponse<String> sendWithRoles(
+            String method,
+            String path,
+            String body,
+            List<String> roles,
+            String userId,
+            String... headers) throws Exception {
+        List<String> allHeaders = new ArrayList<>();
+        allHeaders.add("Authorization");
+        allHeaders.add("Bearer " + token(userId, roles));
+        allHeaders.addAll(List.of(headers));
+        return send(method, path, body, allHeaders.toArray(String[]::new));
+    }
+
     private static String token(String userId, String role) {
+        return token(userId, List.of(role));
+    }
+
+    private static String token(String userId, List<String> roles) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             String header = Base64.getUrlEncoder().withoutPadding()
@@ -318,7 +362,7 @@ class ApiGatewayIntegrationTests {
             String payload = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(mapper.writeValueAsBytes(Map.of(
                             "sub", userId,
-                            "role", role,
+                            "roles", roles,
                             "exp", System.currentTimeMillis() / 1000 + 3600)));
             String signingInput = header + "." + payload;
             Mac mac = Mac.getInstance("HmacSHA256");

@@ -18,10 +18,11 @@ class GatewayCorsConfigurationTests {
 
         assertEquals(origin, cors.checkOrigin(origin));
         assertTrue(cors.checkHttpMethod(HttpMethod.POST).contains(HttpMethod.POST));
+        assertTrue(cors.checkHttpMethod(HttpMethod.DELETE).contains(HttpMethod.DELETE));
         var allowedHeaders = cors.checkHeaders(java.util.List.of(
-                "Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key"));
+                "Authorization", "Content-Type", "X-Correlation-Id", "Idempotency-Key"));
         assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("authorization")));
-        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("x-request-id")));
+        assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("x-correlation-id")));
         assertTrue(allowedHeaders.stream().anyMatch(header -> header.equalsIgnoreCase("idempotency-key")));
     }
 

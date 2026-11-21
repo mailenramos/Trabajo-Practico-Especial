@@ -44,7 +44,7 @@ El Gateway SHALL NOT enrutar callbacks, operaciones internas entre microservicio
 
 ### Requirement: Autenticar y autorizar solicitudes públicas con JWT
 
-El Gateway SHALL validar JWT HS256 firmados con una clave externa de al menos 32 bytes UTF-8, exigir `sub`, `role` y `exp`, y permitir únicamente los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. Las rutas públicas SHALL aplicar autorización por rol; `X-User-Id` y `X-User-Role` SHALL derivarse de los claims validados y los valores entrantes SHALL descartarse.
+El Gateway SHALL validar JWT HS256 firmados con una clave externa de al menos 32 bytes UTF-8, exigir `sub`, `roles` y `exp`, y permitir únicamente los roles `CLIENTE`, `ORGANIZADOR`, `ADMIN` y `PERSONAL_ACCESO`. `roles` puede ser una lista o un string separado por comas; el claim singular `role` se admite durante la transición. Las rutas públicas SHALL aplicar autorización por rol; `X-User-Id`, `X-User-Roles` y `X-User-Role` SHALL derivarse de los claims validados y los valores entrantes SHALL descartarse.
 
 #### Scenario: Solicitud sin token válido
 - **WHEN** se solicita una ruta pública sin bearer token, con firma incorrecta, vencido o con claims/rol inválidos
@@ -83,14 +83,31 @@ El Gateway SHALL obtener el puerto de escucha, las URLs de los servicios destino
 - **THEN** responde HTTP 503
 - **AND** no devuelve una respuesta de éxito vacía o simulada
 
+### Requirement: Enrutar actualización y asignación de personal de acceso de MS1
+
+El Gateway SHALL enrutar `PUT /eventos/{eventoId}`, `POST /eventos/{eventoId}/personal-acceso`, `GET /eventos/{eventoId}/personal-acceso` y `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}` a MS1 conservando método, path, query, cuerpo y headers. Las cuatro operaciones SHALL requerir JWT; las de personal de acceso SHALL admitir organizador o administrador.
+
+#### Scenario: Modificar evento
+- **WHEN** se solicita `PUT /eventos/{eventoId}` con una identidad autorizada
+- **THEN** el Gateway reenvía la solicitud a MS1 sin modificar su contrato
+
+#### Scenario: Gestionar personal de acceso
+- **WHEN** un organizador o administrador asigna, lista o revoca personal de acceso
+- **THEN** el Gateway enruta el método y path exactos a MS1
+- **AND** envía `X-User-Id` desde `sub` y todos los roles en `X-User-Roles` separados por comas
+
+#### Scenario: Ruta interna o de operación de MS1
+- **WHEN** se solicita `/internal/**`, `/actuator/**` o `PUT /eventos/{eventoId}/disponibilidad`
+- **THEN** el Gateway no reenvía la solicitud a ningún servicio
+
 ### Requirement: Trazar solicitudes y limitar espera de servicios
 
-El Gateway SHALL registrar método, path, usuario autenticado cuando exista, rol, status y duración de cada solicitud. SHALL aceptar o generar un UUID `X-Request-Id`, devolverlo al cliente y propagarlo al destino. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
+El Gateway SHALL registrar método, path, usuario autenticado cuando exista, roles, status y duración de cada solicitud. SHALL conservar un `X-Correlation-Id` válido de hasta 100 caracteres con caracteres alfanuméricos, punto, guion o guion bajo, o generar un identificador nuevo; devolverlo al cliente y propagarlo al destino. `X-Request-Id` puede mantenerse como alias de compatibilidad. SHALL aplicar timeout configurable de conexión y respuesta, mapear desconexión/timeout a HTTP 503, y SHALL NOT reintentar automáticamente escrituras.
 
 #### Scenario: Solicitud procesada
 - **WHEN** una solicitud llega al Gateway
 - **THEN** queda un log HTTP con método, path, status, duración y `X-Request-Id`
-- **AND** la respuesta y el destino reciben el mismo `X-Request-Id`
+- **AND** la respuesta y el destino reciben el mismo `X-Correlation-Id`
 
 #### Scenario: Destino excede el timeout
 - **WHEN** el servicio destino no responde dentro del plazo configurado
