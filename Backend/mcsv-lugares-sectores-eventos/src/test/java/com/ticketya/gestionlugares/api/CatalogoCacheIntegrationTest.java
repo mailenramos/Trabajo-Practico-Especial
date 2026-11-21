@@ -137,6 +137,37 @@ class CatalogoCacheIntegrationTest {
     }
 
     @Test
+    void busquedaPublicaExcluyeEstadosNoVisibles() throws Exception {
+        int dia = 1;
+        for (EstadoEvento estado : List.of(EstadoEvento.BORRADOR, EstadoEvento.CANCELADO,
+                EstadoEvento.FINALIZADO, EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO)) {
+            Evento evento = borrador(Instant.parse("2035-01-0" + dia++ + "T00:00:00Z"));
+            evento.setNombre(estado.name());
+            evento.setEstado(estado);
+            eventos.insert(evento);
+        }
+        clearInvocations(mongo);
+
+        buscar()
+                .andExpect(jsonPath("$.totalElementos").value(2))
+                .andExpect(jsonPath("$.contenido.length()").value(2))
+                .andExpect(jsonPath("$.contenido[0].nombre").value("PUBLICADO"))
+                .andExpect(jsonPath("$.contenido[0].estado").value("publicado"))
+                .andExpect(jsonPath("$.contenido[1].nombre").value("AGOTADO"))
+                .andExpect(jsonPath("$.contenido[1].estado").value("agotado"));
+
+        for (int intento = 0; intento < 2; intento++) {
+            mockMvc.perform(get("/eventos").param("tipo", "MUSICA"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElementos").value(2))
+                    .andExpect(jsonPath("$.contenido.length()").value(2))
+                    .andExpect(jsonPath("$.contenido[0].estado").value("publicado"))
+                    .andExpect(jsonPath("$.contenido[1].estado").value("agotado"));
+        }
+        verificarLecturas(2);
+    }
+
+    @Test
     void noCacheaErroresDeLectura() throws Exception {
         doThrow(new RuntimeException("fallo de lectura")).doCallRealMethod()
                 .when(mongo).count(any(Query.class), eq(Evento.class));

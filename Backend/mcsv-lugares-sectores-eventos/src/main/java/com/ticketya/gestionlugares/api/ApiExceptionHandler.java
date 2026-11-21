@@ -7,11 +7,13 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.ticketya.gestionlugares.service.ConflictException;
 import com.ticketya.gestionlugares.service.ForbiddenException;
@@ -70,6 +72,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiError> manejarMetodoNoSoportado(HttpRequestMethodNotSupportedException exception) {
         return error(HttpStatus.METHOD_NOT_ALLOWED, "Método HTTP no soportado", null);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> manejarRecursoNoEncontrado(NoResourceFoundException exception) {
+        return error(HttpStatus.NOT_FOUND, "Recurso no encontrado", null);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiError> manejarTipoDeContenidoNoSoportado(HttpMediaTypeNotSupportedException exception) {
+        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Tipo de contenido no soportado", null);
     }
 
     @ExceptionHandler(Exception.class)

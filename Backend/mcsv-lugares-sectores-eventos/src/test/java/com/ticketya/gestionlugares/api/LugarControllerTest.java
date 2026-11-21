@@ -1,15 +1,18 @@
 package com.ticketya.gestionlugares.api;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +22,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import com.ticketya.gestionlugares.domain.Lugar;
 import com.ticketya.gestionlugares.domain.Sector;
@@ -35,6 +39,57 @@ class LugarControllerTest {
 
     @MockBean
     private LugarService lugarService;
+
+    @Test
+    void rutaInexistenteResponde404ConErrorComunYCorrelacion() throws Exception {
+        verificarError(mockMvc.perform(get("/ruta-que-no-existe")
+                .header("X-Correlation-Id", "ruta-404")), 404, "Not Found", "ruta-404");
+        verificarError(mockMvc.perform(get("/ruta-que-no-existe")), 404, "Not Found", null);
+    }
+
+    @Test
+    void metodoNoPermitidoResponde405ConErrorComunYCorrelacion() throws Exception {
+        verificarError(mockMvc.perform(put("/lugares")
+                .header("X-Correlation-Id", "metodo-405")), 405, "Method Not Allowed", "metodo-405");
+        verificarError(mockMvc.perform(put("/lugares")), 405, "Method Not Allowed", null);
+    }
+
+    @Test
+    void contenidoNoSoportadoResponde415ConErrorComunYCorrelacion() throws Exception {
+        verificarError(mockMvc.perform(post("/lugares").contentType(MediaType.TEXT_PLAIN)
+                .content("lugar").header("X-Correlation-Id", "contenido-415")),
+                415, "Unsupported Media Type", "contenido-415");
+        verificarError(mockMvc.perform(post("/lugares").contentType(MediaType.TEXT_PLAIN)
+                .content("lugar")), 415, "Unsupported Media Type", null);
+    }
+
+    @Test
+    void excepcionInesperadaConservaError500Generico() throws Exception {
+        when(lugarService.listarLugares()).thenThrow(new RuntimeException("detalle interno"));
+        ResultActions resultado = mockMvc.perform(get("/lugares")
+                .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN")
+                .header("X-Correlation-Id", "error-500"));
+        verificarError(resultado, 500, "Internal Server Error", "error-500");
+        resultado.andExpect(jsonPath("$.mensaje").value("Error interno del servicio"));
+    }
+
+    private void verificarError(ResultActions resultado, int codigo, String error, String correlacion) throws Exception {
+        var response = resultado.andExpect(status().is(codigo))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.status").value(codigo))
+                .andExpect(jsonPath("$.error").value(error))
+                .andExpect(jsonPath("$.mensaje").isNotEmpty())
+                .andExpect(jsonPath("$.campos").doesNotExist())
+                .andReturn().getResponse();
+        String header = response.getHeader("X-Correlation-Id");
+        assertNotNull(header);
+        if (correlacion == null) {
+            UUID.fromString(header);
+        } else {
+            org.junit.jupiter.api.Assertions.assertEquals(correlacion, header);
+        }
+    }
 
     @Test
     void administradorPuedeCrearLugar() throws Exception {
