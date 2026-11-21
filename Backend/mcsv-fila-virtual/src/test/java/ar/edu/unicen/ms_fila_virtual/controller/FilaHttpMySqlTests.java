@@ -63,10 +63,10 @@ class FilaHttpMySqlTests {
         mvc.perform(get("/filas/eventos/e/mi-turno").header("X-User-Id", "u").header("X-User-Roles", "CLIENTE"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.estado").value("HABILITADO"));
         String body = "{\"usuarioId\":\"u\",\"solicitudId\":\"s\",\"huellaSolicitud\":\"h\"}";
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.autorizacionVigente").value(true));
-        mvc.perform(put("/internal/filas/eventos/e/cancelacion")).andExpect(status().isNoContent());
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(put("/internal/filas/eventos/e/cancelacion").header("X-Service-Token", "token-prueba")).andExpect(status().isNoContent());
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.autorizacionVigente").value(false));
         assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM turnos WHERE estado='CONSUMIDO'", Long.class));
     }

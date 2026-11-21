@@ -23,11 +23,11 @@ final class ClienteHttpInterno {
     private final CircuitBreaker circuito;
     private final Retry reintento;
 
-    ClienteHttpInterno(String baseUrl, long conexionMs, long lecturaMs, String servicio) {
+    ClienteHttpInterno(String baseUrl, long conexionMs, long lecturaMs, String servicio, String token) {
         var http = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(conexionMs)).build();
         var factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofMillis(lecturaMs));
-        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).defaultHeader("X-Service-Token", token).build();
         this.servicio = servicio;
         var config = CircuitBreakerConfig.custom().slidingWindowSize(10).minimumNumberOfCalls(5)
                 .failureRateThreshold(50).waitDurationInOpenState(Duration.ofSeconds(30))

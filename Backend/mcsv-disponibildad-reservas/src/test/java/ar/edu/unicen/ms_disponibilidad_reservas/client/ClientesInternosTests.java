@@ -22,6 +22,7 @@ class ClientesInternosTests {
     private final AtomicReference<String> method = new AtomicReference<>();
     private final AtomicReference<String> path = new AtomicReference<>();
     private final AtomicReference<String> request = new AtomicReference<>();
+    private final AtomicReference<String> token = new AtomicReference<>();
     private final AtomicReference<String> correlation = new AtomicReference<>();
     private final AtomicInteger calls = new AtomicInteger();
     private volatile int status = 200;
@@ -35,6 +36,7 @@ class ClientesInternosTests {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             calls.incrementAndGet();
+            token.set(exchange.getRequestHeaders().getFirst("X-Service-Token"));
             method.set(exchange.getRequestMethod());
             path.set(exchange.getRequestURI().getPath());
             correlation.set(exchange.getRequestHeaders().getFirst("X-Correlation-Id"));
@@ -55,8 +57,8 @@ class ClientesInternosTests {
         });
         server.start();
         String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        ms1 = new Ms1EventoClient(url, 1000, 1000, mapper);
-        ms7 = new Ms7FilaClient(url, 1000, 1000, mapper);
+        ms1 = new Ms1EventoClient(url, 1000, 1000, "token-prueba", mapper);
+        ms7 = new Ms7FilaClient(url, 1000, 1000, "token-prueba", mapper);
     }
 
     @AfterEach
@@ -143,6 +145,7 @@ class ClientesInternosTests {
         assertTrue(ms1.consultar("evento 1", "corr-1").requiereFila());
         assertEquals("GET", method.get());
         assertEquals("/internal/eventos/evento 1", path.get());
+        assertEquals("token-prueba", token.get());
         assertEquals("corr-1", correlation.get());
         response = "{\"requiereFila\":false}";
         assertFalse(ms1.consultar("evento", null).requiereFila());
@@ -167,6 +170,7 @@ class ClientesInternosTests {
         assertTrue(consumo.autorizacionVigente());
         assertEquals("POST", method.get());
         assertEquals("/internal/filas/eventos/ev 1/consumos", path.get());
+        assertEquals("token-prueba", token.get());
         assertEquals("corr-2", correlation.get());
         var sent = mapper.readTree(request.get());
         assertEquals(" usuario ", sent.path("usuarioId").asText());
@@ -221,7 +225,7 @@ class ClientesInternosTests {
         delay = 500;
         response = valid();
         String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        var timed = new Ms7FilaClient(url, 1000, 50, mapper);
+        var timed = new Ms7FilaClient(url, 1000, 50, "token-prueba", mapper);
         assertEquals(IntegracionException.Tipo.NO_DISPONIBLE,
                 assertThrows(IntegracionException.class, () -> timed.consumir("ev 1", "u", " sol ", "h", null)).tipo());
         assertEquals(1, calls.get());
@@ -232,7 +236,7 @@ class ClientesInternosTests {
         delay = 500;
         response = "{\"requiereFila\":false}";
         String url = "http://127.0.0.1:" + server.getAddress().getPort();
-        var timed = new Ms1EventoClient(url, 1000, 50, mapper);
+        var timed = new Ms1EventoClient(url, 1000, 50, "token-prueba", mapper);
         assertEquals(IntegracionException.Tipo.NO_DISPONIBLE,
                 assertThrows(IntegracionException.class, () -> timed.consultar("ev", null)).tipo());
         assertEquals(1, calls.get());

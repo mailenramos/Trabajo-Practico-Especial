@@ -223,7 +223,7 @@ class Ms1IntegracionMySqlTests {
     @Test
     void cancelacionDuranteActualizacionRemotaImpideActivacionLocal() throws Exception {
         durantePut = () -> {
-            try { mvc.perform(put("/internal/filas/eventos/e/cancelacion")).andExpect(status().isNoContent()); }
+            try { mvc.perform(put("/internal/filas/eventos/e/cancelacion").header("X-Service-Token", "token-prueba")).andExpect(status().isNoContent()); }
             catch (Exception e) { throw new IllegalStateException(e); }
         };
         cambiar("admin", "ADMIN", "ACTIVA").andExpect(status().isConflict());
@@ -233,7 +233,7 @@ class Ms1IntegracionMySqlTests {
 
     @Test
     void cancelacionLocalImpideReactivacionAunqueMs1DevuelvaEstadoDesactualizado() throws Exception {
-        mvc.perform(put("/internal/filas/eventos/e/cancelacion")).andExpect(status().isNoContent());
+        mvc.perform(put("/internal/filas/eventos/e/cancelacion").header("X-Service-Token", "token-prueba")).andExpect(status().isNoContent());
         cambiar("admin", "ADMIN", "ACTIVA").andExpect(status().isConflict());
         assertEquals(0, puts.get());
     }

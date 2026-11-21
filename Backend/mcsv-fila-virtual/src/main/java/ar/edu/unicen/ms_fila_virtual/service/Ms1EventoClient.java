@@ -52,11 +52,11 @@ public class Ms1EventoClient {
     @Autowired
     public Ms1EventoClient(@Value("${ms1.api.base-url:http://localhost:8081}") String baseUrl,
             @Value("${ms1.api.connect-timeout-ms:2000}") long connectTimeout,
-            @Value("${ms1.api.read-timeout-ms:5000}") long readTimeout) {
+            @Value("${ms1.api.read-timeout-ms:5000}") long readTimeout, @Value("${SERVICIO_TOKEN}") String token) {
         var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeout)).build());
         factory.setReadTimeout(Duration.ofMillis(readTimeout));
-        http = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        http = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).defaultHeader("X-Service-Token", token).build();
     }
 
     Ms1EventoClient(RestClient http) { this.http = http; }
