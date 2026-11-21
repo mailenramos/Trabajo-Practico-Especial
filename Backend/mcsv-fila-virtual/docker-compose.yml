@@ -20,6 +20,7 @@ services:
     build: .
     container_name: ticketya-fila-virtual
     environment:
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN}"
       SERVER_PORT: "${SERVER_PORT:-8088}"
       MS7_DB_URL: "${MS7_DB_URL:-jdbc:mysql://mysql-fila-virtual:3306/fila_virtual}"
       MS7_DB_USERNAME: "${MS7_DB_USERNAME:-ticketya_ms7}"

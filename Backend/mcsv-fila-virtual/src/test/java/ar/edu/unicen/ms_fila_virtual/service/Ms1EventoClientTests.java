@@ -22,7 +22,7 @@ class Ms1EventoClientTests {
         });
         servidor.start();
         try {
-            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000);
+            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000, "token-prueba");
             var consulta = (io.github.resilience4j.circuitbreaker.CircuitBreaker)
                     org.springframework.test.util.ReflectionTestUtils.getField(cliente, "consulta");
             var politica = (io.github.resilience4j.circuitbreaker.CircuitBreaker)
@@ -53,7 +53,7 @@ class Ms1EventoClientTests {
         });
         servidor.start();
         try {
-            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000);
+            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000, "token-prueba");
             assertThrows(Ms1NoDisponibleException.class, () -> cliente.consultar("e"));
             assertEquals(2, calls.get());
             for (int i = 0; i < 4; i++) assertThrows(Ms1NoDisponibleException.class, () -> cliente.consultar("e"));
@@ -74,8 +74,10 @@ class Ms1EventoClientTests {
     @Test
     void propagaCorrelacionEnConsultaYPoliticaSinContaminarLaSiguienteLlamada() throws Exception {
         var recibidos = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        var tokens = new java.util.concurrent.CopyOnWriteArrayList<String>();
         var servidor = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         servidor.createContext("/", exchange -> {
+            tokens.add(java.util.Objects.toString(exchange.getRequestHeaders().getFirst("X-Service-Token"), "ausente"));
             String id = exchange.getRequestHeaders().getFirst("X-Correlation-Id");
             recibidos.add(id == null ? "ausente" : id);
             byte[] body = exchange.getRequestMethod().equals("GET")
@@ -89,13 +91,14 @@ class Ms1EventoClientTests {
         });
         servidor.start();
         try {
-            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000);
+            var cliente = new Ms1EventoClient("http://127.0.0.1:" + servidor.getAddress().getPort(), 1000, 1000, "token-prueba");
             org.slf4j.MDC.put("correlationId", "corr-ms1");
             cliente.consultar("e");
             cliente.actualizarPolitica("e", true);
             org.slf4j.MDC.remove("correlationId");
             cliente.consultar("e");
             assertEquals(java.util.List.of("corr-ms1", "corr-ms1", "ausente"), recibidos);
+            assertEquals(java.util.List.of("token-prueba", "token-prueba", "token-prueba"), tokens);
         } finally {
             org.slf4j.MDC.remove("correlationId");
             servidor.stop(0);

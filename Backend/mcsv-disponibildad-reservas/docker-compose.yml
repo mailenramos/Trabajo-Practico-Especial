@@ -20,6 +20,7 @@ services:
     build: .
     container_name: ticketya-reservas
     environment:
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN}"
       SERVER_PORT: "${SERVER_PORT:-8080}"
       MS2_DB_URL: "${MS2_DB_URL:-jdbc:mysql://mysql-reservas:3306/disponibilidad_reservas}"
       MS2_DB_USERNAME: "${MS2_DB_USERNAME:-ticketya_ms2}"

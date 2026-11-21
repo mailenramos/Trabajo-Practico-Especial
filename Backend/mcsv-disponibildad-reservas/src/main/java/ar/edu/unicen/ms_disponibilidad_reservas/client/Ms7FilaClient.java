@@ -14,8 +14,8 @@ public class Ms7FilaClient {
 
     public Ms7FilaClient(@Value("${ms7.api.base-url:http://localhost:8088}") String url,
             @Value("${ms2.ms7.connect-timeout-ms:2000}") long conexion,
-            @Value("${ms2.ms7.read-timeout-ms:5000}") long lectura, JsonMapper mapper) {
-        this.http = new ClienteHttpInterno(url, conexion, lectura, "MS7");
+            @Value("${ms2.ms7.read-timeout-ms:5000}") long lectura, @Value("${SERVICIO_TOKEN}") String token, JsonMapper mapper) {
+        this.http = new ClienteHttpInterno(url, conexion, lectura, "MS7", token);
         this.mapper = mapper;
     }
 

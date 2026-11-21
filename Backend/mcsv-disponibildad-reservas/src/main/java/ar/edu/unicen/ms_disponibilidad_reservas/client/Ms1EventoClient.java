@@ -11,8 +11,8 @@ public class Ms1EventoClient {
 
     public Ms1EventoClient(@Value("${ms1.api.base-url:http://localhost:8081}") String url,
             @Value("${ms2.ms1.connect-timeout-ms:2000}") long conexion,
-            @Value("${ms2.ms1.read-timeout-ms:5000}") long lectura, JsonMapper mapper) {
-        this.http = new ClienteHttpInterno(url, conexion, lectura, "MS1");
+            @Value("${ms2.ms1.read-timeout-ms:5000}") long lectura, @Value("${SERVICIO_TOKEN}") String token, JsonMapper mapper) {
+        this.http = new ClienteHttpInterno(url, conexion, lectura, "MS1", token);
         this.mapper = mapper;
     }
 

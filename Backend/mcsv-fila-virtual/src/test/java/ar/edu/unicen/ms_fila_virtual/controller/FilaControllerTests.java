@@ -28,7 +28,7 @@ import ar.edu.unicen.ms_fila_virtual.service.FilaCoordinacionService;
 import ar.edu.unicen.ms_fila_virtual.service.Ms1NoDisponibleException;
 import ar.edu.unicen.ms_fila_virtual.service.ResultadoIngreso;
 
-@WebMvcTest(controllers = {FilaController.class, FilaInternaController.class})
+@WebMvcTest(controllers = {FilaController.class, FilaInternaController.class}, properties = "SERVICIO_TOKEN=token-prueba")
 @Import(ClockConfiguration.class)
 class FilaControllerTests {
     @Autowired MockMvc mvc;
@@ -123,27 +123,35 @@ class FilaControllerTests {
     }
 
     @Test
+    void internosExigenToken() throws Exception {
+        mvc.perform(post("/internal/filas/eventos/e/consumos")).andExpect(status().isForbidden());
+        mvc.perform(put("/internal/filas/eventos/e/cancelacion").header("X-Service-Token", "incorrecto"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(servicio);
+    }
+
+    @Test
     void internosUsanBodyValidadoYCancelacionEsSinContenido() throws Exception {
         when(servicio.consumir(eq("e"), any())).thenReturn(new ConsumoTurnoResponse(1L, "e", "s", EstadoTurno.CONSUMIDO, ahora, false));
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"usuarioId\":\"u\",\"solicitudId\":\"s\",\"huellaSolicitud\":\"h\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.autorizacionVigente").value(false));
-        mvc.perform(put("/internal/filas/eventos/e/cancelacion")).andExpect(status().isNoContent());
+        mvc.perform(put("/internal/filas/eventos/e/cancelacion").header("X-Service-Token", "token-prueba")).andExpect(status().isNoContent());
         verify(servicio).cancelar("e");
     }
 
     @Test
     void validacionJsonYMediosUsanFormatoDeErrores() throws Exception {
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"usuarioId\":\"u\",\"solicitudId\":\"\",\"huellaSolicitud\":\"h\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.campos[0].campo").value("solicitudId"));
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"usuarioId\":\"u\",\"solicitudId\":\"s\",\"huellaSolicitud\":\"h\",\"extra\":1}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.campos").doesNotExist());
         mvc.perform(put("/filas/eventos/e/configuracion").header("X-User-Id", "u").header("X-User-Roles", "ADMIN")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"cupo\":0,\"duracionMinutos\":5}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.campos[0].campo").value("cupo"));
-        mvc.perform(post("/internal/filas/eventos/e/consumos").contentType(MediaType.TEXT_PLAIN).content("hola"))
+        mvc.perform(post("/internal/filas/eventos/e/consumos").header("X-Service-Token", "token-prueba").contentType(MediaType.TEXT_PLAIN).content("hola"))
                 .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.error").value("Unsupported Media Type"));
         verifyNoInteractions(servicio);
     }
