@@ -7,18 +7,23 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.reactive.CorsWebFilter;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
+/**
+ * Configuración CORS del Gateway. La aplica la cadena de Spring Security (ver
+ * {@link GatewaySecurityConfiguration}) antes de autenticar, así el navegador recibe los headers
+ * CORS también en las respuestas 401 y 403 y puede leer el error.
+ */
 @Configuration
 public class GatewayCorsConfiguration {
 
     @Bean
-    CorsWebFilter corsWebFilter(
+    CorsConfigurationSource corsConfigurationSource(
             @Value("${gateway.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", corsConfiguration(allowedOrigins));
-        return new CorsWebFilter(source);
+        return source;
     }
 
     static CorsConfiguration corsConfiguration(String allowedOrigins) {
@@ -31,6 +36,8 @@ public class GatewayCorsConfiguration {
         configuration.setAllowedHeaders(List.of(
                 "Accept", "Authorization", "Content-Type", "Idempotency-Key",
                 "X-Correlation-Id", "X-Request-Id"));
+        // Permite que el frontend lea el identificador de correlación para reportar errores.
+        configuration.setExposedHeaders(List.of("X-Correlation-Id", "X-Request-Id"));
         configuration.setMaxAge(3600L);
         return configuration;
     }

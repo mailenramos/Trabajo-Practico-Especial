@@ -80,7 +80,11 @@ El Gateway SHALL NOT enrutar callbacks, operaciones internas entre microservicio
 
 ### Requirement: Permitir consumo desde el frontend local
 
-El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Correlation-Id`, y las solicitudes de preflight. El Gateway SHALL NOT permitir todos los orígenes por defecto.
+El Gateway SHALL aplicar CORS para orígenes configurados explícitamente, permitiendo los métodos (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) y headers requeridos por las APIs públicas, incluyendo `Authorization` y `X-Correlation-Id`, y las solicitudes de preflight. SHALL aplicar CORS antes de autenticar, de modo que las respuestas 401 y 403 incluyan los headers CORS; SHALL exponer `X-Correlation-Id` y `X-Request-Id` al navegador y SHALL devolver un único `Access-Control-Allow-Origin` aunque el servicio destino agregue el suyo. El Gateway SHALL NOT permitir todos los orígenes por defecto.
+
+#### Scenario: Error de autenticación desde el navegador
+- **WHEN** un origen permitido solicita una ruta protegida sin token o con un rol insuficiente
+- **THEN** el Gateway responde 401 o 403 con `Access-Control-Allow-Origin` para ese origen
 
 #### Scenario: Preflight desde origen configurado
 - **WHEN** el navegador envía un preflight desde un origen permitido para un método y headers públicos admitidos
@@ -135,4 +139,20 @@ El Gateway SHALL registrar método, path, usuario autenticado cuando exista, sus
 
 #### Scenario: Ruta interna solicitada
 - **WHEN** una solicitud no autenticada apunta a una ruta interna no publicada
+- **THEN** el Gateway responde 404 sin reenviarla
+
+### Requirement: Enrutar Preferencias y Recomendaciones (MS8)
+
+El Gateway SHALL enrutar a MS8 `GET, PUT, DELETE /preferencias/me` y `GET /recomendaciones/me`, conservando método, path, query, cuerpo y headers, y SHALL exigir el rol `CLIENTE`. SHALL NOT enrutar `POST /internal/preferencias/eventos-publicados`.
+
+#### Scenario: Cliente consulta sus recomendaciones
+- **WHEN** un `CLIENTE` autenticado solicita `GET /recomendaciones/me`
+- **THEN** el Gateway reenvía a MS8 con `X-User-Id` y `X-User-Roles` derivados del token
+
+#### Scenario: Rol sin permiso
+- **WHEN** un token sin `CLIENTE` solicita `/preferencias/me` o `/recomendaciones/me`
+- **THEN** el Gateway responde 403 y no llama a MS8
+
+#### Scenario: Callback interno de MS8
+- **WHEN** se solicita `POST /internal/preferencias/eventos-publicados` por el Gateway
 - **THEN** el Gateway responde 404 sin reenviarla

@@ -11,6 +11,9 @@ spring:
           httpclient:
             connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
             response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
+          # CORS lo resuelve el Gateway: si un servicio también agrega estos headers, se deja uno solo.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
           routes:
             - id: ms1-lugares-lista
               uri: ${gateway.services.ms1-url:${MS1_URL:http://localhost:8081}}
@@ -152,6 +155,16 @@ spring:
               predicates:
                 - Path=/usuarios/{usuarioId}/roles,/usuarios/{usuarioId}/estado
                 - Method=PUT
+            - id: ms8-preferencias
+              uri: ${gateway.services.ms8-url:${MS8_URL:http://localhost:8089}}
+              predicates:
+                - Path=/preferencias/me
+                - Method=GET,PUT,DELETE
+            - id: ms8-recomendaciones
+              uri: ${gateway.services.ms8-url:${MS8_URL:http://localhost:8089}}
+              predicates:
+                - Path=/recomendaciones/me
+                - Method=GET
             - id: ms5-validar-ingreso
               uri: ${gateway.services.ms5-url:${MS5_URL:http://localhost:8085}}
               predicates:

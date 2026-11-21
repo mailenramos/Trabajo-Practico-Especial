@@ -25,7 +25,6 @@ include:
 services:
   gateway:
     # Variables según Backend/APIGateWay/src/main/resources/application.yml (puerto 8086 por defecto).
-    # Hoy el Gateway no enruta a MS8: cuando agregue esas rutas, sumar MS8_URL.
     build: ./Backend/APIGateWay
     container_name: ticketya-gateway
     environment:
@@ -34,6 +33,7 @@ services:
       MS3_URL: http://compras:8083
       MS5_URL: http://entradas:8085
       MS6_URL: http://usuarios:8087
+      MS8_URL: http://preferencias:8089
       JWT_SECRET: "${JWT_SECRET:?Configure JWT_SECRET en .env}"
       # Emisor (iss) de los JWT: debe coincidir con el JWT_ISSUER de Usuarios.
       JWT_ISSUER: "${JWT_ISSUER:-ticketya-usuarios}"

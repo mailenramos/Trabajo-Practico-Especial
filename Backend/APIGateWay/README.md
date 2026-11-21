@@ -1,6 +1,6 @@
 # TicketYa API Gateway — Entrega 2
 
-Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones y Entradas. Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto. Valida JWT, aplica autorización por rol y propaga una identidad derivada exclusivamente del token.
+Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones, Entradas, Usuarios (MS6) y Preferencias/Recomendaciones (MS8). Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto. Valida JWT, aplica autorización por rol y propaga una identidad derivada exclusivamente del token.
 
 ## Requisitos y ejecución
 
@@ -39,7 +39,7 @@ Iniciá MongoDB/MySQL y los microservicios necesarios siguiendo el README de cad
 .\mvnw.cmd spring-boot:run
 ```
 
-Si un request público responde `503`, comprobá que su servicio destino esté escuchando en el puerto configurado y, para una compra, que estén disponibles también las dependencias directas de MS3. Un `401` indica que falta un JWT válido; un `403`, que el rol no está autorizado. Un `404` para una ruta interna o no publicada es esperado. Postman no aplica CORS: ese comportamiento se verifica con la suite automatizada o desde un navegador.
+Si un request público responde `503`, comprobá que su servicio destino esté escuchando en el puerto configurado y, para una compra, que estén disponibles también las dependencias directas de MS3. Un `401` indica que falta un JWT válido; un `403`, que el rol no está autorizado. Un `404` para una ruta interna o no publicada es esperado. Postman no aplica CORS: ese comportamiento se verifica con la suite automatizada o desde un navegador. CORS se aplica dentro de la cadena de seguridad, así que también los `401`/`403` llevan `Access-Control-Allow-Origin` y el navegador muestra el error real en vez de un error de CORS. Se exponen `X-Correlation-Id` y `X-Request-Id` al frontend, y si un servicio agrega su propio `Access-Control-Allow-Origin` se deja uno solo. Los headers `X-User-*` no están permitidos en CORS: el frontend envía solo `Authorization`.
 
 ## Configuración
 
@@ -51,6 +51,7 @@ Si un request público responde `503`, comprobá que su servicio destino esté e
 | `MS3_URL` | `http://localhost:8083` | Compras y Devoluciones. |
 | `MS5_URL` | `http://localhost:8085` | Entradas. |
 | `MS6_URL` | `http://localhost:8087` | Usuarios y autenticación. |
+| `MS8_URL` | `http://localhost:8089` | Preferencias y recomendaciones. |
 | `JWT_ISSUER` | `ticketya-usuarios` | Emisor (`iss`) exigido en los JWT; debe coincidir con el de MS6. |
 | `GATEWAY_CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Orígenes web permitidos para CORS, separados por coma. |
 | `JWT_SECRET` | Obligatoria | Clave compartida con el emisor; JWT HS256; mínimo 32 bytes UTF-8. No se incluye una clave predeterminada. |
@@ -69,6 +70,7 @@ Sin token, una ruta protegida responde `401 NO_AUTENTICADO`. Un token vencido, c
 | Consultar eventos (`GET /eventos`, `GET /eventos/{id}`) | Pública (sin token) |
 | Consultar y editar el perfil propio (`/usuarios/me`) | Cualquier rol |
 | Listar/consultar usuarios, asignar roles, activar/desactivar | `ADMIN` |
+| Preferencias y recomendaciones propias (`/preferencias/me`, `/recomendaciones/me`) | `CLIENTE` |
 | Consultar lugares | `CLIENTE`, `ORGANIZADOR`, `ADMIN`, `PERSONAL_ACCESO` |
 | Crear lugares/eventos/sectores, configurar y publicar eventos | `ORGANIZADOR`, `ADMIN` |
 | Suspender, reactivar o cancelar eventos | `ADMIN` |
@@ -94,8 +96,9 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 | Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
 | Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`; `POST /eventos/{eventoId}/ingresos`. |
 | Usuarios (MS6) | `POST /auth/registro`; `POST /auth/login`; `GET, PUT /usuarios/me`; `GET /usuarios`; `GET /usuarios/{id}`; `PUT /usuarios/{id}/roles`; `PUT /usuarios/{id}/estado`. |
+| Preferencias/Recomendaciones (MS8) | `GET, PUT, DELETE /preferencias/me`; `GET /recomendaciones/me`. |
 
-No se enrutan `/internal/**`, `/actuator/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
+No se enrutan `/internal/**`, `/actuator/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas, `POST /internal/preferencias/eventos-publicados` ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
 
 ## Trazabilidad y despliegue
 

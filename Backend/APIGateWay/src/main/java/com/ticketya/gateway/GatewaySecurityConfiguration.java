@@ -31,6 +31,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.server.ServerWebExchange;
 
 import reactor.core.publisher.Mono;
@@ -94,6 +95,7 @@ public class GatewaySecurityConfiguration {
     SecurityWebFilterChain securityWebFilterChain(
             ServerHttpSecurity http,
             ReactiveJwtDecoder jwtDecoder,
+            CorsConfigurationSource corsConfigurationSource,
             ObjectMapper objectMapper) {
         Converter<Jwt, Mono<AbstractAuthenticationToken>> authenticationConverter = jwt -> Mono.just(
                 new JwtAuthenticationToken(jwt,
@@ -101,6 +103,8 @@ public class GatewaySecurityConfiguration {
                         jwt.getSubject()));
 
         return http
+                // CORS dentro de la cadena de seguridad: también las respuestas 401/403 llevan headers CORS.
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
@@ -116,6 +120,8 @@ public class GatewaySecurityConfiguration {
                         .pathMatchers("/usuarios/me").hasAnyRole(ALL_ROLES)
                         .pathMatchers(HttpMethod.GET, "/usuarios", "/usuarios/*").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.PUT, "/usuarios/*/roles", "/usuarios/*/estado").hasRole("ADMIN")
+                        // MS8 - Preferencias y recomendaciones del cliente
+                        .pathMatchers("/preferencias/me", "/recomendaciones/me").hasRole("CLIENTE")
                         .pathMatchers(HttpMethod.GET, "/lugares", "/lugares/**")
                         .hasAnyRole(ALL_ROLES)
                         .pathMatchers(HttpMethod.PUT, "/eventos/*")

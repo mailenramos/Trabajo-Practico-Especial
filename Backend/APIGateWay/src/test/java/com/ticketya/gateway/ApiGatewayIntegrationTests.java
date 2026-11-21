@@ -48,6 +48,7 @@ class ApiGatewayIntegrationTests {
     private static final Backend MS3 = Backend.start();
     private static final Backend MS5 = Backend.start();
     private static final Backend MS6 = Backend.start();
+    private static final Backend MS8 = Backend.start();
     private static final String SECRET = "integration-test-secret-with-at-least-32-bytes";
     private static final String ISSUER = "ticketya-usuarios";
 
@@ -66,6 +67,7 @@ class ApiGatewayIntegrationTests {
         registry.add("gateway.services.ms3-url", MS3::url);
         registry.add("gateway.services.ms5-url", MS5::url);
         registry.add("gateway.services.ms6-url", MS6::url);
+        registry.add("gateway.services.ms8-url", MS8::url);
     }
 
     @AfterAll
@@ -75,6 +77,7 @@ class ApiGatewayIntegrationTests {
         MS3.stop();
         MS5.stop();
         MS6.stop();
+        MS8.stop();
     }
 
     @BeforeEach
@@ -84,6 +87,7 @@ class ApiGatewayIntegrationTests {
         MS3.clear();
         MS5.clear();
         MS6.clear();
+        MS8.clear();
     }
 
     @Test
@@ -171,6 +175,7 @@ class ApiGatewayIntegrationTests {
         HttpResponse<String> profile = send("GET", "/usuarios/me", null);
         assertEquals(401, profile.statusCode());
         assertNull(MS6.poll());
+        assertNull(MS8.poll());
     }
 
     @Test
@@ -231,6 +236,10 @@ class ApiGatewayIntegrationTests {
                 new RouteCase("GET", "/usuarios/usuario-1", MS6, "ADMIN"),
                 new RouteCase("PUT", "/usuarios/usuario-1/roles", MS6, "ADMIN"),
                 new RouteCase("PUT", "/usuarios/usuario-1/estado", MS6, "ADMIN"),
+                new RouteCase("GET", "/preferencias/me", MS8, "CLIENTE"),
+                new RouteCase("PUT", "/preferencias/me", MS8, "CLIENTE"),
+                new RouteCase("DELETE", "/preferencias/me", MS8, "CLIENTE"),
+                new RouteCase("GET", "/recomendaciones/me", MS8, "CLIENTE"),
                 new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "PERSONAL_ACCESO"),
                 new RouteCase("POST", "/eventos/evento-1/ingresos", MS5, "ADMIN"));
 
@@ -240,6 +249,7 @@ class ApiGatewayIntegrationTests {
             MS3.clear();
             MS5.clear();
             MS6.clear();
+            MS8.clear();
 
             HttpResponse<String> response = sendAs(route.method(), route.path(),
                     "GET".equals(route.method()) ? null : "{}", route.role(), "user-1",
@@ -256,6 +266,7 @@ class ApiGatewayIntegrationTests {
             assertFalse(route.backend() != MS3 && MS3.poll() != null);
             assertFalse(route.backend() != MS5 && MS5.poll() != null);
             assertFalse(route.backend() != MS6 && MS6.poll() != null);
+            assertFalse(route.backend() != MS8 && MS8.poll() != null);
         }
     }
 
@@ -285,6 +296,7 @@ class ApiGatewayIntegrationTests {
         assertNull(MS3.poll());
         assertNull(MS5.poll());
         assertNull(MS6.poll());
+        assertNull(MS8.poll());
     }
 
     @Test
@@ -322,6 +334,45 @@ class ApiGatewayIntegrationTests {
         CapturedRequest forwarded = MS1.take();
         assertEquals("organizador-1", forwarded.header("X-User-Id"));
         assertEquals("CLIENTE,ORGANIZADOR", forwarded.header("X-User-Roles"));
+    }
+
+    @Test
+    @Order(16)
+    void restrictsPreferenciasToClientesAndPropagatesIdentity() throws Exception {
+        assertEquals(403, sendAs("GET", "/preferencias/me", null, "ORGANIZADOR", "org-1").statusCode());
+        assertEquals(403, sendAs("GET", "/recomendaciones/me", null, "ADMIN", "admin-1").statusCode());
+        assertEquals(401, send("GET", "/recomendaciones/me", null).statusCode());
+        assertNull(MS8.poll());
+
+        sendAs("GET", "/recomendaciones/me", null, "CLIENTE", "cliente-1", "X-User-Id", "spoofed");
+        CapturedRequest forwarded = MS8.take();
+        assertEquals("cliente-1", forwarded.header("X-User-Id"));
+        assertEquals("CLIENTE", forwarded.header("X-User-Roles"));
+
+        assertNotPublished("POST", "/internal/preferencias/eventos-publicados", "{}",
+                "Content-Type", "application/json");
+        assertNull(MS8.poll());
+    }
+
+    @Test
+    @Order(17)
+    void addsCorsHeadersToSecurityErrorsAndExposesCorrelationId() throws Exception {
+        HttpResponse<String> unauthorized = send("GET", "/compras", null, "Origin", corsAllowedOrigins);
+        assertEquals(401, unauthorized.statusCode());
+        assertEquals(corsAllowedOrigins,
+                unauthorized.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+
+        HttpResponse<String> forbidden = sendAs("GET", "/reintegros", null, "CLIENTE", "cliente-1",
+                "Origin", corsAllowedOrigins);
+        assertEquals(403, forbidden.statusCode());
+        assertEquals(corsAllowedOrigins,
+                forbidden.headers().firstValue("Access-Control-Allow-Origin").orElse(null));
+
+        HttpResponse<String> ok = send("GET", "/eventos", null, "Origin", corsAllowedOrigins);
+        assertEquals(200, ok.statusCode());
+        assertEquals(1, ok.headers().allValues("Access-Control-Allow-Origin").size());
+        assertTrue(ok.headers().firstValue("Access-Control-Expose-Headers").orElse("")
+                .toLowerCase().contains("x-correlation-id"));
     }
 
     @Test
@@ -416,6 +467,7 @@ class ApiGatewayIntegrationTests {
             assertTrue(response.body().contains("ACCESO_DENEGADO"));
         }
         assertNull(MS6.poll());
+        assertNull(MS8.poll());
     }
 
     private HttpResponse<String> send(String method, String path, String body, String... headers) throws Exception {
