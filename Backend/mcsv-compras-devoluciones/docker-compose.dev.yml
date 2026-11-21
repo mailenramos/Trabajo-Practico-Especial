@@ -1,0 +1,5 @@
+# Solo desarrollo, junto con docker-compose.yml. Publica la app en el puerto 8083 (ligado a loopback).
+services:
+  compras:
+    ports:
+      - "127.0.0.1:8083:8083"

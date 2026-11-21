@@ -14,6 +14,8 @@ RUN mvn -B -q package -DskipTests
 # Etapa 2: imagen final, solo con el JRE y el jar
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+# curl solo para el healthcheck de docker-compose (/actuator/health)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system ticketya && useradd --system --gid ticketya ticketya
 COPY --from=compilacion /app/target/compras-*.jar app.jar
 USER ticketya
