@@ -1,0 +1,81 @@
+// Pipeline de logs de TicketYa: contenedores Docker -> Alloy -> Loki.
+
+// 1. Descubre solo los contenedores del proyecto Compose "ticketya".
+discovery.docker "ticketya" {
+  host = "unix:///var/run/docker.sock"
+
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=ticketya"]
+  }
+}
+
+// 2. Etiquetas: nombre del servicio Compose y del contenedor.
+//    Se descartan las bases de datos y el propio stack de observabilidad.
+discovery.relabel "ticketya" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["service"]
+    regex         = "mysql-.*|mongodb.*|pagos-db|postgres-.*|loki|alloy|grafana|mailpit"
+    action        = "drop"
+  }
+}
+
+// 3. Lee los logs (stdout/stderr) de esos contenedores.
+loki.source.docker "ticketya" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.ticketya.targets
+  relabel_rules = discovery.relabel.ticketya.rules
+  forward_to    = [loki.process.ticketya.receiver]
+}
+
+// 4. Procesamiento.
+loki.process "ticketya" {
+  // Une los stack traces a la línea que los originó. Una línea nueva empieza
+  // con fecha (formato Spring), con "Hibernate:" o con "{" (JSON).
+  stage.multiline {
+    firstline     = `^(\d{4}-\d{2}-\d{2}|Hibernate:|\{)`
+    max_wait_time = "3s"
+  }
+
+  // Nivel del log (primera palabra en mayúsculas que coincida).
+  stage.regex {
+    expression = `\b(?P<level>TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\b`
+  }
+
+  // correlationId en sus variantes: correlationId=..., correlation_id=..., "correlationId":"..."
+  stage.regex {
+    expression = `(?i)correlation[_-]?id"?\s*[=:]\s*"?(?P<correlation_id>[A-Za-z0-9._-]+)`
+  }
+
+  // level es una etiqueta (pocos valores). correlation_id va como metadata
+  // estructurada: tiene un valor distinto por pedido y no debe ser etiqueta.
+  stage.labels {
+    values = { level = "" }
+  }
+
+  stage.structured_metadata {
+    values = { correlation_id = "" }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+// 5. Envío a Loki.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

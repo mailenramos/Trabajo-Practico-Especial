@@ -1,0 +1,88 @@
+{
+  "uid": "ticketya-logs",
+  "title": "TicketYa - Logs",
+  "tags": ["ticketya", "logs"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-30m", "to": "now" },
+  "refresh": "10s",
+  "templating": {
+    "list": [
+      {
+        "name": "servicio",
+        "label": "Servicio",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": { "type": 1, "label": "service", "stream": "", "refId": "LokiVariableQueryEditor-VariableQuery" },
+        "definition": "label_values(service)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".+",
+        "current": { "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "nivel",
+        "label": "Nivel",
+        "type": "custom",
+        "query": "ERROR,WARN,INFO,DEBUG",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": ["All"], "value": ["$__all"] }
+      },
+      {
+        "name": "buscar",
+        "label": "Buscar (correlationId o texto)",
+        "type": "textbox",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Líneas de log por servicio",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (service) (count_over_time({service=~\"$servicio\", level=~\"$nivel\"} |= \"$buscar\" [$__auto]))",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Logs",
+      "gridPos": { "h": 22, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=~\"$servicio\", level=~\"$nivel\"} |= \"$buscar\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}
