@@ -9,3 +9,4 @@ Claude outputs/
 .idea/
 hs_err_pid*.log
 salida-test.txt
+.env
