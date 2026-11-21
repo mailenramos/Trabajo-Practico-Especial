@@ -19,24 +19,28 @@ import reactor.core.publisher.Mono;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GatewayRequestLoggingFilter implements WebFilter {
 
-    static final String REQUEST_ID_ATTRIBUTE = GatewayRequestLoggingFilter.class.getName() + ".requestId";
+    /** Identificador de correlación acordado por el grupo para seguir un pedido entre servicios. */
+    static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
+    /** Nombre anterior, que todavía usa Pagos. */
+    static final String LEGACY_REQUEST_ID_HEADER = "X-Request-Id";
+    static final String CORRELATION_ID_ATTRIBUTE = GatewayRequestLoggingFilter.class.getName() + ".correlationId";
     static final String USER_ID_ATTRIBUTE = GatewayRequestLoggingFilter.class.getName() + ".userId";
-    static final String USER_ROLE_ATTRIBUTE = GatewayRequestLoggingFilter.class.getName() + ".userRole";
+    static final String USER_ROLES_ATTRIBUTE = GatewayRequestLoggingFilter.class.getName() + ".userRoles";
     private static final Logger LOGGER = LoggerFactory.getLogger(GatewayRequestLoggingFilter.class);
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String correlationId = validCorrelationId(exchange.getRequest().getHeaders().getFirst("X-Correlation-Id"))
-                .or(() -> validCorrelationId(exchange.getRequest().getHeaders().getFirst("X-Request-Id")))
+        // X-Request-Id se acepta y reenvía con el mismo valor mientras Pagos migra a X-Correlation-Id.
+        String correlationId = validCorrelationId(exchange.getRequest().getHeaders().getFirst(CORRELATION_ID_HEADER))
+                .or(() -> validCorrelationId(exchange.getRequest().getHeaders().getFirst(LEGACY_REQUEST_ID_HEADER)))
                 .orElseGet(() -> UUID.randomUUID().toString());
-        String requestId = correlationId;
-        exchange.getAttributes().put(REQUEST_ID_ATTRIBUTE, requestId);
-        exchange.getResponse().getHeaders().set("X-Correlation-Id", correlationId);
-        exchange.getResponse().getHeaders().set("X-Request-Id", requestId);
+        exchange.getAttributes().put(CORRELATION_ID_ATTRIBUTE, correlationId);
+        exchange.getResponse().getHeaders().set(CORRELATION_ID_HEADER, correlationId);
+        exchange.getResponse().getHeaders().set(LEGACY_REQUEST_ID_HEADER, correlationId);
         ServerWebExchange tracedExchange = exchange.mutate()
                 .request(request -> request.headers(headers -> {
-                    headers.set("X-Correlation-Id", correlationId);
-                    headers.set("X-Request-Id", requestId);
+                    headers.set(CORRELATION_ID_HEADER, correlationId);
+                    headers.set(LEGACY_REQUEST_ID_HEADER, correlationId);
                 }))
                 .build();
         long startNanos = System.nanoTime();
@@ -49,12 +53,12 @@ public class GatewayRequestLoggingFilter implements WebFilter {
                 ? (failed ? HttpStatus.INTERNAL_SERVER_ERROR.value() : HttpStatus.OK.value())
                 : exchange.getResponse().getStatusCode().value();
         long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000;
-        LOGGER.info("http_request requestId={} method={} path={} userId={} userRole={} status={} durationMs={}",
-                exchange.getAttribute(REQUEST_ID_ATTRIBUTE),
+        LOGGER.info("http_request correlationId={} method={} path={} userId={} userRoles={} status={} durationMs={}",
+                exchange.getAttribute(CORRELATION_ID_ATTRIBUTE),
                 exchange.getRequest().getMethod(),
                 exchange.getRequest().getURI().getPath(),
                 exchange.getAttributeOrDefault(USER_ID_ATTRIBUTE, "anonimo"),
-                exchange.getAttributeOrDefault(USER_ROLE_ATTRIBUTE, "sin_rol"),
+                exchange.getAttributeOrDefault(USER_ROLES_ATTRIBUTE, "sin_rol"),
                 status,
                 elapsedMillis);
     }

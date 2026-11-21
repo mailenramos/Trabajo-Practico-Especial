@@ -1,0 +1,9 @@
+# Solo desarrollo, junto con docker-compose.yml. Publica la app (8085) y la base (5433) en loopback;
+# la base publicada permite ejecutar el servicio desde el IDE con los valores por defecto.
+services:
+  entradas:
+    ports:
+      - "127.0.0.1:8085:8085"
+  postgres-entradas:
+    ports:
+      - "127.0.0.1:5433:5432"

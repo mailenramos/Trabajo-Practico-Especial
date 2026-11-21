@@ -1,0 +1,62 @@
+server:
+  port: ${SERVER_PORT:8087}
+
+spring:
+  application:
+    name: mcsv-usuarios-autenticacion
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/usuarios}
+    username: ${DB_USER:usuarios}
+    password: ${DB_PASSWORD:usuarios}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+usuarios:
+  jwt:
+    # Secreto HS256 compartido con el API Gateway (al menos 32 bytes UTF-8).
+    secret: ${JWT_SECRET:}
+    issuer: ${JWT_ISSUER:ticketya-usuarios}
+    expiracion: ${JWT_EXPIRATION:PT1H}
+  admin-inicial:
+    # Obligatorias: sin ellas el servicio no arranca.
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    nombre: ${ADMIN_NOMBRE:Administrador}
+    apellido: ${ADMIN_APELLIDO:TicketYa}
+  datos-prueba:
+    # Crea un usuario de prueba por cada rol (ver README). Desactivar fuera de desarrollo.
+    habilitados: ${USUARIOS_DATOS_PRUEBA:true}
+  seguridad:
+    # Token compartido entre servicios (X-Service-Token) para /internal/**. Vacío = validación
+    # desactivada (solo desarrollo local; en Docker es obligatorio).
+    servicio-token: ${SERVICIO_TOKEN:}
+
+# Monitoreo: por HTTP solo se expone /actuator/health (healthcheck de Docker), sin detalles.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Logs a la consola (stdout) con el identificador de correlación de cada pedido.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name}] [%thread] [correlationId=%X{correlationId:-}] %logger{36} : %m%n%wEx"
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

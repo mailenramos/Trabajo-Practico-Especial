@@ -1,0 +1,9 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+# Variables de entorno locales (copiar desde .env.example)
+.env
+.env.*
+!.env.example

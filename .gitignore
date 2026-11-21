@@ -10,3 +10,6 @@ Claude outputs/
 hs_err_pid*.log
 salida-test.txt
 .env
+
+# Salida de compilación de Maven (se genera al compilar, no va al repo)
+target/

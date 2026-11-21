@@ -15,9 +15,8 @@ include:
   - Backend/mcsv-disponibildad-reservas/docker-compose.yml          # MS2 reservas:8080
   - Backend/mcsv-compras-devoluciones/docker-compose.yml            # MS3 compras:8083
   - Backend/mcvs-pagos/docker-compose.yml                           # MS4 pagos:8084
-  # TODO: descomentar cuando estén en main (rama feature/ms6-usuarios-jwt)
-  # - Backend/msvc-entradas/docker-compose.yml                      # MS5 entradas:8085
-  # - Backend/mcsv-usuarios-autenticacion/docker-compose.yml        # MS6 usuarios:8087
+  - Backend/msvc-entradas/docker-compose.yml                        # MS5 entradas:8085
+  - Backend/mcsv-usuarios-autenticacion/docker-compose.yml          # MS6 usuarios:8087
   - Backend/mcsv-fila-virtual/docker-compose.yml                    # MS7 fila-virtual:8088
   - Backend/mcsv-preferencias-recomendaciones/docker-compose.yml    # MS8 preferencias:8089
   - Backend/mcsv-notificaciones/docker-compose.yml                  # MS9 notificaciones:8090
@@ -25,7 +24,7 @@ include:
 services:
   gateway:
     # Variables según Backend/APIGateWay/src/main/resources/application.yml (puerto 8086 por defecto).
-    # Hoy el Gateway no enruta a MS6 ni a MS8: cuando agregue esas rutas, sumar MS6_URL / MS8_URL.
+    # Hoy el Gateway no enruta a MS8: cuando agregue esas rutas, sumar MS8_URL.
     build: ./Backend/APIGateWay
     container_name: ticketya-gateway
     environment:
@@ -33,7 +32,10 @@ services:
       MS2_URL: http://reservas:8080
       MS3_URL: http://compras:8083
       MS5_URL: http://entradas:8085
+      MS6_URL: http://usuarios:8087
       JWT_SECRET: "${JWT_SECRET:?Configure JWT_SECRET en .env}"
+      # Emisor (iss) de los JWT: debe coincidir con el JWT_ISSUER de Usuarios.
+      JWT_ISSUER: "${JWT_ISSUER:-ticketya-usuarios}"
       GATEWAY_CORS_ALLOWED_ORIGINS: "${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
     ports:
       - "8086:8086"

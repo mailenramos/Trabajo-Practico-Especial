@@ -1,9 +1,16 @@
+import { endSession, session } from './session'
+
 const gatewayUrl = (import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8086').replace(/\/+$/, '')
 
-export async function apiRequest(path, userId, options = {}) {
+/**
+ * Pedido al API Gateway. Si hay sesión, envía el JWT en Authorization: el Gateway lo valida y
+ * propaga la identidad (X-User-Id, X-User-Roles) a los microservicios; la app ya no la declara.
+ * Un 401 con sesión iniciada significa que el token venció o no es válido: se cierra la sesión.
+ */
+export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {})
-  headers.set('X-User-Id', userId)
-  headers.set('X-User-Role', 'CLIENTE')
+  const token = session.value?.token
+  if (token) headers.set('Authorization', `Bearer ${token}`)
   headers.set('Accept', 'application/json')
   if (options.body) headers.set('Content-Type', 'application/json')
 
@@ -25,9 +32,14 @@ export async function apiRequest(path, userId, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      endSession('Tu sesión venció o no es válida. Volvé a iniciar sesión.')
+    }
     const detail = payload?.mensaje || payload?.message || payload?.error || `Error HTTP ${response.status}`
     const error = new Error(`${detail} (HTTP ${response.status})`)
     error.status = response.status
+    error.code = payload?.error
+    error.fields = payload?.campos || null
     throw error
   }
   return payload

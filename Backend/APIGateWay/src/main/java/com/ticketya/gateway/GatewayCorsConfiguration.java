@@ -27,7 +27,7 @@ public class GatewayCorsConfiguration {
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList());
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
                 "Accept", "Authorization", "Content-Type", "Idempotency-Key",
                 "X-Correlation-Id", "X-Request-Id"));
