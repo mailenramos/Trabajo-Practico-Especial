@@ -1,0 +1,72 @@
+# Notificaciones + su base. Sin puertos publicados: se alcanza por ticketya-net
+# (los otros servicios usan http://notificaciones:8090). Para exponer el puerto en desarrollo:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Requiere: docker network create ticketya-net, y un .env (ver .env.example).
+services:
+  mysql-notificaciones:
+    image: mysql:8.4
+    container_name: ticketya-mysql-notificaciones
+    environment:
+      MYSQL_DATABASE: ticketya_notificaciones
+      MYSQL_USER: "${DB_USER:-ticketya_notificaciones}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Configure MYSQL_ROOT_PASSWORD en .env}"
+    volumes:
+      - mysql-notificaciones-data:/var/lib/mysql
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  notificaciones:
+    build: .
+    container_name: ticketya-notificaciones
+    environment:
+      PUERTO: "${PUERTO:-8090}"
+      DB_URL: "${DB_URL:-jdbc:mysql://mysql-notificaciones:3306/ticketya_notificaciones?serverTimezone=UTC}"
+      DB_USER: "${DB_USER:-ticketya_notificaciones}"
+      DB_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      DB_DDL_AUTO: "${DB_DDL_AUTO:-update}"
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN en .env}"
+      SMTP_HOST: "${SMTP_HOST:-localhost}"
+      SMTP_PORT: "${SMTP_PORT:-1025}"
+      SMTP_USUARIO: "${SMTP_USUARIO:-}"
+      SMTP_CLAVE: "${SMTP_CLAVE:-}"
+      SMTP_AUTH: "${SMTP_AUTH:-false}"
+      SMTP_STARTTLS: "${SMTP_STARTTLS:-false}"
+      SMTP_TIMEOUT_CONEXION_MS: "${SMTP_TIMEOUT_CONEXION_MS:-2000}"
+      SMTP_TIMEOUT_LECTURA_MS: "${SMTP_TIMEOUT_LECTURA_MS:-5000}"
+      SMTP_REMITENTE: "${SMTP_REMITENTE:-no-responder@ticketya.local}"
+      USUARIOS_URL: "${USUARIOS_URL:-http://usuarios:8087}"
+      USUARIOS_TIMEOUT_CONEXION: "${USUARIOS_TIMEOUT_CONEXION:-2s}"
+      USUARIOS_TIMEOUT_LECTURA: "${USUARIOS_TIMEOUT_LECTURA:-5s}"
+      NOTIF_MAX_INTENTOS: "${NOTIF_MAX_INTENTOS:-5}"
+      NOTIF_ESPERA_BASE: "${NOTIF_ESPERA_BASE:-30s}"
+      NOTIF_ESPERA_MAXIMA: "${NOTIF_ESPERA_MAXIMA:-1h}"
+      NOTIF_ENVIO_ACTIVO: "${NOTIF_ENVIO_ACTIVO:-true}"
+      NOTIF_ENVIO_INTERVALO: "${NOTIF_ENVIO_INTERVALO:-10s}"
+      NOTIF_ENVIO_LOTE: "${NOTIF_ENVIO_LOTE:-20}"
+      NOTIF_PLAZO_PROCESAMIENTO: "${NOTIF_PLAZO_PROCESAMIENTO:-2m}"
+      NOTIF_INTERVALO_RECUPERACION: "${NOTIF_INTERVALO_RECUPERACION:-60s}"
+    depends_on:
+      mysql-notificaciones:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:$$PUERTO/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+volumes:
+  mysql-notificaciones-data:
+    name: mysql-notificaciones-data
+
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net

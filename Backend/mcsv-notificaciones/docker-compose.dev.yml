@@ -1,0 +1,5 @@
+# Solo desarrollo, junto con docker-compose.yml. Publica la app en el puerto 8090 (ligado a loopback).
+services:
+  notificaciones:
+    ports:
+      - "127.0.0.1:8090:${PUERTO:-8090}"

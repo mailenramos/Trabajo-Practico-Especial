@@ -1,0 +1,55 @@
+# Compras y devoluciones + su base. Sin puertos publicados: se alcanza por ticketya-net
+# (el Gateway y los otros servicios usan http://compras:8083). Para exponer el puerto en desarrollo:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Requiere: docker network create ticketya-net, y un .env (ver .env.example).
+services:
+  mysql-compras:
+    image: mysql:8.4
+    container_name: ticketya-mysql-compras
+    environment:
+      MYSQL_DATABASE: ticketya_compras
+      MYSQL_USER: "${DB_USER:-ticketya_compras}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Configure MYSQL_ROOT_PASSWORD en .env}"
+    volumes:
+      - mysql-compras-data:/var/lib/mysql
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  compras:
+    build: .
+    container_name: ticketya-compras
+    environment:
+      DB_URL: "${DB_URL:-jdbc:mysql://mysql-compras:3306/ticketya_compras?serverTimezone=UTC}"
+      DB_USER: "${DB_USER:-ticketya_compras}"
+      DB_PASSWORD: "${DB_PASSWORD:?Configure DB_PASSWORD en .env}"
+      SERVICIO_TOKEN: "${SERVICIO_TOKEN:?Configure SERVICIO_TOKEN en .env}"
+      RESERVAS_URL: "${RESERVAS_URL:-http://reservas:8080}"
+      EVENTOS_URL: "${EVENTOS_URL:-http://lugares:8081}"
+      PAGOS_URL: "${PAGOS_URL:-http://pagos:8084}"
+      ENTRADAS_URL: "${ENTRADAS_URL:-http://entradas:8085}"
+      NOTIFICACIONES_URL: "${NOTIFICACIONES_URL:-http://notificaciones:8090}"
+    depends_on:
+      mysql-compras:
+        condition: service_healthy
+    networks: [ticketya-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8083/actuator/health > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+volumes:
+  mysql-compras-data:
+    name: mysql-compras-data
+
+networks:
+  ticketya-net:
+    external: true
+    name: ticketya-net
