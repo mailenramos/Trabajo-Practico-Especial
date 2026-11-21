@@ -4,3 +4,8 @@ local-test/
 # Archivos locales de Claude Code
 .claude/
 Claude outputs/
+
+# IDE y logs de crash
+.idea/
+hs_err_pid*.log
+salida-test.txt
