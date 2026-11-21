@@ -1,0 +1,9 @@
+# Usar junto con docker-compose.yml; los puertos quedan ligados a loopback.
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  pagos:
+    ports:
+      - "127.0.0.1:${PAGOS_DEV_APP_PORT:-8084}:${SERVER_PORT:-8084}"
+  pagos-db:
+    ports:
+      - "127.0.0.1:${PAGOS_DEV_DB_PORT:-5434}:5432"

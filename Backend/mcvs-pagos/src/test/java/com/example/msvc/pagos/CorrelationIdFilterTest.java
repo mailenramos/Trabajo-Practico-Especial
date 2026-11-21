@@ -38,4 +38,26 @@ class CorrelationIdFilterTest {
         org.junit.jupiter.api.Assertions.assertNotNull(requestId);
         assertEquals(36, requestId.length());
     }
+
+    @Test
+    void propagatesValidCorrelationId() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/pagos");
+        request.addHeader("X-Correlation-Id", "corr-123:abc");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals("corr-123:abc", response.getHeader("X-Correlation-Id"));
+    }
+
+    @Test
+    void usesRequestIdWhenCorrelationIdIsMissingOrInvalid() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/pagos");
+        request.addHeader("X-Correlation-Id", "malo\nforged-log-entry");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(response.getHeader("X-Request-Id"), response.getHeader("X-Correlation-Id"));
+    }
 }
