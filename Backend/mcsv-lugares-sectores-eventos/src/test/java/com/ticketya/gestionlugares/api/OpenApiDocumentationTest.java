@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
@@ -222,7 +223,7 @@ class OpenApiDocumentationTest {
         for (String identityHeader : List.of("X-User-Id", "X-User-Roles")) {
             assertTrue(java.util.stream.StreamSupport.stream(put.path("parameters").spliterator(), false)
                     .anyMatch(parameter -> parameter.path("name").asText().equals(identityHeader)
-                            && parameter.path("required").asBoolean()));
+                            && !parameter.path("required").asBoolean()));
         }
         JsonNode request = put.path("requestBody").path("content").path("application/json");
         assertTrue(request.path("examples").has("Cambiar fecha"));
@@ -252,6 +253,61 @@ class OpenApiDocumentationTest {
         assertTrue(java.util.stream.StreamSupport.stream(interno.path("parameters").spliterator(), false)
                 .noneMatch(parameter -> parameter.path("name").asText().startsWith("X-User-")));
         assertTrue(interno.path("responses").has("200"));
+    }
+
+    @Test
+    void documentaSeguridadDelGatewaySinProtegerConsultasPublicasNiInternas() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode api = new ObjectMapper().readTree(body);
+        assertEquals(api, new ObjectMapper().readTree(java.nio.file.Path.of("docs", "openapi.json").toFile()),
+                "El export OpenAPI debe coincidir con /v3/api-docs");
+        JsonNode scheme = api.path("components").path("securitySchemes").path("bearerAuth");
+        assertTrue(api.path("info").path("description").asText()
+                .contains("pendiente de ajuste en el Gateway"));
+        assertEquals("http", scheme.path("type").asText());
+        assertEquals("bearer", scheme.path("scheme").asText());
+        assertEquals("JWT", scheme.path("bearerFormat").asText());
+        assertTrue(scheme.path("description").asText().contains("MS1 no valida JWT"));
+        assertEquals("http://localhost:8086", api.path("servers").get(0).path("url").asText());
+        assertEquals("http://localhost:8081", api.path("servers").get(1).path("url").asText());
+        assertTrue(api.path("security").isMissingNode());
+
+        JsonNode paths = api.path("paths");
+        for (String endpoint : List.of(
+                "post /lugares", "get /lugares", "get /lugares/{id}",
+                "get /lugares/{id}/sectores", "post /lugares/{id}/sectores",
+                "post /eventos", "put /eventos/{eventoId}",
+                "put /eventos/{eventoId}/sectores/{sectorId}/precio",
+                "put /eventos/{eventoId}/limite-entradas-por-cliente",
+                "put /eventos/{eventoId}/publicar", "put /eventos/{eventoId}/venta/suspender",
+                "put /eventos/{eventoId}/venta/reactivar", "put /eventos/{eventoId}/cancelar",
+                "post /eventos/{eventoId}/personal-acceso", "get /eventos/{eventoId}/personal-acceso",
+                "delete /eventos/{eventoId}/personal-acceso/{usuarioId}")) {
+            String[] parts = endpoint.split(" ", 2);
+            JsonNode operation = paths.path(parts[1]).path(parts[0]);
+            assertTrue(operation.path("security").get(0).has("bearerAuth"), endpoint);
+            for (String header : List.of("X-User-Id", "X-User-Roles")) {
+                assertTrue(java.util.stream.StreamSupport.stream(operation.path("parameters").spliterator(), false)
+                        .anyMatch(parameter -> parameter.path("name").asText().equals(header)
+                                && !parameter.path("required").asBoolean()
+                                && parameter.path("description").asText().contains("el cliente no lo envía")),
+                        endpoint + " " + header);
+            }
+        }
+        for (String endpoint : List.of(
+                "get /eventos", "get /eventos/{eventoId}",
+                "put /eventos/{eventoId}/disponibilidad", "get /internal/eventos/{eventoId}",
+                "put /internal/eventos/{eventoId}/politica-fila", "get /internal/eventos-publicados",
+                "get /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion")) {
+            String[] parts = endpoint.split(" ", 2);
+            JsonNode operation = paths.path(parts[1]).path(parts[0]);
+            assertTrue(operation.isObject(), endpoint);
+            assertTrue(operation.path("security").isMissingNode() || operation.path("security").isEmpty(), endpoint);
+            if (parts[1].startsWith("/internal/") || parts[1].endsWith("/disponibilidad")) {
+                assertTrue(operation.path("description").asText().contains("Gateway"), endpoint);
+            }
+        }
     }
 
     private static void assertEventErrors(JsonNode responses, String... codes) {

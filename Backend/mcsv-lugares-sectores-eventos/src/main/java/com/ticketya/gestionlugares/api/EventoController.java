@@ -39,6 +39,7 @@ public class EventoController {
     }
 
     @PostMapping
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Crear evento en borrador", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Evento creado en borrador",
@@ -110,6 +111,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/sectores/{sectorId}/precio")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Definir el precio de un sector del evento", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Precio asignado",
@@ -136,6 +138,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/limite-entradas-por-cliente")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Actualizar límite de entradas por cliente durante el borrador", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Límite actualizado",
@@ -162,6 +165,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/publicar")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Publicar evento e inicializar su disponibilidad y venta en Reservas", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Evento publicado",
@@ -183,6 +187,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/venta/suspender")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Suspender la venta del evento", description = "Requiere X-User-Id y X-User-Roles con ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta suspendida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta suspendida", value = ApiExamples.EVENTO_VENTA_SUSPENDIDA))),
@@ -200,6 +205,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/venta/reactivar")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Reactivar la venta del evento", description = "Requiere X-User-Id y X-User-Roles con ADMIN.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Venta reactivada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Venta activa", value = ApiExamples.EVENTO_PUBLICADO))),
@@ -217,6 +223,7 @@ public class EventoController {
     }
 
     @PutMapping("/{eventoId}/cancelar")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Cancelar evento y detener su venta", description = "Requiere X-User-Id y X-User-Roles con ADMIN. El body y el motivo son opcionales; si se omiten, se aplica el motivo predeterminado.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Cancelación confirmada; los avisos a Compras y Fila pueden estar pendientes", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evento.class), examples = @ExampleObject(name = "Evento cancelado", value = ApiExamples.EVENTO_CANCELADO))),

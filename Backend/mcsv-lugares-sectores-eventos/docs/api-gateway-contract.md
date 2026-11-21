@@ -2,7 +2,9 @@
 
 La tabla contiene todas las rutas públicas actuales de `mcsv-lugares-sectores-eventos`. El Gateway debe exponer cada una (marcada **Sí**) y reenviar el path backend sin cambios al servicio. En local, el backend escucha en `http://localhost:8081` por defecto; `PORT` puede sobrescribirlo. El prefijo público del Gateway no está definido en este repositorio.
 
-En las operaciones protegidas, el Gateway valida el JWT y propaga `X-User-Id` con el valor de `sub` y `X-User-Roles` con los roles separados por comas. El microservicio aplica la autorización final y evalúa todos los roles de la lista, sin precedencia arbitraria; acepta `CLIENTE`, `ORGANIZADOR` y `ADMIN`, ignora diferencias de mayúsculas y recorta espacios. `GET /eventos` y el detalle de eventos publicados/agotados son públicos y no requieren token ni headers de identidad.
+En operaciones protegidas, el cliente envía `Authorization: Bearer <jwt>` al Gateway, no los headers de identidad. El Gateway valida el JWT e inyecta `X-User-Id` con el valor de `sub` y `X-User-Roles` con los roles separados por comas; MS1 no valida JWT. El microservicio aplica la autorización final y evalúa todos los roles de la lista, sin precedencia arbitraria; acepta `CLIENTE`, `ORGANIZADOR` y `ADMIN`, ignora diferencias de mayúsculas y recorta espacios.
+
+**Nota:** `GET /eventos` y el detalle de eventos que no son borradores son públicos en MS1; el Gateway debe exponerlos sin token (pendiente de ajuste en el Gateway).
 
 | Método | Path backend | Se publica por Gateway | Headers requeridos | Body | Respuestas esperadas |
 |---|---|---:|---|---|---|
@@ -12,8 +14,8 @@ En las operaciones protegidas, el Gateway valida el JWT y propaga `X-User-Id` co
 | `GET` | `/lugares/{id}/sectores` | Sí | `X-User-Id`; roles incluyen `ORGANIZADOR` o `ADMIN` | Ninguno | `200`, `401`, `403`, `404`, `500` |
 | `POST` | `/lugares/{id}/sectores` | Sí | `X-User-Id`; `X-User-Roles` incluye `ADMIN` | Datos del sector | `201`, `400`, `401`, `403`, `404`, `409`, `500` |
 | `POST` | `/eventos` | Sí | `X-User-Id`; `X-User-Roles` incluye `ORGANIZADOR` | Datos del evento en borrador | `201`, `400`, `401`, `403`, `404`, `409`, `500` |
-| `GET` | `/eventos` | Sí | Ninguno; pública, sin token | `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page`, `size` | `200`, `400`, `500` |
-| `GET` | `/eventos/{eventoId}` | Sí | Ninguno para publicado/agotado; opcionales `X-User-Id` y `X-User-Roles` para borradores | Ninguno | `200`, `401` (borrador sin identidad), `404` (inexistente, oculto o borrador ajeno), `500` |
+| `GET` | `/eventos` | Sí | Público | `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page`, `size` | `200`, `400`, `500` |
+| `GET` | `/eventos/{eventoId}` | Sí | Público salvo borradores: `X-User-Id` y `X-User-Roles` | Ninguno | `200`, `401` (borrador sin identidad), `404` (inexistente, oculto o borrador ajeno), `500` |
 | `PUT` | `/eventos/{eventoId}` | Sí | JWT validado por Gateway; `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN` | `fechaHora` UTC futura y/o `lugarId` existente | `200`, `400`, `401`, `403`, `404`, `409`, `500` |
 | `PUT` | `/eventos/{eventoId}/sectores/{sectorId}/precio` | Sí | `X-User-Id`; `X-User-Roles` incluye `ORGANIZADOR`; titular del evento | `{"precio":15000.00}` | `200`, `400`, `401`, `403`, `404`, `409`, `500` |
 | `PUT` | `/eventos/{eventoId}/limite-entradas-por-cliente` | Sí | `X-User-Id`; `X-User-Roles` incluye `ORGANIZADOR`; titular del evento | `{"limiteEntradasPorCliente":8}` | `200`, `400`, `401`, `403`, `404`, `409`, `500` |
@@ -22,7 +24,7 @@ En las operaciones protegidas, el Gateway valida el JWT y propaga `X-User-Id` co
 | `PUT` | `/eventos/{eventoId}/venta/reactivar` | Sí | `X-User-Id`; `X-User-Roles` incluye `ADMIN` | Ninguno | `200`, `401`, `403`, `404`, `409`, `503`, `500` |
 | `PUT` | `/eventos/{eventoId}/cancelar` | Sí | `X-User-Id`; `X-User-Roles` incluye `ADMIN` | Opcional: `{"motivo":"Cancelación por condiciones climáticas"}` | `200`, `401`, `403`, `404`, `409`, `503`, `500` |
 
-Para requests con body, el Gateway conserva `Content-Type: application/json`. Las consultas de lugares aceptan `ORGANIZADOR` y `ADMIN`; los POST de gestión de lugares/sectores requieren `ADMIN`. Crear, publicar y modificar precio/límite de eventos requiere el organizador titular (`ORGANIZADOR`). Suspender, reactivar y cancelar requiere `ADMIN`. En rutas protegidas, la identidad o la lista de roles ausente/vacía recibe `401`; una identidad autenticada con rol insuficiente recibe `403`. El endpoint público de detalle reserva `401` para la consulta de un borrador sin identidad; un borrador ajeno o sin rol autorizado se oculta con `404`.
+Para requests con body, el Gateway conserva `Content-Type: application/json`. Las consultas de lugares aceptan `ORGANIZADOR` y `ADMIN`; los POST de gestión de lugares/sectores requieren `ADMIN`. Crear, publicar y modificar precio/límite de eventos requiere el organizador titular (`ORGANIZADOR`). Suspender, reactivar y cancelar requiere `ADMIN`. En MS1, la identidad o la lista de roles ausente/vacía recibe `401` en rutas protegidas; una identidad autenticada con rol insuficiente recibe `403`. En el detalle, MS1 devuelve `401` al consultar un borrador sin identidad; un borrador ajeno o sin rol autorizado se oculta con `404`.
 
 El Gateway enruta también `PUT /eventos/{eventoId}`, conservando método y path, y propaga `X-User-Id` y `X-User-Roles`. El `PUT` no altera sectores, precios ni disponibilidad al cambiar lugar y no llama a Reservas.
 

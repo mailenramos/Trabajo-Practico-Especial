@@ -37,21 +37,35 @@ El archivo dev publica la aplicación en `8081:8081` y MongoDB solo en `127.0.0.
 
 ### Integración con el Compose general
 
-La red compartida `ticketya-net` es externa y se crea una sola vez por entorno Docker:
+El `docker-compose.yml` de la raíz del repositorio incluye los Compose de los servicios, el Gateway y Mailpit. Antes de levantarlo, bajá el stack suelto desde esta carpeta:
+
+```sh
+docker compose down
+```
+
+Si usaste el archivo de desarrollo, bajalo con `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`. Si ambos stacks quedan corriendo, habrá dos contenedores `lugares` en `ticketya-net`.
+
+Desde la raíz del repositorio, creá la red compartida una sola vez, copiá `.env.example` a `.env` y completá sus valores. Después levantá los servicios y consultá su estado hasta que los que tienen healthcheck estén healthy:
 
 ```sh
 docker network create ticketya-net
+cp .env.example .env
+# Completá .env antes de continuar.
+docker compose up -d --build
+docker compose ps
 ```
 
-La topología de MS1 y los servicios confirmados por el grupo es:
+El `.env` de la raíz define `SERVICIO_TOKEN` y `USUARIOS_BASE_URL`. En el Compose general, MS1 no publica puertos: se accede por el Gateway en `http://localhost:8086` o desde dentro del contenedor:
 
-- `lugares` escucha en el puerto interno `8081`, no publica puertos en el Compose base y se une a la red privada de este Compose y a `ticketya-net`.
-- `mongodb` permanece únicamente en la red privada de este Compose; **no** se une a `ticketya-net`.
-- Reservas llama a MS1 directamente por `lugares:8081` y Compras también se conecta directamente por el nombre del servicio, sin pasar por el Gateway.
-- Servicios y puertos: Reservas `reservas:8080`, Compras `compras:8083`, Fila virtual `fila-virtual:8088`, Gateway `gateway:8086`, Pagos `pagos:8084` y Entradas `entradas:8085`.
-- El Gateway llega a MS1 mediante `MS1_URL=http://lugares:8081`; no enruta `/actuator` ni `/internal`.
+```sh
+docker compose exec lugares wget -qO- http://localhost:8081/eventos
+```
 
-El Compose general debe ubicarse en la raíz del repositorio, pero todavía no existe. El comando exacto para combinarlo con el Compose de MS1 queda **pendiente hasta que se cree ese archivo**.
+Se usa el perfil `docker`, que no carga los datos de ejemplo del perfil `dev`. La base arranca vacía con un volumen nuevo, distinto del volumen del stack suelto. MongoDB permanece en la red privada de MS1, fuera de `ticketya-net`.
+
+Los servicios y puertos son Reservas `reservas:8080`, Lugares `lugares:8081`, Compras `compras:8083`, Pagos `pagos:8084`, Entradas `entradas:8085`, Gateway `gateway:8086`, Usuarios `usuarios:8087`, Fila virtual `fila-virtual:8088`, Preferencias `preferencias:8089` y Notificaciones `notificaciones:8090`.
+
+Reservas y Compras llaman a MS1 directamente por `lugares:8081`; el Gateway usa `MS1_URL=http://lugares:8081` y no enruta `/actuator` ni `/internal`.
 
 ### Ejecutar MS1 desde el host
 
@@ -85,7 +99,9 @@ curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://
 
 ## Endpoints
 
-El servicio local usa `http://localhost:8081` por defecto. Las operaciones protegidas requieren `X-User-Id` y `X-User-Roles`. El Gateway disponible en el repositorio no valida JWT ni deriva estos headers; reenvía los que recibe, por lo que MS1 confía en los valores enviados. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. La búsqueda y el detalle de eventos publicados o agotados son públicos. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
+El servicio local usa `http://localhost:8081` por defecto. En operaciones protegidas, el cliente envía `Authorization: Bearer <jwt>` al Gateway (`http://localhost:8086`), que valida el JWT e inyecta `X-User-Id` y `X-User-Roles`; el cliente no envía esos headers. MS1 no valida JWT y confía en los headers recibidos. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
+
+**Nota:** La búsqueda y el detalle de eventos que no son borradores son públicos en MS1; el Gateway debe exponerlos sin token (pendiente de ajuste en el Gateway).
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
@@ -95,8 +111,8 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 | GET | `/lugares/{id}/sectores` | `ORGANIZADOR` o `ADMIN` | Lista los sectores de un lugar. |
 | POST | `/lugares/{id}/sectores` | `ADMIN` | Agrega un sector numerado o no numerado. |
 | POST | `/eventos` | `ORGANIZADOR` | Crea un evento en borrador. |
-| GET | `/eventos` | Público, sin token | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
-| GET | `/eventos/{eventoId}` | Público para `publicado`/`agotado`; borrador requiere autenticación | Solo el organizador titular o `ADMIN` puede consultar un borrador; otros usuarios reciben `404`. |
+| GET | `/eventos` | Público | Busca eventos publicados y agotados con `tipo`, `organizadorId`, `participante`, `ciudad`, `fechaDesde`, `fechaHasta`, `orden`, `direccion`, `q`, `page` y `size`. |
+| GET | `/eventos/{eventoId}` | Público salvo borradores | Solo el organizador titular o `ADMIN` puede consultar un borrador; otros usuarios reciben `404`. |
 | PUT | `/eventos/{eventoId}` | `ORGANIZADOR` titular o `ADMIN` | Modifica fecha/hora y/o lugar; el Gateway publica la ruta. |
 | PUT | `/eventos/{eventoId}/sectores/{sectorId}/precio` | `ORGANIZADOR` dueño | Define el precio de un sector del evento en borrador. |
 | PUT | `/eventos/{eventoId}/limite-entradas-por-cliente` | `ORGANIZADOR` dueño | Actualiza el límite por cliente durante el borrador. |
@@ -117,9 +133,9 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 
 `X-User-Id` contiene el identificador de usuario que recibe MS1; el servicio no comprueba que provenga del claim `sub` ni valida un JWT. `X-User-Roles` contiene los roles `CLIENTE`, `ORGANIZADOR` y/o `ADMIN`, separados por comas. El servicio evalúa la lista completa: por ejemplo, `CLIENTE, ORGANIZADOR` permite operar como organizador cuando también es titular; no existe precedencia entre roles. La comparación no distingue mayúsculas y recorta espacios; no se admite el alias legado `administrador`.
 
-Solo las rutas protegidas requieren identidad. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar eventos sin token; el detalle de eventos `publicado` y `agotado` también es público. Para consultar un borrador se requiere `X-User-Id` y que `X-User-Roles` incluya `ORGANIZADOR` (con el mismo ID titular) o `ADMIN`; sin identidad responde `401` y un borrador ajeno o sin rol válido queda oculto con `404`. Solo el organizador titular puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y suspende, reactiva o cancela eventos. Los callbacks y consultas internas no reciben headers de usuario.
+Solo las rutas protegidas requieren identidad en MS1. Para consultar un borrador se requiere `X-User-Id` y que `X-User-Roles` incluya `ORGANIZADOR` (con el mismo ID titular) o `ADMIN`; sin identidad responde `401` y un borrador ajeno o sin rol válido queda oculto con `404`. Solo el organizador titular puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y suspende, reactiva o cancela eventos. Los callbacks y consultas internas no reciben headers de usuario.
 
-Usuarios de ejemplo y sus headers:
+Usuarios de ejemplo y sus headers para acceso directo de desarrollo a MS1:
 
 | Usuario | Headers |
 |---|---|
@@ -143,7 +159,7 @@ Las rutas de gestión de eventos y lugares devuelven errores controlados con `ti
 
 ## Modificar un evento
 
-`PUT /eventos/{eventoId}` requiere `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN`. El Gateway publica la ruta, pero la implementación actual no valida JWT ni deriva los headers; ver «Decisiones de diseño, simplificaciones y limitaciones». El body JSON contiene al menos uno de `fechaHora` (futura, ISO-8601 UTC) y `lugarId` (lugar existente):
+`PUT /eventos/{eventoId}` requiere `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN`. El Gateway publica la ruta y deriva esos headers del JWT validado. El body JSON contiene al menos uno de `fechaHora` (futura, ISO-8601 UTC) y `lugarId` (lugar existente):
 
 ```json
 {"fechaHora":"2035-02-01T12:00:00Z","lugarId":"507f1f77bcf86cd799439011"}
@@ -178,7 +194,7 @@ Las rutas de gestión de eventos y lugares devuelven errores controlados con `ti
 | `page` | entero | `0` o mayor. |
 | `size` | entero | `20`; rango de `1` a `100`. |
 
-`GET /eventos` es público y no requiere token ni headers de identidad. Solo lista eventos `publicado` y `agotado`; borradores, cancelados y finalizados no aparecen. Sin coincidencias la respuesta es `200` con contenido vacío. El orden por fecha es ascendente y por precio usa `precioMinimo` en la dirección solicitada (con fecha e ID como desempate). Con `orden=relevancia` y `q`, se ordena por puntaje de texto descendente y luego fecha ascendente; sin `q`, equivale a fecha ascendente. La respuesta usa `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`.
+`GET /eventos` es público en MS1 y no requiere headers de identidad allí. Solo lista eventos `publicado` y `agotado`; borradores, cancelados y finalizados no aparecen. Sin coincidencias la respuesta es `200` con contenido vacío. El orden por fecha es ascendente y por precio usa `precioMinimo` en la dirección solicitada (con fecha e ID como desempate). Con `orden=relevancia` y `q`, se ordena por puntaje de texto descendente y luego fecha ascendente; sin `q`, equivale a fecha ascendente. La respuesta usa `contenido`, `pagina`, `tamano`, `totalElementos` y `totalPaginas`.
 
 Ejemplo de respuesta paginada:
 
@@ -186,7 +202,7 @@ Ejemplo de respuesta paginada:
 {"contenido":[{"id":"672a1f77bcf86cd799439011","nombre":"Festival Central","tipo":"MUSICA","participantes":["Artista A"],"fechaHora":"2027-05-16T00:00:00Z","ciudad":"Buenos Aires","estado":"publicado","ventaSuspendida":false,"precioMinimo":15000.00}],"pagina":0,"tamano":20,"totalElementos":1,"totalPaginas":1}
 ```
 
-`GET /eventos/{eventoId}` no requiere token para eventos `publicado` o `agotado`; los roles desconocidos se ignoran como en una solicitud anónima. Un borrador solo es visible para el `ORGANIZADOR` titular (mismo `X-User-Id`) o `ADMIN`; sin identidad responde `401` y para otros roles/usuarios responde `404`. Los eventos `cancelado` y `finalizado` también responden `200` y no consultan disponibilidad. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
+`GET /eventos/{eventoId}` no requiere identidad en MS1 para eventos `publicado`, `agotado`, `cancelado` o `finalizado`. Los roles desconocidos se ignoran como en una solicitud anónima. Un borrador solo es visible para el `ORGANIZADOR` titular (mismo `X-User-Id`) o `ADMIN`; sin identidad responde `401` y para otros roles/usuarios responde `404`. Los eventos `cancelado` y `finalizado` no consultan disponibilidad. En eventos publicados o agotados cada sector incluye `disponibilidad` con `capacidadTotal`, `cantidadDisponible` y, si es numerado, `asientosDisponibles` con pares `{fila, numero}`. Si Reservas falla o no devuelve un sector, ese sector lleva `disponibilidad: null`.
 
 La búsqueda usa una caché local con TTL de `30s` y máximo de `1000` entradas por defecto. El detalle, la disponibilidad y las consultas internas no se cachean. Las escrituras que afectan el catálogo invalidan la caché de la instancia que las procesa; las demás instancias pueden servir datos antiguos hasta que venza su TTL. Una búsqueda concurrente también puede volver a guardar un resultado anterior tras una invalidación, hasta que venza el TTL desde su almacenamiento.
 
@@ -198,7 +214,7 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 ## Integración con otros servicios
 
-La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Las consultas públicas no requieren headers de identidad y los endpoints internos se invocan directamente entre servicios. El Gateway disponible en el repositorio no valida JWT ni construye headers de identidad; MS1 autoriza según los valores que recibe.
+La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Las consultas públicas no requieren headers de identidad en MS1 y los endpoints internos se invocan directamente entre servicios. El Gateway valida JWT y construye los headers de identidad; MS1 autoriza según los valores que recibe.
 
 ### Trazabilidad
 
@@ -278,7 +294,7 @@ El `ORGANIZADOR` titular o `ADMIN` puede asignar con `POST /eventos/{eventoId}/p
 
 MS5 consulta `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` en cada validación: devuelve `200` con `autorizado: false` incluso si el evento o la asignación no existen. Lee el estado actual sin caché, no exige headers de usuario y queda fuera del Gateway.
 
-MS1 consulta `GET {USUARIOS_BASE_URL}/internal/usuarios/por-correo?correo=...` con `X-Service-Token` y `X-Correlation-Id`, con timeouts de conexión de 2 s y lectura de 5 s. Fuera de Docker la URL por defecto es `http://localhost:8087`; en Docker debe configurarse `USUARIOS_BASE_URL` con una dirección alcanzable desde el contenedor, ya que el nombre de servicio aún no está definido. Sin URL o token el alta responde `503`.
+MS1 consulta `GET {USUARIOS_BASE_URL}/internal/usuarios/por-correo?correo=...` con `X-Service-Token` y `X-Correlation-Id`, con timeouts de conexión de 2 s y lectura de 5 s. Fuera de Docker la URL por defecto es `http://localhost:8087`; en Docker es `http://usuarios:8087`. Sin URL o token el alta responde `503`.
 
 La carpeta 21 de Postman requiere MS6 disponible, un evento existente y un usuario activo con rol `PERSONAL_ACCESO`. Configurá `eventoPersonalId`, `organizadorPersonalId` y `correoPersonal`; la primera request guarda `usuarioPersonalId` para las siguientes.
 
@@ -330,7 +346,7 @@ El GET interno es una ruta directa entre servicios: no exige headers de usuario 
 
 ## Puertos de servicios vecinos
 
-MS1 escucha en el puerto interno `8081` por defecto (`PORT` permite sobrescribirlo). Los servicios confirmados son Reservas `reservas:8080`, Compras `compras:8083`, Fila virtual `fila-virtual:8088`, Gateway `gateway:8086`, Pagos `pagos:8084` y Entradas `entradas:8085`. Reservas y Compras llaman a MS1 directamente por nombre de servicio, no mediante el Gateway; el Gateway usa `MS1_URL=http://lugares:8081` y no enruta `/actuator` ni `/internal`. MongoDB no está conectado a `ticketya-net`.
+MS1 escucha en el puerto interno `8081` por defecto (`PORT` permite sobrescribirlo). Los servicios son Reservas `reservas:8080`, Lugares `lugares:8081`, Compras `compras:8083`, Pagos `pagos:8084`, Entradas `entradas:8085`, Gateway `gateway:8086`, Usuarios `usuarios:8087`, Fila virtual `fila-virtual:8088`, Preferencias `preferencias:8089` y Notificaciones `notificaciones:8090`. Reservas y Compras llaman a MS1 directamente por nombre de servicio, no mediante el Gateway; el Gateway usa `MS1_URL=http://lugares:8081` y no enruta `/actuator` ni `/internal`. MongoDB no está conectado a `ticketya-net`.
 
 ## Variables de entorno
 
@@ -345,7 +361,7 @@ Defaults aplicados por el Compose de Docker:
 | `RESERVAS_READ_TIMEOUT` | `reservas.read-timeout` | `5s` |
 | `COMPRAS_BASE_URL` | `compras.base-url` | `http://compras:8083` |
 | `FILAS_BASE_URL` | `filas.base-url` | `http://fila-virtual:8088` |
-| `USUARIOS_BASE_URL` | `usuarios.base-url` | Sin default; configurar para asignar personal |
+| `USUARIOS_BASE_URL` | `usuarios.base-url` | `http://usuarios:8087` |
 | `PREFERENCIAS_BASE_URL` | `preferencias.base-url` | `http://preferencias:8089` |
 | `SERVICIO_TOKEN` | `servicio.token` | Sin default; obligatorio con perfil `docker` |
 | `CATALOGO_CACHE_TTL` | `catalogo.cache.ttl` | `30s` |
@@ -354,7 +370,7 @@ Defaults aplicados por el Compose de Docker:
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
 
-El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Desde el host, las URLs predeterminadas son Reservas `http://localhost:8080`, Compras `http://localhost:8083`, Fila `http://localhost:8088`, Usuarios `http://localhost:8087` y Preferencias `http://localhost:8089`. En Docker, `USUARIOS_BASE_URL` queda vacía hasta configurar una URL alcanzable: el nombre de servicio de MS6 aún no está confirmado. Los timeouts de Reservas tienen defaults `2s`/`5s`; el Compose base no pasa `RESERVAS_CONNECT_TIMEOUT` ni `RESERVAS_READ_TIMEOUT` al contenedor.
+El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Desde el host, las URLs predeterminadas son Reservas `http://localhost:8080`, Compras `http://localhost:8083`, Fila `http://localhost:8088`, Usuarios `http://localhost:8087` y Preferencias `http://localhost:8089`. En Docker, `USUARIOS_BASE_URL` usa `http://usuarios:8087` por defecto. Los timeouts de Reservas tienen defaults `2s`/`5s`; el Compose base no pasa `RESERVAS_CONNECT_TIMEOUT` ni `RESERVAS_READ_TIMEOUT` al contenedor.
 
 El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destinos usan conexión `2s` y lectura `5s` fijos. El máximo de intentos, backoff y lease también son fijos; no hay variables de entorno para esos valores.
 

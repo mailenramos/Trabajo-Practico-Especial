@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,7 @@ import com.ticketya.gestionlugares.security.UserRoles;
 
 @RestController
 @RequestMapping("/lugares")
+@SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Lugares y sectores", description = "Registro y consulta de lugares físicos y sus sectores.")
 @ApiResponse(responseCode = "500", description = "Error interno",
         content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))

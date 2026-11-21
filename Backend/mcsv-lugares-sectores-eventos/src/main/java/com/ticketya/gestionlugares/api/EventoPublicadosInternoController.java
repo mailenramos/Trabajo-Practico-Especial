@@ -28,7 +28,7 @@ public class EventoPublicadosInternoController {
 
     @GetMapping
     @Operation(summary = "Consultar eventos publicados y agotados para recomendaciones",
-            description = "Ruta interna para MS8, sin headers de usuario. Devuelve eventos publicados o agotados, ordenados por fechaHora e ID ascendente. page es cero-based (default 0); size default 100 y máximo 200.")
+            description = "Ruta interna para MS8, sin headers de usuario; no se expone por el API Gateway. Devuelve eventos publicados o agotados, ordenados por fechaHora e ID ascendente. page es cero-based (default 0); size default 100 y máximo 200.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resultados paginados",
                     content = @Content(mediaType = "application/json",

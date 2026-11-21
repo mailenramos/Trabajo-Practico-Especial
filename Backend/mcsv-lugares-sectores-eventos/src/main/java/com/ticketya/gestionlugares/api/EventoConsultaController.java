@@ -32,7 +32,7 @@ public class EventoConsultaController {
     }
 
     @GetMapping
-    @Operation(summary = "Buscar eventos publicados y agotados", description = "Consulta pública sin token. Devuelve solo eventos publicados o agotados. Combina filtros con AND; por defecto ordena por fecha ascendente, página 0 y tamaño 20. El tamaño máximo es 100. Fechas inclusivas en ISO-8601 UTC terminadas en Z.")
+    @Operation(summary = "Buscar eventos publicados y agotados", description = "Consulta pública sin token en MS1. Devuelve solo eventos publicados o agotados. Combina filtros con AND; por defecto ordena por fecha ascendente, página 0 y tamaño 20. El tamaño máximo es 100. Fechas inclusivas en ISO-8601 UTC terminadas en Z.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resultados paginados", content = @Content(mediaType = ERROR,
                     schema = @Schema(implementation = EventoBusquedaResponse.class), examples = @ExampleObject(value = """
@@ -69,7 +69,7 @@ public class EventoConsultaController {
     }
 
     @GetMapping("/{eventoId}")
-    @Operation(summary = "Consultar detalle público de un evento", description = "No requiere token para consultar eventos publicados o agotados; los roles desconocidos se ignoran como en una solicitud anónima. Los borradores requieren X-User-Id y X-User-Roles: solo el organizador titular o ADMIN puede verlos; para otros usuarios se responde 404. Los eventos cancelados y finalizados también responden 200, sin consultar disponibilidad. Para eventos publicados o agotados consulta disponibilidad en Reservas y combina por sectorId; si Reservas falla, la disponibilidad queda en null.")
+    @Operation(summary = "Consultar detalle público de un evento", description = "MS1 no requiere identidad para consultar eventos publicados, agotados, cancelados o finalizados. Los roles desconocidos se ignoran como en una solicitud anónima. Los borradores requieren X-User-Id y X-User-Roles: solo el organizador titular o ADMIN puede verlos; para otros usuarios se responde 404. Los eventos cancelados y finalizados responden 200, sin consultar disponibilidad. Para eventos publicados o agotados consulta disponibilidad en Reservas y combina por sectorId; si Reservas falla, la disponibilidad queda en null.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Detalle del evento", content = @Content(mediaType = ERROR,
                     schema = @Schema(implementation = EventoDetalleResponse.class), examples = @ExampleObject(value = """
