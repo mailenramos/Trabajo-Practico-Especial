@@ -85,7 +85,7 @@ curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://
 
 ## Endpoints
 
-El servicio local usa `http://localhost:8081` por defecto. Las operaciones protegidas requieren `X-User-Id` y `X-User-Roles`; el Gateway deriva el ID del claim `sub` del JWT y envía la lista de roles separada por comas. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. La búsqueda y el detalle de eventos publicados o agotados son públicos. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
+El servicio local usa `http://localhost:8081` por defecto. Las operaciones protegidas requieren `X-User-Id` y `X-User-Roles`. El Gateway disponible en el repositorio no valida JWT ni deriva estos headers; reenvía los que recibe, por lo que MS1 confía en los valores enviados. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. La búsqueda y el detalle de eventos publicados o agotados son públicos. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
@@ -115,7 +115,7 @@ El servicio local usa `http://localhost:8081` por defecto. Las operaciones prote
 
 ## Identidad y usuarios de prueba
 
-`X-User-Id` contiene el identificador del usuario autenticado (el claim `sub` del JWT en el Gateway). `X-User-Roles` contiene los roles `CLIENTE`, `ORGANIZADOR` y/o `ADMIN`, separados por comas. El servicio evalúa la lista completa: por ejemplo, `CLIENTE, ORGANIZADOR` permite operar como organizador cuando también es titular; no existe precedencia entre roles. La comparación no distingue mayúsculas y recorta espacios; no se admite el alias legado `administrador`.
+`X-User-Id` contiene el identificador de usuario que recibe MS1; el servicio no comprueba que provenga del claim `sub` ni valida un JWT. `X-User-Roles` contiene los roles `CLIENTE`, `ORGANIZADOR` y/o `ADMIN`, separados por comas. El servicio evalúa la lista completa: por ejemplo, `CLIENTE, ORGANIZADOR` permite operar como organizador cuando también es titular; no existe precedencia entre roles. La comparación no distingue mayúsculas y recorta espacios; no se admite el alias legado `administrador`.
 
 Solo las rutas protegidas requieren identidad. `CLIENTE`, `ORGANIZADOR` y `ADMIN` pueden buscar eventos sin token; el detalle de eventos `publicado` y `agotado` también es público. Para consultar un borrador se requiere `X-User-Id` y que `X-User-Roles` incluya `ORGANIZADOR` (con el mismo ID titular) o `ADMIN`; sin identidad responde `401` y un borrador ajeno o sin rol válido queda oculto con `404`. Solo el organizador titular puede crear y configurar sus eventos; `ADMIN` gestiona lugares y sectores y suspende, reactiva o cancela eventos. Los callbacks y consultas internas no reciben headers de usuario.
 
@@ -143,7 +143,7 @@ Las rutas de gestión de eventos y lugares devuelven errores controlados con `ti
 
 ## Modificar un evento
 
-`PUT /eventos/{eventoId}` requiere `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN`. El Gateway valida el JWT y propaga ambos headers; el Gateway la publica. El body JSON contiene al menos uno de `fechaHora` (futura, ISO-8601 UTC) y `lugarId` (lugar existente):
+`PUT /eventos/{eventoId}` requiere `X-User-Id` y `X-User-Roles` con `ORGANIZADOR` titular o `ADMIN`. El Gateway publica la ruta, pero la implementación actual no valida JWT ni deriva los headers; ver «Decisiones de diseño, simplificaciones y limitaciones». El body JSON contiene al menos uno de `fechaHora` (futura, ISO-8601 UTC) y `lugarId` (lugar existente):
 
 ```json
 {"fechaHora":"2035-02-01T12:00:00Z","lugarId":"507f1f77bcf86cd799439011"}
@@ -198,7 +198,7 @@ Ejemplo de detalle con ambos tipos de sector y disponibilidad recibida:
 
 ## Integración con otros servicios
 
-La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Para las rutas protegidas, el Gateway valida el JWT y propaga los headers de identidad; las consultas públicas no los requieren y los endpoints internos se invocan directamente entre servicios.
+La comunicación entre servicios es directa, por REST/JSON. Las llamadas salientes de outbox incluyen `X-Service-Token`. Las consultas públicas no requieren headers de identidad y los endpoints internos se invocan directamente entre servicios. El Gateway disponible en el repositorio no valida JWT ni construye headers de identidad; MS1 autoriza según los valores que recibe.
 
 ### Trazabilidad
 
@@ -359,6 +359,19 @@ El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost
 El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destinos usan conexión `2s` y lectura `5s` fijos. El máximo de intentos, backoff y lease también son fijos; no hay variables de entorno para esos valores.
 
 `CATALOGO_CACHE_TTL` y `CATALOGO_CACHE_MAXIMO_ENTRADAS` deben ser positivos. Las propiedades tienen los mismos defaults al ejecutar MS1 desde el host.
+
+## Decisiones de diseño, simplificaciones y limitaciones
+
+- **Caché:** Caffeine cachea únicamente la búsqueda pública `GET /eventos`, con TTL y máximo configurables (30 s y 1000 entradas por defecto); el detalle y las rutas internas no se cachean. La invalidación es local y posterior al commit, así que otras instancias pueden servir datos anteriores hasta que venza el TTL.
+- **Rutas internas:** MS1 no valida un token entrante en `/internal/**` ni en `PUT /eventos/{eventoId}/disponibilidad`; el Gateway mantiene una lista explícita de rutas y no publica esas rutas. `X-Service-Token` se usa en los avisos outbox y en la consulta saliente de usuarios a MS6, no para autenticar solicitudes entrantes.
+- **Identidad:** MS1 confía en `X-User-Id` y `X-User-Roles` que propaga el Gateway, que valida el JWT; evalúa todos los roles de la lista. Un borrador solo lo ve su organizador titular o `ADMIN`; para otros responde `404`.
+- **Consistencia:** No hay transacciones distribuidas: los cambios y sus avisos a Compras, Fila y Preferencias se guardan en la misma transacción MongoDB y se entregan después del commit (publicación puede intentar la entrega inmediatamente después). Los reintentos usan backoff y conservan el ID, por lo que puede haber envíos repetidos; un destino caído demora el aviso, pero no revierte el cambio, y un error definitivo o agotar los intentos lo deja en `ERROR_FINAL`; MS1 no garantiza que el receptor deduplique.
+- **Cancelación:** Es recuperable y puede quedar pendiente con respuesta `503` hasta que Reservas confirme el cierre de ventas. Mientras haya una intención pendiente, suspender y reactivar responden `409`.
+- **Modificación de evento:** El modelo tiene una única fecha, `fechaHora`, y no una fecha de finalización. El efecto de cambiar el lugar sobre sectores, precios y disponibilidad —incluidos los borradores— ya está descrito en la limitación de [Modificar un evento](#modificar-un-evento).
+- **Finalización automática:** El scheduler considera eventos `PUBLICADO` o `AGOTADO` cuya `fechaHora` ya pasó y corre cada `EVENTOS_FINALIZACION_INTERVAL` (60 s por defecto). Solo después de que Reservas acepte `FINALIZADA` cambia el estado local a `finalizado`; si falla, lo vuelve a intentar en un ciclo posterior.
+- **Personal de acceso:** La revocación se refleja en la próxima consulta de autorización; una validación que ya obtuvo `autorizado=true` puede completarse. La consulta responde `autorizado=false` si no encuentra asignación activa; las pruebas también cubren un evento inexistente sin asignación.
+- **Resiliencia:** Los clientes HTTP configuran timeouts de conexión y lectura (2 s y 5 s por defecto; los de Reservas son configurables). El outbox reintenta `408`, `429`, `5xx` y errores de transporte; `3xx` y otros `4xx` son definitivos. Circuit breaker: no implementado; queda como mejora futura.
+- **MongoDB:** El Compose de MS1 configura un replica set `rs0` de un solo nodo, requerido para transacciones; las pruebas de integración usan Testcontainers.
 
 ## Pruebas con Postman
 
