@@ -1,9 +1,12 @@
 package com.ticketya.gestionlugares.api;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,6 +33,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -140,6 +144,121 @@ class EventoDetalleDisponibilidadIntegrationTest {
                         .header("X-User-Roles", "VISITANTE_DESCONOCIDO"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("publicado"));
+    }
+
+    @Test
+    void modificaFechaYLugarYLasConsultasReflejanDatosSinCambiarSectores() throws Exception {
+        Evento evento = guardarEventoPublicado();
+        Lugar nuevo = lugarRepository.save(new Lugar(null, "Nuevo teatro", "Otra calle", "Rosario",
+                -32.0, -60.0, List.of()));
+        Instant fecha = Instant.now().plusSeconds(172800).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        when(reservasClient.consultarDisponibilidad(evento.getId())).thenReturn(new DisponibilidadEventoResponse(
+                evento.getId(), List.of(new SectorDisponibilidadResponse("sector-a", TipoSector.NUMERADO, 2, 1, null))));
+
+        mockMvc.perform(put("/eventos/" + evento.getId())
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "CLIENTE, ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fechaHora\":\"" + fecha + "\",\"lugarId\":\"" + nuevo.getId() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaHora").value(fecha.toString()))
+                .andExpect(jsonPath("$.lugarId").value(nuevo.getId()))
+                .andExpect(jsonPath("$.ciudad").value("Rosario"))
+                .andExpect(jsonPath("$.sectores[0].sectorId").value("sector-a"));
+
+        Evento actualizado = eventoRepository.findById(evento.getId()).orElseThrow();
+        assertEquals(evento.getVersion() + 1, actualizado.getVersion());
+        assertEquals(evento.getSectores().getFirst().getPrecio(), actualizado.getSectores().getFirst().getPrecio());
+        mockMvc.perform(get("/eventos/" + evento.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaHora").value(fecha.toString()))
+                .andExpect(jsonPath("$.lugar.nombre").value("Nuevo teatro"))
+                .andExpect(jsonPath("$.sectores[0].disponibilidad.cantidadDisponible").value(1));
+        mockMvc.perform(get("/internal/eventos/" + evento.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaHora").value(fecha.toString()))
+                .andExpect(jsonPath("$.ciudad").value("Rosario"));
+
+        mockMvc.perform(put("/eventos/" + evento.getId())
+                        .header("X-User-Id", "admin-1").header("X-User-Roles", "CLIENTE, ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fechaHora\":\"" + fecha + "\",\"lugarId\":\"" + nuevo.getId() + "\"}"))
+                .andExpect(status().isOk());
+        assertEquals(actualizado.getVersion(), eventoRepository.findById(evento.getId()).orElseThrow().getVersion());
+    }
+
+    @Test
+    void modificaCamposIndividualesEnBorradorYAdminNoTitular() throws Exception {
+        Evento evento = crearEvento(crearLugar(), EstadoEvento.BORRADOR);
+        Instant fecha = Instant.now().plusSeconds(172800).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        Lugar nuevo = lugarRepository.save(new Lugar(null, "Nuevo", "Calle", "Rosario", 0, 0, List.of()));
+
+        mockMvc.perform(put("/eventos/" + evento.getId())
+                        .header("X-User-Id", "admin-1").header("X-User-Roles", "CLIENTE, ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"fechaHora\":\"" + fecha + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lugarId").value(evento.getLugarId()));
+        mockMvc.perform(put("/eventos/" + evento.getId())
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"lugarId\":\"" + nuevo.getId() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaHora").value(fecha.toString()))
+                .andExpect(jsonPath("$.ciudad").value("Rosario"));
+        assertEquals(evento.getVersion() + 2, eventoRepository.findById(evento.getId()).orElseThrow().getVersion());
+    }
+
+    @Test
+    void rechazaIdentidadPermisosEstadosYDatosInvalidos() throws Exception {
+        Evento evento = guardarEventoPublicado();
+        String path = "/eventos/" + evento.getId();
+        String fechaValida = "{\"fechaHora\":\"2030-01-01T00:00:00Z\"}";
+        mockMvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(path).header("X-User-Id", "org-2").header("X-User-Roles", "ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(path).header("X-User-Id", "org-1").header("X-User-Roles", "CLIENTE")
+                        .contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/eventos/inexistente").header("X-User-Id", "admin")
+                        .header("X-User-Roles", "ADMIN").contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                .andExpect(status().isNotFound());
+
+        for (String body : List.of("", "{}", "{\"fechaHora\":\"2020-01-01T00:00:00Z\"}",
+                "{\"fechaHora\":\"invalida\"}", "{\"fechaHora\":\"2030-01-01T00:00:00+02:00\"}",
+                "{\"lugarId\":\"inexistente\"}")) {
+            mockMvc.perform(put(path).header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        for (EstadoEvento estado : List.of(EstadoEvento.CANCELADO, EstadoEvento.FINALIZADO)) {
+            evento.setEstado(estado);
+            evento = eventoRepository.save(evento);
+            mockMvc.perform(put(path).header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                            .contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                    .andExpect(status().isConflict());
+        }
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.setCancelacionPendiente(true);
+        eventoRepository.save(evento);
+        mockMvc.perform(put(path).header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON).content(fechaValida))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void versionImpideSobrescribirIntencionDeCancelacionConcurrente() {
+        Evento evento = guardarEventoPublicado();
+        Evento obsoleto = eventoRepository.findById(evento.getId()).orElseThrow();
+        Evento intencion = eventoRepository.findById(evento.getId()).orElseThrow();
+        intencion.setCancelacionPendiente(true);
+        eventoRepository.save(intencion);
+        obsoleto.setFechaHora(Instant.now().plusSeconds(172800));
+
+        assertThrows(OptimisticLockingFailureException.class, () -> eventoRepository.save(obsoleto));
+        Evento persistido = eventoRepository.findById(evento.getId()).orElseThrow();
+        assertEquals(true, persistido.isCancelacionPendiente());
+        assertEquals(evento.getFechaHora(), persistido.getFechaHora());
     }
 
     private Evento guardarEventoPublicado() {

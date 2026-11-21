@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -23,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 import com.ticketya.gestionlugares.api.CreateEventoRequest;
+import com.ticketya.gestionlugares.api.ModificarEventoRequest;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
@@ -41,12 +44,13 @@ class EventoServiceTest {
 
     @Mock private EventoRepository eventoRepository;
     @Mock private LugarRepository lugarRepository;
+    @Mock private CatalogoCacheInvalidador catalogoCacheInvalidador;
 
     private EventoService service;
 
     @BeforeEach
     void setUp() {
-        service = new EventoService(eventoRepository, lugarRepository, org.mockito.Mockito.mock(CatalogoCacheInvalidador.class));
+        service = new EventoService(eventoRepository, lugarRepository, catalogoCacheInvalidador);
         lenient().when(eventoRepository.save(any(Evento.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -211,6 +215,32 @@ class EventoServiceTest {
 
         assertThrows(ConflictException.class, () -> service.asignarPrecio(EVENTO_ID,
                 "sector-uuid-1", BigDecimal.TEN, ORGANIZADOR, "organizador"));
+    }
+
+    @Test
+    void modificarSinCambioNoGuardaNiInvalidaAunqueFechaTengaPrecisionExtra() {
+        Evento evento = eventoBorrador();
+        evento.setFechaHora(Instant.parse("2030-01-01T00:00:00.123Z"));
+        when(eventoRepository.findById(EVENTO_ID)).thenReturn(Optional.of(evento));
+
+        service.modificarEvento(EVENTO_ID,
+                new ModificarEventoRequest("2030-01-01T00:00:00.123456Z", null), ORGANIZADOR, "ORGANIZADOR");
+
+        verify(eventoRepository, never()).save(any(Evento.class));
+        verify(catalogoCacheInvalidador, never()).invalidar();
+    }
+
+    @Test
+    void modificacionConVersionObsoletaPorIntencionDeCancelacionRespondeConflicto() {
+        Evento evento = eventoBorrador();
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoRepository.findById(EVENTO_ID)).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class)))
+                .thenThrow(new OptimisticLockingFailureException("intención concurrente"));
+
+        assertThrows(ConflictException.class, () -> service.modificarEvento(EVENTO_ID,
+                new ModificarEventoRequest("2030-01-01T00:00:00Z", null), ORGANIZADOR, "ORGANIZADOR"));
+        verify(catalogoCacheInvalidador, never()).invalidar();
     }
 
     @Test

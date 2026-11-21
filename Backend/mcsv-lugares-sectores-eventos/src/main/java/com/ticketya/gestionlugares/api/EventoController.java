@@ -68,6 +68,15 @@ public class EventoController {
                 .body(eventoService.crearEvento(request, userId, userRolesHeader));
     }
 
+    @PutMapping("/{eventoId}")
+    public Evento modificar(
+            @PathVariable String eventoId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Roles", required = false) String userRolesHeader,
+            @RequestBody ModificarEventoRequest request) {
+        return eventoService.modificarEvento(eventoId, request, userId, userRolesHeader);
+    }
+
     @PutMapping("/{eventoId}/sectores/{sectorId}/precio")
     @Operation(summary = "Definir el precio de un sector del evento", description = "Requiere X-User-Id y X-User-Roles con ORGANIZADOR; el usuario debe ser dueño del evento.")
     @ApiResponses({

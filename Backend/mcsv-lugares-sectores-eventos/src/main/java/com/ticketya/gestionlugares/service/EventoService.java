@@ -2,12 +2,18 @@ package com.ticketya.gestionlugares.service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import com.ticketya.gestionlugares.api.CreateEventoRequest;
+import com.ticketya.gestionlugares.api.ModificarEventoRequest;
 import com.ticketya.gestionlugares.domain.EstadoEvento;
 import com.ticketya.gestionlugares.domain.Evento;
 import com.ticketya.gestionlugares.domain.EventoSector;
@@ -50,6 +56,62 @@ public class EventoService {
                 request.nombre().trim(), request.descripcion().trim(), request.tipo().trim(),
                 request.participantes().stream().map(String::trim).toList(), request.fechaHora(), limite, sectores);
         return eventoRepository.save(evento);
+    }
+
+    public Evento modificarEvento(String eventoId, ModificarEventoRequest request, String userId,
+            String userRolesHeader) {
+        UserRoles roles = UserRoles.fromHeader(userRolesHeader);
+        if (userId == null || userId.isBlank() || roles.isEmpty()) {
+            throw new UnauthorizedException("Se requieren X-User-Id y X-User-Roles");
+        }
+        if (!roles.containsAny("ORGANIZADOR", "ADMIN")) {
+            throw new ForbiddenException("Se requiere ORGANIZADOR o ADMIN");
+        }
+        Evento evento = buscarEvento(eventoId);
+        if (!roles.contains("ADMIN") && !Objects.equals(evento.getOrganizadorId(), userId)) {
+            throw new ForbiddenException("El evento pertenece a otro organizador");
+        }
+        if (evento.getEstado() == EstadoEvento.CANCELADO || evento.getEstado() == EstadoEvento.FINALIZADO) {
+            throw new ConflictException("No se puede modificar un evento cancelado o finalizado");
+        }
+        validarSinCancelacionPendiente(evento);
+        if (request.fechaHora() == null && request.lugarId() == null) {
+            throw new IllegalArgumentException("Se requiere fechaHora o lugarId");
+        }
+
+        Instant fechaHora = request.fechaHora() == null ? evento.getFechaHora() : parsearFechaHora(request.fechaHora());
+        Lugar lugar = null;
+        if (request.lugarId() != null) {
+            if (request.lugarId().isBlank()) throw new IllegalArgumentException("El lugarId no puede estar vacío");
+            lugar = lugarRepository.findById(request.lugarId())
+                    .orElseThrow(() -> new IllegalArgumentException("No existe el lugar " + request.lugarId()));
+        }
+        boolean cambiaFecha = !Objects.equals(fechaHora, evento.getFechaHora());
+        boolean cambiaLugar = lugar != null && !Objects.equals(lugar.getId(), evento.getLugarId());
+        if (!cambiaFecha && !cambiaLugar) return evento;
+
+        evento.setFechaHora(fechaHora);
+        if (cambiaLugar) {
+            evento.setLugarId(lugar.getId());
+            evento.setCiudad(lugar.getCiudad());
+        }
+        return guardarCambioCatalogo(evento);
+    }
+
+    private static Instant parsearFechaHora(String valor) {
+        try {
+            OffsetDateTime fecha = OffsetDateTime.parse(valor);
+            if (!fecha.getOffset().equals(ZoneOffset.UTC)) {
+                throw new IllegalArgumentException("La fecha y hora debe estar expresada en UTC");
+            }
+            Instant fechaHora = fecha.toInstant().truncatedTo(ChronoUnit.MILLIS);
+            if (!fechaHora.isAfter(Instant.now())) {
+                throw new IllegalArgumentException("La fecha y hora de inicio debe ser futura");
+            }
+            return fechaHora;
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException("La fecha y hora debe ser ISO-8601 UTC", exception);
+        }
     }
 
     public Evento asignarPrecio(String eventoId, String sectorId, BigDecimal precio, String userId,
