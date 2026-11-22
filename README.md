@@ -1,200 +1,168 @@
-# TicketYa - Trabajo Practico Especial
+# TicketYa — Trabajo Práctico Especial
 
-## Levantar todo con Docker
+Plataforma de venta de entradas para eventos (Arquitectura Web, TUDAI, UNICEN). Está formada por nueve microservicios Spring Boot, un API Gateway y un frontend en Vue 3. Cada microservicio tiene su propia base de datos y su propio README dentro de `Backend/`.
 
-El `docker-compose.yml` de la raíz incluye el compose de cada microservicio (MS1 a MS9, con Entradas y Usuarios), más el Gateway y Mailpit. Las instrucciones están al principio de ese archivo: crear la red `ticketya-net` una sola vez, copiar `.env.example` a `.env`, completar los valores y ejecutar `docker compose up -d --build`. El Gateway queda en `http://localhost:8086`.
+## Servicios
 
-## Inicio local completo en Windows
+| | Servicio (Compose) | Puerto interno | Base de datos | Carpeta |
+|---|---|---:|---|---|
+| MS1 – Lugares, sectores y eventos | `lugares` | 8081 | MongoDB | `Backend/mcsv-lugares-sectores-eventos` |
+| MS2 – Disponibilidad y reservas | `reservas` | 8080 | MySQL | `Backend/mcsv-disponibildad-reservas` |
+| MS3 – Compras y devoluciones | `compras` | 8083 | MySQL | `Backend/mcsv-compras-devoluciones` |
+| MS4 – Pagos | `pagos` | 8084 | PostgreSQL | `Backend/mcvs-pagos` |
+| MS5 – Entradas | `entradas` | 8085 | PostgreSQL | `Backend/msvc-entradas` |
+| MS6 – Usuarios y autenticación | `usuarios` | 8087 | PostgreSQL | `Backend/mcsv-usuarios-autenticacion` |
+| MS7 – Fila virtual | `fila-virtual` | 8088 | MySQL | `Backend/mcsv-fila-virtual` |
+| MS8 – Preferencias y recomendaciones | `preferencias` | 8089 | MongoDB | `Backend/mcsv-preferencias-recomendaciones` |
+| MS9 – Notificaciones | `notificaciones` | 8090 | MySQL | `Backend/mcsv-notificaciones` |
+| API Gateway | `gateway` | 8086 | — | `Backend/APIGateWay` |
 
-Esta guia permite levantar la aplicacion desde PowerShell. No hace falta instalar Maven: los proyectos Java incluyen `mvnw.cmd`, que descarga Maven y sus dependencias la primera vez. Se necesita Internet.
+Servicios de apoyo incluidos en el Compose general: **Mailpit** (SMTP de prueba para Notificaciones) y **Loki + Alloy + Grafana** (recolección y consulta de logs, en `observabilidad/`).
+
+Los clientes entran solo por el Gateway, que valida el JWT emitido por MS6 y reenvía la identidad a cada servicio en `X-User-Id` y `X-User-Roles`. Los microservicios se llaman entre sí directamente por nombre de servicio (`http://lugares:8081`, etc.), sin pasar por el Gateway, y se autentican con el header `X-Service-Token`.
+
+## Levantar todo con Docker Compose
 
 ### Requisitos
 
-- Docker Desktop iniciado.
-- JDK 21 (necesario para MS1, MS2, MS3, MS5 y MS6; sirve tambien para MS4 y el Gateway).
-- Node.js 20.19+ o 22.12+ para el frontend.
-- Las bases de MS5 y MS6 se levantan con el docker-compose de cada servicio (ver abajo). Los README de cada servicio describen cómo iniciar sus bases.
+- **Docker Desktop** con Docker Compose 2.20 o superior (el Compose general usa `include`).
+- **Memoria:** el sistema completo son unos 25 contenedores (10 JVM y 8 bases). Con 16 GB de RAM, asigná al menos 10 GB a Docker. En Windows (WSL 2), creá `%UserProfile%\.wslconfig` con:
 
-Si PowerShell abre en `C:\Windows\System32`, primero cambia a la carpeta donde clonaste el repositorio. Reemplaza esta ruta por la ubicacion de tu copia:
+  ```ini
+  [wsl2]
+  memory=10GB
+  ```
 
-```powershell
-cd "D:\ruta\Trabajo-Practico-Especial"
-```
+  y aplicalo con `wsl --shutdown` antes de volver a abrir Docker Desktop. Con menos memoria, los servicios se pausan y los pedidos pueden vencer por timeout.
+- **Git Bash** (o cualquier bash) para el script de prueba de punta a punta.
 
-Inicia las bases de datos antes que sus microservicios:
+### Pasos
 
-1. **MongoDB de MS1** (incluido en el repositorio):
+Desde la raíz del repositorio:
 
-   ```powershell
-   cd .\Backend\mcsv-lugares-sectores-eventos
-   docker compose up -d mongodb
-   cd ..\..
-   ```
+1. Crear la red compartida (una sola vez por instalación de Docker):
 
-2. **MySQL de MS2**: en una instalación nueva, levanta la base con el Compose del repositorio y las mismas credenciales que lee la aplicación:
-
-   ```powershell
-   cd .\Backend\mcsv-disponibildad-reservas
-   $passwordLine = Select-String -Path .\src\main\resources\application.properties -Pattern '^spring\.datasource\.password='
-   $env:MS2_DB_PASSWORD = $passwordLine.Line -replace '^spring\.datasource\.password=', ''
-   docker compose up -d mysql
-   cd ..\..
-   ```
-
-   Esto publica el puerto del host `3307` hacia el `3306` interno de MySQL. MS3 usa el puerto de host `3306`, por lo que ambos pueden ejecutarse a la vez. Si ya tenés un contenedor MySQL de MS2 escuchando en `3307`, dejalo en uso y no levantes Compose en ese puerto. Más detalles en [Backend/mcsv-disponibildad-reservas/README.md](Backend/mcsv-disponibildad-reservas/README.md).
-3. **MySQL de MS3**: en una instalación nueva, crea un contenedor local (cambia la contraseña por una propia):
-
-   ```powershell
-   docker run --name ticketya-mysql --restart unless-stopped -e MYSQL_ROOT_PASSWORD='tu-contraseña' -e MYSQL_DATABASE=ticketya_compras -p 3306:3306 -d mysql:8.0
-   ```
-
-   En siguientes ejecuciones, usa `docker start ticketya-mysql`. La contraseña de `DB_PASSWORD` al iniciar MS3 debe coincidir con `MYSQL_ROOT_PASSWORD`. Los detalles están en [Backend/mcsv-compras-devoluciones/README.md](Backend/mcsv-compras-devoluciones/README.md).
-4. **PostgreSQL de MS4 (Pagos)**: en una terminal:
-
-   ```powershell
-   cd .\Backend\mcvs-pagos
-   if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-   docker compose up -d postgres
-   ```
-
-   El `.env.example` usa credenciales de demostracion solo para desarrollo local. Si ya hay otro PostgreSQL ocupando `5435`, no inicies otro contenedor en ese puerto; revisa [Backend/mcvs-pagos/README.md](Backend/mcvs-pagos/README.md) para configurar el servicio con la base existente.
-5. **PostgreSQL de MS5 (Entradas)** y 6. **PostgreSQL de MS6 (Usuarios)**: cada uno se levanta con su propio compose. Requieren la red compartida (una sola vez) y un `.env` en cada carpeta, copiado de `.env.example`, con al menos `DB_PASSWORD`:
-
-   ```powershell
+   ```sh
    docker network create ticketya-net
    ```
 
-   ```powershell
-   cd .\Backend\msvc-entradas
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-entradas
-   cd ..\mcsv-usuarios-autenticacion
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres-usuarios
-   cd ..\..
+2. Crear el `.env` de la raíz a partir del ejemplo y completar los valores vacíos:
+
+   ```sh
+   cp .env.example .env        # PowerShell: Copy-Item .env.example .env   |   CMD: copy .env.example .env
    ```
 
-   Publican los puertos `5433` (Entradas) y `5436` (Usuarios) en `127.0.0.1`. Para levantar cada servicio completo en Docker (base + aplicación), ver [Backend/msvc-entradas/Documentacion/README.md](Backend/msvc-entradas/Documentacion/README.md) y [Backend/mcsv-usuarios-autenticacion/README.md](Backend/mcsv-usuarios-autenticacion/README.md).
+   | Variable | Uso |
+   |---|---|
+   | `SERVICIO_TOKEN` | Token compartido del header `X-Service-Token`; mismo valor en todos los servicios. |
+   | `JWT_SECRET` | Secreto de los JWT, de 32 caracteres o más; lo usan MS6 (firma) y el Gateway (validación). |
+   | `DB_PASSWORD` | Contraseña de las bases de Compras, Notificaciones, Pagos, Entradas y Usuarios (cada una tiene su propia base). |
+   | `MYSQL_ROOT_PASSWORD` | Root de MySQL de Compras y Notificaciones. |
+   | `MS2_DB_PASSWORD`, `MS2_MYSQL_ROOT_PASSWORD` | Base de Reservas. |
+   | `MS7_DB_PASSWORD`, `MS7_MYSQL_ROOT_PASSWORD` | Base de Fila virtual. |
+   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Administrador inicial de MS6 (contraseña de 8 caracteres o más, con letras y números). |
+   | `USUARIOS_BASE_URL`, `SMTP_HOST`, `SMTP_PORT` | Ya vienen completas (`http://usuarios:8087`, `mailpit`, `1025`). |
 
-Espera a que Docker indique que las bases están iniciadas antes de lanzar los microservicios.
+   Opcionales: `GATEWAY_RESPONSE_TIMEOUT` (por defecto `15s`), `GATEWAY_CORS_ALLOWED_ORIGINS` (por defecto `http://localhost:5173`) y `JWT_ISSUER` (por defecto `ticketya-usuarios`).
 
-### Inicia los servicios
+   > El `.env` de la raíz se aplica a todos los Compose incluidos y tiene prioridad sobre los `.env` de cada carpeta. No agregues ahí `PORT`, `SERVER_PORT`, `PUERTO`, `DB_USER`, `DB_URL`, `DB_NAME`, `DB_HOST` ni `DB_PORT`: varios servicios usan esos nombres con valores distintos.
 
-Abre **una ventana de PowerShell por cada bloque**, desde la raiz del repositorio (o ejecuta primero el `cd` a la raiz mostrado arriba en cada ventana). Deja cada terminal abierta mientras uses la aplicacion. Inicia MS2, MS4 y MS5 antes de MS1; inicia MS3 después de sus dependencias y el Gateway al final.
+3. Construir y levantar:
 
-**MS2 - Disponibilidad y reservas** (inícialo antes de MS1):
+   ```sh
+   docker compose up -d --build
+   docker compose ps
+   ```
 
-```powershell
-cd .\Backend\mcsv-disponibildad-reservas
-.\mvnw.cmd spring-boot:run
+   La primera construcción descarga las dependencias de Maven y puede tardar entre 15 y 30 minutos. El arranque completo puede tardar varios minutos más: mientras arranca, es normal ver servicios en `health: starting` o `unhealthy`. Cuando terminan, todos los que tienen healthcheck quedan en `healthy`; el Gateway y los servicios de observabilidad sin healthcheck figuran como `Up`.
+
+### Qué queda expuesto
+
+| URL | Qué es |
+|---|---|
+| <http://localhost:8086> | API Gateway: única entrada para clientes y frontend. |
+| <http://localhost:8025> | Mailpit: bandeja de los correos que envía Notificaciones. |
+| <http://localhost:3000> | Grafana: dashboard **TicketYa → TicketYa - Logs**. |
+| <http://localhost:12345> | Alloy: estado del pipeline de logs (diagnóstico). |
+
+Los microservicios y las bases no publican puertos en el host. Para consultar un servicio sin pasar por el Gateway, usá `docker compose exec`, por ejemplo:
+
+```sh
+docker compose exec lugares wget -qO- http://localhost:8081/eventos
 ```
 
-**MS1 - Eventos y lugares** (inícialo después de MS2; su perfil de desarrollo sincroniza con MS2 la disponibilidad de los eventos de ejemplo):
+### Usuarios de prueba
 
-```powershell
-cd .\Backend\mcsv-lugares-sectores-eventos
-.\mvnw.cmd spring-boot:run
+MS6 crea al arrancar un usuario por rol, todos con la contraseña `Prueba123`:
+
+| Correo | Rol |
+|---|---|
+| `cliente@ticketya.test` | CLIENTE |
+| `organizador@ticketya.test` | ORGANIZADOR |
+| `admin@ticketya.test` | ADMIN |
+| `personal@ticketya.test` | PERSONAL_ACCESO |
+
+Para obtener un token:
+
+```sh
+curl -X POST http://localhost:8086/auth/login -H "Content-Type: application/json" -d '{"correo":"cliente@ticketya.test","password":"Prueba123"}'
 ```
 
-**MS3 - Compras y devoluciones** (inícialo después de MS2, MS4 y MS5; reemplaza la contraseña por la de tu MySQL):
+y enviarlo como `Authorization: Bearer <token>`. La búsqueda y el detalle de eventos (`GET /eventos`, `GET /eventos/{eventoId}`) son públicos.
 
-```powershell
-cd .\Backend\mcsv-compras-devoluciones
-$env:DB_USER = 'root'
-$env:DB_PASSWORD = 'tu-contraseña'
-.\mvnw.cmd spring-boot:run
+### Prueba de punta a punta
+
+`scripts/prueba-conjunta.sh` recorre el flujo completo por el Gateway: login de los tres roles, alta de lugar y sector (ADMIN), creación, precio y publicación de un evento (ORGANIZADOR), reserva, compra y pago (CLIENTE) y modificación del evento. Desde Git Bash, con todo en `healthy`:
+
+```sh
+bash scripts/prueba-conjunta.sh
 ```
 
-**MS4 - Pagos** (desde la carpeta `Backend\mcvs-pagos`, usando el `.env` creado antes):
+Cada paso muestra su código HTTP y se detiene ante el primer resultado inesperado. Al terminar, en Mailpit tienen que aparecer para `cliente@ticketya.test` los correos de entradas disponibles, compra confirmada y cambios en el evento (el último puede tardar uno o dos minutos).
 
-```powershell
-cd .\Backend\mcvs-pagos
-$config = Get-Content .env | ConvertFrom-StringData
-$env:JAVA_TOOL_OPTIONS = '-Duser.timezone=UTC'
-$env:DB_HOST = 'localhost'
-$env:DB_PORT = $config.DB_PORT
-$env:DB_NAME = $config.DB_NAME
-$env:DB_USER = $config.DB_USER
-$env:DB_PASSWORD = $config.DB_PASSWORD
-.\mvnw.cmd spring-boot:run
+### Logs y trazabilidad
+
+Todos los servicios escriben sus logs en la consola con el `X-Correlation-Id` del pedido. El Gateway lo genera si el cliente no lo envía y los servicios lo propagan en sus llamadas a otros servicios. Alloy recolecta los logs de los contenedores (excepto las bases), Loki los guarda siete días y Grafana los muestra. En el dashboard **TicketYa - Logs** se filtra por servicio, nivel o texto: buscar un `correlationId` muestra el recorrido de un pedido por todos los servicios. El script de prueba usa IDs `pc-<hora>-<paso>` para facilitar esa búsqueda.
+
+### Detener y volver a levantar
+
+```sh
+docker compose stop      # detiene todo y conserva contenedores y datos
+docker compose start     # vuelve a levantar lo detenido
+docker compose down      # elimina los contenedores; los datos quedan en los volúmenes
+docker compose down -v   # elimina también los volúmenes: BORRA TODOS LOS DATOS
 ```
 
-Si Pagos ya usa una base existente en `localhost:5435`, configura `DB_PASSWORD` con la contraseña real de esa base en vez de copiar las credenciales de ejemplo.
+### Problemas comunes
 
-**MS5 - Entradas** (`DB_PASSWORD` es la del `.env` de su carpeta):
+- **`network ticketya-net declared as external, but could not be found`**: falta el paso 1 (`docker network create ticketya-net`).
+- **`required variable ... is missing a value`**: falta completar esa variable en el `.env` de la raíz.
+- **Servicios `unhealthy` durante varios minutos o pedidos lentos**: suele ser falta de memoria o CPU. Revisá `docker stats --no-stream`, cerrá otras aplicaciones pesadas y asigná más memoria a Docker (ver Requisitos).
+- **`504 Gateway Timeout`**: el servicio tardó más que `GATEWAY_RESPONSE_TIMEOUT`. Publicar un evento, por ejemplo, llama a Reservas y a Preferencias antes de responder. En máquinas lentas se puede subir en el `.env` (por ejemplo, `30s`) y aplicar con `docker compose up -d gateway`.
+- **Un servicio llama a URLs equivocadas (por ejemplo, `host.docker.internal`)**: si una carpeta de `Backend/` tiene su propio `.env` (por ejemplo, para probar con simuladores), el Compose general toma de ahí las variables que el `.env` de la raíz no define. Comentá esas URLs y recreá el servicio con `docker compose up -d <servicio>`.
+- **Una base rechaza la contraseña**: la contraseña se fija al crear el volumen. Si el volumen se creó antes con otra, hay que volver a la contraseña original o borrar el volumen (`docker compose down -v`, que elimina los datos).
+- **`container name ... is already in use` o servicios duplicados**: hay un Compose individual de algún servicio levantado. Bajalo con `docker compose down` dentro de su carpeta antes de usar el Compose general.
+- **Puerto ocupado (8086, 8025, 3000 o 12345)**: detené el proceso o contenedor que lo usa.
+- **Git falla con `Rename from '.../.git/index.lock' ... failed`** (repositorio dentro de OneDrive): pausá la sincronización de OneDrive y reintentá.
 
-```powershell
-cd .\Backend\msvc-entradas
-$env:DB_PASSWORD = '<la contraseña del .env>'
-.\mvnw.cmd spring-boot:run
-```
+## Frontend
 
-**MS6 - Usuarios y autenticación** (emite los JWT; `JWT_SECRET` debe ser el mismo valor en MS6 y en el Gateway, de al menos 32 caracteres; `ADMIN_EMAIL` y `ADMIN_PASSWORD` crean el administrador inicial y son obligatorias; `DB_PASSWORD` es la del `.env` de su carpeta):
+La interfaz de cliente está hecha con Vue 3 y Vite y usa el Gateway en `http://localhost:8086`. Requiere Node.js 20.19+ o 22.12+:
 
-```powershell
-cd .\Backend\mcsv-usuarios-autenticacion
-$env:DB_PASSWORD = '<la contraseña del .env>'
-$env:JWT_SECRET = '<clave compartida con el Gateway, al menos 32 caracteres>'
-$env:ADMIN_EMAIL = 'admin@ticketya.local'
-$env:ADMIN_PASSWORD = '<contraseña con 8+ caracteres, letras y números>'
-.\mvnw.cmd spring-boot:run
-```
-
-En desarrollo, MS6 crea un usuario de prueba por rol (`cliente@ticketya.test`, `organizador@ticketya.test`, `admin@ticketya.test` y `personal@ticketya.test`, contraseña `Prueba123`). Para obtener un token: `POST http://localhost:8086/auth/login` con `{"correo": "...", "password": "..."}`.
-
-**API Gateway** (con el mismo `JWT_SECRET` que MS6):
-
-```powershell
-cd .\Backend\APIGateWay
-$env:JWT_SECRET = '<la misma clave que en MS6>'
-.\mvnw.cmd spring-boot:run
-```
-
-El Gateway escucha en `http://localhost:8086`.
-
-### Abre el frontend
-
-Abre otra PowerShell y ve a la carpeta del frontend:
-
-```powershell
-cd .\Frontend
-```
-
-La primera vez que se descarga el proyecto, instala las dependencias de Node.js (no instala Node.js):
-
-```powershell
-npm ci
-```
-
-Luego inicia Vite:
-
-```powershell
+```sh
+cd Frontend
+npm ci          # solo la primera vez
 npm run dev
 ```
 
-Deja esa terminal abierta y abre `http://localhost:5173` en el navegador. En siguientes ejecuciones, con Node.js ya instalado y las dependencias descargadas, alcanza con `npm run dev`. El frontend usa el Gateway en `http://localhost:8086`.
+Abrí <http://localhost:5173>. El flujo de usuario está descrito en [Frontend/README.md](Frontend/README.md).
 
-### Puertos locales
+## Ejecutar un servicio fuera de Docker
 
-| Componente | Puerto |
-|---|---:|
-| MS1 - Eventos y lugares | 8081 |
-| MS2 - Disponibilidad y reservas | 8080 |
-| MS3 - Compras y devoluciones | 8083 |
-| MS4 - Pagos | 8084 |
-| MS5 - Entradas | 8085 |
-| API Gateway | 8086 |
-| MS6 - Usuarios y autenticación | 8087 |
-| Frontend | 5173 |
-| MongoDB de MS1 | 27017 |
-| MySQL de MS2 | 3307 |
-| MySQL de MS3 | 3306 |
-| PostgreSQL de MS5 | 5433 |
-| PostgreSQL de MS4 | 5435 |
-| PostgreSQL de MS6 | 5436 |
+Para desarrollar un microservicio en particular, cada README de `Backend/` explica cómo correrlo desde el host con `mvnw` y cómo levantar solo su base. Los `docker-compose.dev.yml` de cada carpeta publican, únicamente en desarrollo, el puerto de la aplicación (y en algunos casos el de su base) en el host.
 
-Si un puerto ya esta ocupado, detén el proceso o contenedor que lo usa antes de iniciar el servicio. No elimines volúmenes de Docker para resolver problemas de conexión: pueden contener datos persistentes.
+## Documentación
 
-## Interfaz grafica
-
-La interfaz de cliente esta desarrollada con Vue 3 y Vite. Permite buscar eventos, consultar sectores y disponibilidad, reservar lugares, iniciar compras, probar el pago simulado y consultar las entradas emitidas. El pago es una simulacion local de MS4; no realiza cobros reales.
-
-Para instrucciones del flujo de usuario, consultar [Frontend/README.md](Frontend/README.md). Para ejecutar cada microservicio por separado y conocer su configuracion, consultar los README dentro de `Backend`.
+- `Backend/*/README.md`: configuración, API, decisiones y pruebas de cada servicio.
+- `openspec/` y las carpetas `openspec/` de cada servicio: especificaciones y cambios (desarrollo guiado por especificaciones).
+- `docs/`: documentación general del proyecto.
