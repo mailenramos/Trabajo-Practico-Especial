@@ -57,6 +57,8 @@ docker compose ps
 
 El `.env` de la raíz define `SERVICIO_TOKEN` y `USUARIOS_BASE_URL`. En el Compose general, MS1 no publica puertos: se accede por el Gateway en `http://localhost:8086` o desde dentro del contenedor:
 
+**Advertencia:** Si existe un `.env` en esta carpeta con URLs de stubs (por ejemplo, `http://host.docker.internal:8080`), el Compose general las usa para las variables que el `.env` de la raíz no define. Comentá esas URLs antes de levantar el Compose general.
+
 ```sh
 docker compose exec lugares wget -qO- http://localhost:8081/eventos
 ```
@@ -101,7 +103,7 @@ curl.exe -H "X-User-Id: organizador-demo" -H "X-User-Roles: ORGANIZADOR" http://
 
 El servicio local usa `http://localhost:8081` por defecto. En operaciones protegidas, el cliente envía `Authorization: Bearer <jwt>` al Gateway (`http://localhost:8086`), que valida el JWT e inyecta `X-User-Id` y `X-User-Roles`; el cliente no envía esos headers. MS1 no valida JWT y confía en los headers recibidos. El servicio reconoce cada rol por separado, sin elegir uno arbitrariamente, compara sin distinguir mayúsculas y recorta espacios. Los endpoints internos de callback y consulta entre servicios no exigen headers de usuario.
 
-**Nota:** La búsqueda y el detalle de eventos que no son borradores son públicos en MS1; el Gateway debe exponerlos sin token (pendiente de ajuste en el Gateway).
+**Nota:** `GET /eventos` y `GET /eventos/{eventoId}` para eventos que no son borradores son públicos también a través del Gateway.
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
@@ -220,7 +222,7 @@ La comunicación entre servicios es directa, por REST/JSON. Las llamadas salient
 
 MS1 acepta `X-Correlation-Id` de hasta 100 caracteres ASCII (letras, números, `-`, `_` y `.`); si falta o es inválido genera un UUID. Lo devuelve en la respuesta y lo incluye en los logs de stdout. Por cada solicitud, salvo `/actuator/**`, registra método, ruta sin query, usuario si existe, estado y duración; no registra tokens ni cuerpos.
 
-El ID se propaga a Reservas, MS6 y las llamadas de outbox. Los avisos de publicación y cancelación lo guardan para conservarlo en los reintentos; los avisos antiguos sin ID generan uno al despacharse. Las llamadas programadas sin contexto también generan uno. La recolección de logs corresponde al Compose general.
+El ID se propaga a Reservas, MS6 y las llamadas de outbox. Los avisos de publicación y cancelación lo guardan para conservarlo en los reintentos; los avisos antiguos sin ID generan uno al despacharse. Las llamadas programadas sin contexto también generan uno. En el Compose general, Alloy recolecta los logs de los contenedores y se consultan en Grafana (http://localhost:3000, dashboard "TicketYa - Logs"), filtrando por servicio, nivel o correlationId.
 
 El documento [docs/api-gateway-contract.md](docs/api-gateway-contract.md) detalla los paths, headers y reglas de reenvío para el API Gateway.
 
@@ -370,7 +372,7 @@ Defaults aplicados por el Compose de Docker:
 | `OUTBOX_DISPATCHER_INTERVAL` | `outbox.dispatcher.interval` | `60s` |
 | `SPRING_PROFILES_ACTIVE` | Perfil activo de Spring | `docker` |
 
-El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Desde el host, las URLs predeterminadas son Reservas `http://localhost:8080`, Compras `http://localhost:8083`, Fila `http://localhost:8088`, Usuarios `http://localhost:8087` y Preferencias `http://localhost:8089`. En Docker, `USUARIOS_BASE_URL` usa `http://usuarios:8087` por defecto. Los timeouts de Reservas tienen defaults `2s`/`5s`; el Compose base no pasa `RESERVAS_CONNECT_TIMEOUT` ni `RESERVAS_READ_TIMEOUT` al contenedor.
+El default de host de `MONGODB_URI` en `application.yml` es `mongodb://localhost:27017/ticketya_lugares?directConnection=true`; usa `directConnection=true` porque el replica set anuncia su miembro con el nombre Docker `mongodb:27017`. Desde el host, las URLs predeterminadas son Reservas `http://localhost:8080`, Compras `http://localhost:8083`, Fila `http://localhost:8088`, Usuarios `http://localhost:8087` y Preferencias `http://localhost:8089`. En Docker, `USUARIOS_BASE_URL` usa `http://usuarios:8087` por defecto. El Compose base pasa los timeouts de Reservas al contenedor, con defaults `2s`/`5s`.
 
 El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destinos usan conexión `2s` y lectura `5s` fijos. El máximo de intentos, backoff y lease también son fijos; no hay variables de entorno para esos valores.
 

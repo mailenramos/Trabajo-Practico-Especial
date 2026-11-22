@@ -4,7 +4,7 @@ La tabla contiene todas las rutas públicas actuales de `mcsv-lugares-sectores-e
 
 En operaciones protegidas, el cliente envía `Authorization: Bearer <jwt>` al Gateway, no los headers de identidad. El Gateway valida el JWT e inyecta `X-User-Id` con el valor de `sub` y `X-User-Roles` con los roles separados por comas; MS1 no valida JWT. El microservicio aplica la autorización final y evalúa todos los roles de la lista, sin precedencia arbitraria; acepta `CLIENTE`, `ORGANIZADOR` y `ADMIN`, ignora diferencias de mayúsculas y recorta espacios.
 
-**Nota:** `GET /eventos` y el detalle de eventos que no son borradores son públicos en MS1; el Gateway debe exponerlos sin token (pendiente de ajuste en el Gateway).
+**Nota:** `GET /eventos` y `GET /eventos/{eventoId}` para eventos que no son borradores son públicos también a través del Gateway.
 
 | Método | Path backend | Se publica por Gateway | Headers requeridos | Body | Respuestas esperadas |
 |---|---|---:|---|---|---|

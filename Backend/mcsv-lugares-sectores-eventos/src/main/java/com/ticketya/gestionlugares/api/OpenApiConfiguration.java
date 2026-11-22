@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
         title = "TicketYa - Gestión de lugares, sectores y eventos",
         version = "1.0.0",
         description = "API para lugares y sectores, y para el ciclo de vida completo de eventos: creación en borrador, precios, límite por cliente, publicación con inicialización en Reservas, suspensión y reactivación de venta, cancelación y callback interno de disponibilidad. "
-                + "La búsqueda y el detalle de eventos que no son borradores son públicos en MS1; el Gateway debe exponerlos sin token (pendiente de ajuste en el Gateway). "
+                + "GET /eventos y GET /eventos/{eventoId} para eventos que no son borradores son públicos también a través del Gateway. "
                 + "Las rutas internas y /actuator no se exponen por el Gateway."),
         servers = {
                 @Server(url = "http://localhost:8086", description = "API Gateway"),

@@ -25,6 +25,8 @@ services:
     environment:
       MONGODB_URI: mongodb://mongodb:27017/ticketya_lugares?replicaSet=rs0
       RESERVAS_BASE_URL: ${RESERVAS_BASE_URL:-http://reservas:8080}
+      RESERVAS_CONNECT_TIMEOUT: ${RESERVAS_CONNECT_TIMEOUT:-2s}
+      RESERVAS_READ_TIMEOUT: ${RESERVAS_READ_TIMEOUT:-5s}
       FILAS_BASE_URL: ${FILAS_BASE_URL:-http://fila-virtual:8088}
       COMPRAS_BASE_URL: ${COMPRAS_BASE_URL:-http://compras:8083}
       USUARIOS_BASE_URL: ${USUARIOS_BASE_URL:-http://usuarios:8087}

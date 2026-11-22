@@ -264,7 +264,7 @@ class OpenApiDocumentationTest {
                 "El export OpenAPI debe coincidir con /v3/api-docs");
         JsonNode scheme = api.path("components").path("securitySchemes").path("bearerAuth");
         assertTrue(api.path("info").path("description").asText()
-                .contains("pendiente de ajuste en el Gateway"));
+                .contains("GET /eventos y GET /eventos/{eventoId} para eventos que no son borradores son públicos también a través del Gateway"));
         assertEquals("http", scheme.path("type").asText());
         assertEquals("bearer", scheme.path("scheme").asText());
         assertEquals("JWT", scheme.path("bearerFormat").asText());
