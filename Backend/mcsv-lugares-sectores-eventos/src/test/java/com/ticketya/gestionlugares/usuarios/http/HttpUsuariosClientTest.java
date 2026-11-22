@@ -68,6 +68,7 @@ class HttpUsuariosClientTest {
             server.expect(requestTo("http://usuarios.test/internal/usuarios/por-correo?correo=a%40b.com"))
                     .andRespond(withStatus(status).body("token-prueba secreto-cuerpo"));
         }
+
         server.expect(requestTo("http://usuarios.test/internal/usuarios/por-correo?correo=a%40b.com"))
                 .andRespond(request -> { throw new IOException("token-prueba secreto-transporte"); });
         assertThrows(ResourceNotFoundException.class, () -> client.consultarPorCorreo("a@b.com"));
@@ -79,6 +80,41 @@ class HttpUsuariosClientTest {
         assertFalse(output.getAll().contains("secreto-cuerpo"));
         assertFalse(output.getAll().contains("secreto-transporte"));
         org.junit.jupiter.api.Assertions.assertTrue(output.getAll().contains("Error de configuración de autenticación con MS6"));
+        server.verify();
+    }
+
+    @Test
+    void circuitoIgnora4xxYRegistraErroresDeServidorYTransporte() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://usuarios.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        HttpUsuariosClient client = cliente(builder);
+        var config = io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.custom()
+                .slidingWindowSize(2).minimumNumberOfCalls(2).failureRateThreshold(100)
+                .ignoreException(new com.ticketya.gestionlugares.usuarios.ErroresIgnoradosUsuariosPredicate())
+                .build();
+        var registry = io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.of(config);
+        var protegido = new com.ticketya.gestionlugares.usuarios.UsuariosSincrono(registry);
+        for (HttpStatus status : List.of(HttpStatus.NOT_FOUND, HttpStatus.UNAUTHORIZED,
+                HttpStatus.FORBIDDEN, HttpStatus.BAD_REQUEST, HttpStatus.INTERNAL_SERVER_ERROR)) {
+            server.expect(requestTo("http://usuarios.test/internal/usuarios/por-correo?correo=a%40b.com"))
+                    .andRespond(withStatus(status));
+        }
+        server.expect(requestTo("http://usuarios.test/internal/usuarios/por-correo?correo=a%40b.com"))
+                .andRespond(request -> { throw new IOException("timeout"); });
+        assertThrows(ResourceNotFoundException.class, () -> protegido.ejecutar(() -> client.consultarPorCorreo("a@b.com")));
+        for (int i = 0; i < 3; i++) {
+            assertThrows(ServiceUnavailableException.class,
+                    () -> protegido.ejecutar(() -> client.consultarPorCorreo("a@b.com")));
+        }
+        var circuit = registry.circuitBreaker("usuarios");
+        assertEquals(0, circuit.getMetrics().getNumberOfBufferedCalls());
+        for (int i = 0; i < 2; i++) {
+            assertThrows(ServiceUnavailableException.class,
+                    () -> protegido.ejecutar(() -> client.consultarPorCorreo("a@b.com")));
+        }
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN, circuit.getState());
+        assertThrows(ServiceUnavailableException.class,
+                () -> protegido.ejecutar(() -> client.consultarPorCorreo("a@b.com")));
         server.verify();
     }
 

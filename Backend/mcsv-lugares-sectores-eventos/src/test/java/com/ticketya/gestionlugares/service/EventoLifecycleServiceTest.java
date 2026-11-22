@@ -58,7 +58,9 @@ class EventoLifecycleServiceTest {
     @BeforeEach
     void setUp() {
         lifecycleService = new EventoLifecycleService(eventoService, reservasClient,
-                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher);
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
     }
 
     @Test
@@ -190,7 +192,9 @@ class EventoLifecycleServiceTest {
         var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
         ReservasClient cliente = new com.ticketya.gestionlugares.reservas.http.HttpReservasClient(builder.build());
         var lifecycle = new EventoLifecycleService(eventoService, cliente, eventoCancelacionOutboxService,
-                eventoPublicacionOutboxService, outboxDispatcher);
+                eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders
                 .standaloneSetup(new com.ticketya.gestionlugares.api.EventoController(eventoService, lifecycle))
                 .setControllerAdvice(new com.ticketya.gestionlugares.api.ApiExceptionHandler()).build();
@@ -261,6 +265,47 @@ class EventoLifecycleServiceTest {
     }
 
     @Test
+    void circuitoPuedeAbrirseEntreInicializacionYActivacionSinPublicar() {
+        var registry = io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults();
+        var circuit = registry.circuitBreaker("reservas");
+        var lifecycle = new EventoLifecycleService(eventoService, reservasClient,
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(registry));
+        Evento borrador = draft();
+        when(eventoService.validarPublicacion(EVENTO_ID, USER_ID, "organizador")).thenReturn(borrador);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            circuit.transitionToOpenState();
+            return null;
+        }).when(reservasClient).inicializarDisponibilidad(any(), any());
+
+        assertThrows(ServiceUnavailableException.class,
+                () -> lifecycle.publicar(EVENTO_ID, USER_ID, "organizador"));
+        verify(reservasClient, never()).cambiarEstadoVenta(any(), any());
+        verify(eventoPublicacionOutboxService, never()).publicarConAvisoOutbox(any(), any(), any());
+        assertEquals(EstadoEvento.BORRADOR, borrador.getEstado());
+    }
+
+    @Test
+    void finalizacionSigueInvocandoReservasConCircuitoAbierto() {
+        var registry = io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults();
+        var circuit = registry.circuitBreaker("reservas");
+        circuit.transitionToOpenState();
+        var lifecycle = new EventoLifecycleService(eventoService, reservasClient,
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(registry));
+        Evento vencido = draft();
+        vencido.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoService.buscarPendientesDeFinalizacion(any())).thenReturn(List.of(vencido));
+
+        lifecycle.finalizarVencidos();
+
+        verify(reservasClient).cambiarEstadoVenta(EVENTO_ID, EstadoVentaReservas.FINALIZADA);
+        verify(eventoService).finalizarLocal(EVENTO_ID);
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN, circuit.getState());
+        assertEquals(0, circuit.getMetrics().getNumberOfBufferedCalls());
+    }
+
+    @Test
     void conflictoDeVersionConcurrenteAlRegistrarCancelacionDevuelve503() {
         Evento primeraLectura = draft();
         primeraLectura.setEstado(EstadoEvento.PUBLICADO);
@@ -278,7 +323,9 @@ class EventoLifecycleServiceTest {
                 new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),
                 new com.ticketya.gestionlugares.filas.http.FilasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(versionedEventService, reservasClient,
-                cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
+                cancellationService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
 
         assertThrows(ServiceUnavailableException.class,
                 () -> concurrentLifecycle.cancelar(EVENTO_ID, "admin-1", "ADMIN"));
@@ -306,7 +353,9 @@ class EventoLifecycleServiceTest {
                 new com.ticketya.gestionlugares.reservas.http.ReservasProperties(),
                 new com.ticketya.gestionlugares.filas.http.FilasProperties());
         EventoLifecycleService concurrentLifecycle = new EventoLifecycleService(realEventService, reservasClient,
-                cancellationService, eventoPublicacionOutboxService, outboxDispatcher);
+                cancellationService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
         when(outboxAvisoRepository.confirmarReclamo(any(), any())).thenReturn(true);
         when(outboxDispatcher.procesarCancelacion("cancelacion-reservas-" + EVENTO_ID)).thenAnswer(invocation -> {
             realEventService.aplicarDisponibilidadLocal(EVENTO_ID, true);

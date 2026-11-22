@@ -48,7 +48,10 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = {"spring.data.mongodb.auto-index-creation=false", "outbox.dispatcher.interval=3600000"})
+@SpringBootTest(properties = {"spring.data.mongodb.auto-index-creation=false", "outbox.dispatcher.interval=3600000",
+        "resilience4j.circuitbreaker.instances.reservas.sliding-window-size=2",
+        "resilience4j.circuitbreaker.instances.reservas.minimum-number-of-calls=2",
+        "resilience4j.circuitbreaker.instances.reservas.failure-rate-threshold=100"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
@@ -66,13 +69,106 @@ class EventoDetalleDisponibilidadIntegrationTest {
     @Autowired private LugarRepository lugarRepository;
     @Autowired private OutboxAvisoRepository outboxRepository;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitos;
+    @Autowired private org.springframework.boot.actuate.health.HealthContributorRegistry healthRegistry;
     @MockBean private ReservasClient reservasClient;
 
     @BeforeEach
     void limpiarBase() {
+        circuitos.circuitBreaker("reservas").reset();
+        circuitos.circuitBreaker("usuarios").reset();
         eventoRepository.deleteAll();
         lugarRepository.deleteAll();
         outboxRepository.deleteAll();
+    }
+
+    @Test
+    void circuitoAbiertoDegradaDetallePublicacionYSuspensionSinNuevasLlamadas() throws Exception {
+        Lugar lugar = crearLugar();
+        Evento publicado = crearEvento(lugar, EstadoEvento.PUBLICADO);
+        Evento borrador = crearEvento(lugar, EstadoEvento.BORRADOR);
+        when(reservasClient.consultarDisponibilidad(publicado.getId()))
+                .thenThrow(new ReservasClientException("timeout"));
+
+        for (int intento = 0; intento < 3; intento++) {
+            mockMvc.perform(get("/eventos/{id}", publicado.getId()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.sectores[0].disponibilidad").value(org.hamcrest.Matchers.nullValue()));
+        }
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN,
+                circuitos.circuitBreaker("reservas").getState());
+        verify(reservasClient, org.mockito.Mockito.times(2)).consultarDisponibilidad(publicado.getId());
+
+        mockMvc.perform(put("/eventos/{id}/publicar", borrador.getId())
+                        .header("X-User-Id", "org-1").header("X-User-Roles", "ORGANIZADOR"))
+                .andExpect(status().isServiceUnavailable());
+        for (String operacion : List.of("suspender", "reactivar")) {
+            mockMvc.perform(put("/eventos/{id}/venta/{operacion}", publicado.getId(), operacion)
+                            .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN"))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        verify(reservasClient, org.mockito.Mockito.never()).inicializarDisponibilidad(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(reservasClient, org.mockito.Mockito.never()).cambiarEstadoVenta(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        assertEquals(EstadoEvento.BORRADOR, eventoRepository.findById(borrador.getId()).orElseThrow().getEstado());
+        Evento sinCambios = eventoRepository.findById(publicado.getId()).orElseThrow();
+        assertEquals(publicado.getVersion(), sinCambios.getVersion());
+        assertEquals(publicado.isVentaSuspendida(), sinCambios.isVentaSuspendida());
+    }
+
+    @Test
+    void conflictosRemotosNoSeRegistranEnLaVentana() throws Exception {
+        Evento evento = guardarEventoPublicado();
+        org.mockito.Mockito.doThrow(new com.ticketya.gestionlugares.reservas.ReservasConflictException("409"))
+                .when(reservasClient).cambiarEstadoVenta(org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
+        for (int intento = 0; intento < 3; intento++) {
+            mockMvc.perform(put("/eventos/{id}/venta/suspender", evento.getId())
+                            .header("X-User-Id", "admin-1").header("X-User-Roles", "ADMIN"))
+                    .andExpect(status().isConflict());
+        }
+
+        var circuito = circuitos.circuitBreaker("reservas");
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.CLOSED, circuito.getState());
+        assertEquals(0, circuito.getMetrics().getNumberOfBufferedCalls());
+        verify(reservasClient, org.mockito.Mockito.times(3)).cambiarEstadoVenta(
+                evento.getId(), com.ticketya.gestionlugares.reservas.EstadoVentaReservas.SUSPENDIDA);
+    }
+
+    @Test
+    void healthEstandarConCircuitoAbiertoMantieneUp() throws Exception {
+        circuitos.circuitBreaker("reservas").transitionToOpenState();
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.circuitBreakers.status").value("UP"))
+                .andExpect(jsonPath("$.components.circuitBreakers.details").doesNotExist())
+                .andExpect(jsonPath("$.components.circuitbreakers.components.reservas.status").value("OPEN"))
+                .andExpect(jsonPath("$.components.circuitbreakers.components.usuarios.status").value("CLOSED"))
+                .andExpect(jsonPath("$.components.circuitbreakers.components.reservas.details").doesNotExist());
+
+        circuitos.circuitBreaker("usuarios").transitionToOpenState();
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.circuitbreakers.components.usuarios.status").value("OPEN"));
+        circuitos.circuitBreaker("usuarios").transitionToHalfOpenState();
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components.circuitbreakers.components.usuarios.status").value("HALF_OPEN"));
+
+        healthRegistry.registerContributor("pruebaDown",
+                (org.springframework.boot.actuate.health.HealthIndicator)
+                        () -> org.springframework.boot.actuate.health.Health.down().build());
+        try {
+            mockMvc.perform(get("/actuator/health"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("DOWN"));
+        } finally {
+            healthRegistry.unregisterContributor("pruebaDown");
+        }
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.ticketya.gestionlugares.reservas.http;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.List;
 
@@ -173,8 +175,33 @@ class HttpReservasClientTest {
         server.expect(requestTo("http://reservas.test/disponibilidad/eventos/evento-1"))
                 .andExpect(method(HttpMethod.GET)).andRespond(withStatus(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR));
 
-        assertThrows(ReservasClientException.class, () -> client.consultarDisponibilidad("evento-1"));
-        assertThrows(ReservasClientException.class, () -> client.consultarDisponibilidad("evento-1"));
+        assertTrue(assertThrows(ReservasClientException.class,
+                () -> client.consultarDisponibilidad("evento-1")).esRespuesta4xx());
+        assertFalse(assertThrows(ReservasClientException.class,
+                () -> client.consultarDisponibilidad("evento-1")).esRespuesta4xx());
+        server.verify();
+    }
+
+    @Test
+    void distingueErroresHttpDeTransporteSinCambiarLaExcepcionPublica() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://reservas.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        HttpReservasClient client = new HttpReservasClient(builder.build());
+        server.expect(requestTo("http://reservas.test/disponibilidad/eventos/evento-1"))
+                .andRespond(withStatus(CONFLICT));
+        server.expect(requestTo("http://reservas.test/disponibilidad/eventos/evento-1/venta"))
+                .andRespond(withStatus(CONFLICT));
+        server.expect(requestTo("http://reservas.test/disponibilidad/eventos/evento-1"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withException(new java.io.IOException("sin conexión")));
+
+        assertTrue(assertThrows(ReservasClientException.class,
+                () -> client.inicializarDisponibilidad("evento-1",
+                        new InicializarDisponibilidadRequest(4, List.of()))).esRespuesta4xx());
+        assertTrue(assertThrows(com.ticketya.gestionlugares.reservas.ReservasConflictException.class,
+                () -> client.cambiarEstadoVenta("evento-1", EstadoVentaReservas.SUSPENDIDA)).esRespuesta4xx());
+        assertFalse(assertThrows(ReservasClientException.class,
+                () -> client.consultarDisponibilidad("evento-1")).esRespuesta4xx());
         server.verify();
     }
 }

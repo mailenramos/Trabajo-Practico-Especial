@@ -117,6 +117,7 @@ class CancelacionRecuperableIntegrationTest {
     @Autowired private OutboxScheduler scheduler;
     @Autowired private CaffeineCacheManager cacheManager;
     @Autowired private TransactionTemplate transaccion;
+    @Autowired private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitos;
     @MockBean private ReservasClient reservas;
     @MockBean private OutboxHttpClient http;
     @MockBean(name = "outboxClock") private Clock reloj;
@@ -125,11 +126,28 @@ class CancelacionRecuperableIntegrationTest {
 
     @BeforeEach
     void preparar() {
+        circuitos.circuitBreaker("reservas").reset();
         ahora.set(Instant.now().plusSeconds(60));
         when(reloj.instant()).thenAnswer(invocation -> ahora.get());
         outbox.deleteAll();
         eventos.deleteAll();
         cache().clear();
+    }
+
+    @Test
+    void cancelacionYDispatcherNoDependenDelCircuitoDeReservas() throws Exception {
+        var circuito = circuitos.circuitBreaker("reservas");
+        circuito.transitionToOpenState();
+        Evento evento = evento(EstadoEvento.PUBLICADO, false, false);
+        when(http.enviar(any(AvisoOutbox.class))).thenReturn(204);
+
+        mvc.perform(cancelar(evento.getId(), "Motivo")).andExpect(status().isOk());
+
+        assertEquals(EstadoEvento.CANCELADO, eventos.findById(evento.getId()).orElseThrow().getEstado());
+        verify(http, times(3)).enviar(any(AvisoOutbox.class));
+        assertEquals(EstadoAvisoOutbox.ENTREGADO, trabajo(evento).getEstado());
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN, circuito.getState());
+        assertEquals(0, circuito.getMetrics().getNumberOfBufferedCalls());
     }
 
     @ParameterizedTest
@@ -534,7 +552,9 @@ class CancelacionRecuperableIntegrationTest {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://reservas.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         EventoLifecycleService servicio = new EventoLifecycleService(eventoService,
-                new HttpReservasClient(builder.build()), cancelaciones, publicaciones, dispatcher);
+                new HttpReservasClient(builder.build()), cancelaciones, publicaciones, dispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
         MockMvc mvcConReservasHttp = MockMvcBuilders
                 .standaloneSetup(new EventoController(eventoService, servicio))
                 .setControllerAdvice(new ApiExceptionHandler()).build();

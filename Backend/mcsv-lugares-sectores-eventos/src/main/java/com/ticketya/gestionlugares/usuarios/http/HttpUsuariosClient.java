@@ -32,7 +32,7 @@ public class HttpUsuariosClient {
     public Usuario consultarPorCorreo(String correo) {
         if (!token.disponible() || properties.getBaseUrl() == null || properties.getBaseUrl().isBlank()) {
             LOGGER.error("Configuración de MS6 incompleta: URL o token de servicio no configurados");
-            throw new ServiceUnavailableException("Servicio de usuarios no disponible");
+            throw new ConfiguracionException();
         }
         Usuario usuario;
         try {
@@ -47,6 +47,7 @@ public class HttpUsuariosClient {
                         } else {
                             LOGGER.warn("MS6 respondió HTTP inesperado: {}", status);
                         }
+                        if (status >= 400 && status < 500) throw new Respuesta4xxException();
                         throw new ServiceUnavailableException("Servicio de usuarios no disponible");
                     }).body(Usuario.class);
         } catch (RestClientException exception) {
@@ -72,4 +73,16 @@ public class HttpUsuariosClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Usuario(String id, List<String> roles, Boolean activo) { }
+
+    public static class Respuesta4xxException extends ServiceUnavailableException {
+        public Respuesta4xxException() {
+            super("Servicio de usuarios no disponible");
+        }
+    }
+
+    public static class ConfiguracionException extends ServiceUnavailableException {
+        public ConfiguracionException() {
+            super("Servicio de usuarios no disponible");
+        }
+    }
 }

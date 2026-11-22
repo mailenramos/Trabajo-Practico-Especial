@@ -16,6 +16,7 @@ import com.ticketya.gestionlugares.reservas.EstadoVentaReservas;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
 import com.ticketya.gestionlugares.reservas.ReservasConflictException;
+import com.ticketya.gestionlugares.reservas.ReservasSincrono;
 import com.ticketya.gestionlugares.reservas.dto.AsientoReservas;
 import com.ticketya.gestionlugares.reservas.dto.InicializarDisponibilidadRequest;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadRequest;
@@ -31,15 +32,18 @@ public class EventoLifecycleService {
 
     private final EventoService eventoService;
     private final ReservasClient reservasClient;
+    private final ReservasSincrono reservasSincrono;
     private final EventoCancelacionOutboxService eventoCancelacionOutboxService;
     private final EventoPublicacionOutboxService eventoPublicacionOutboxService;
     private final OutboxDispatcher outboxDispatcher;
 
     public EventoLifecycleService(EventoService eventoService, ReservasClient reservasClient,
             EventoCancelacionOutboxService eventoCancelacionOutboxService,
-            EventoPublicacionOutboxService eventoPublicacionOutboxService, OutboxDispatcher outboxDispatcher) {
+            EventoPublicacionOutboxService eventoPublicacionOutboxService, OutboxDispatcher outboxDispatcher,
+            ReservasSincrono reservasSincrono) {
         this.eventoService = eventoService;
         this.reservasClient = reservasClient;
+        this.reservasSincrono = reservasSincrono;
         this.eventoCancelacionOutboxService = eventoCancelacionOutboxService;
         this.eventoPublicacionOutboxService = eventoPublicacionOutboxService;
         this.outboxDispatcher = outboxDispatcher;
@@ -49,9 +53,9 @@ public class EventoLifecycleService {
         Evento evento = eventoService.validarPublicacion(eventoId, userId, userRolesHeader);
         InicializarDisponibilidadRequest request = construirInicializacion(evento);
         invocarReservas("No se pudo inicializar la disponibilidad; el evento permanece en borrador",
-                () -> reservasClient.inicializarDisponibilidad(eventoId, request));
+                () -> reservasSincrono.ejecutar(() -> reservasClient.inicializarDisponibilidad(eventoId, request)));
         invocarReservas("No se pudo activar la venta en Reservas; el evento permanece en borrador",
-                () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA));
+                () -> reservasSincrono.ejecutar(() -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA)));
         Evento publicado = eventoPublicacionOutboxService.publicarConAvisoOutbox(
                 eventoId, userId, userRolesHeader);
         outboxDispatcher.procesarAviso("publicacion-" + publicado.getId());
@@ -60,15 +64,15 @@ public class EventoLifecycleService {
 
     public Evento suspenderVenta(String eventoId, String userId, String userRolesHeader) {
         Evento evento = validarAdministracionVentaSinCancelacion(eventoId, userId, userRolesHeader);
-        invocarReservasVentaAdministrativa("No se pudo suspender la venta", () -> reservasClient.cambiarEstadoVenta(
-                eventoId, EstadoVentaReservas.SUSPENDIDA));
+        invocarReservasVentaAdministrativa("No se pudo suspender la venta", () -> reservasSincrono.ejecutar(
+                () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.SUSPENDIDA)));
         return eventoService.suspenderVentaLocal(evento.getId());
     }
 
     public Evento reactivarVenta(String eventoId, String userId, String userRolesHeader) {
         Evento evento = validarAdministracionVentaSinCancelacion(eventoId, userId, userRolesHeader);
-        invocarReservasVentaAdministrativa("No se pudo reactivar la venta", () -> reservasClient.cambiarEstadoVenta(
-                eventoId, EstadoVentaReservas.ACTIVA));
+        invocarReservasVentaAdministrativa("No se pudo reactivar la venta", () -> reservasSincrono.ejecutar(
+                () -> reservasClient.cambiarEstadoVenta(eventoId, EstadoVentaReservas.ACTIVA)));
         return eventoService.reactivarVentaLocal(evento.getId());
     }
 

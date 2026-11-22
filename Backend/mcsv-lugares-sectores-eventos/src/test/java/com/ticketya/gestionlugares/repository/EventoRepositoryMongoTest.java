@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -39,6 +41,7 @@ import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.UnauthorizedException;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
+import com.ticketya.gestionlugares.reservas.ReservasSincrono;
 import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadResponse;
 import com.ticketya.gestionlugares.reservas.dto.AsientoDisponibleResponse;
@@ -52,10 +55,19 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @DataMongoTest
-@Import({MongoDecimalConfiguration.class, EventoConsultaService.class,
+@Import({MongoDecimalConfiguration.class, EventoConsultaService.class, ReservasSincrono.class,
+        EventoRepositoryMongoTest.CircuitBreakerTestConfiguration.class,
         com.ticketya.gestionlugares.service.CatalogoBusquedaCache.class})
 @Testcontainers(disabledWithoutDocker = true)
 class EventoRepositoryMongoTest {
+
+    @TestConfiguration
+    static class CircuitBreakerTestConfiguration {
+        @Bean
+        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitBreakerRegistry() {
+            return io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults();
+        }
+    }
 
     @Container
     private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8.0");
@@ -72,9 +84,11 @@ class EventoRepositoryMongoTest {
     @Autowired private EventoConsultaService consultaService;
     @MockBean private ReservasClient reservasClient;
     @Autowired private MongoClient mongoClient;
+    @Autowired private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitos;
 
     @BeforeEach
     void limpiarColeccion() {
+        circuitos.circuitBreaker("reservas").reset();
         eventoRepository.deleteAll();
         lugarRepository.deleteAll();
     }

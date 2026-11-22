@@ -46,7 +46,9 @@ class ComprasCancellationFlowTest {
     @BeforeEach
     void setUp() {
         lifecycle = new EventoLifecycleService(eventoService, reservasClient,
-                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher);
+                eventoCancelacionOutboxService, eventoPublicacionOutboxService, outboxDispatcher,
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
         evento = Evento.borrador("org", "lugar", "CABA", "Show", "Desc", "MUSICA", List.of("A"),
                 Instant.parse("2027-01-01T00:00:00Z"), 4,
                 List.of(new EventoSector("sector", "Platea", TipoSector.NUMERADO, 1, 1, null, null)));

@@ -450,7 +450,7 @@ El servicio SHALL permitir `orden=fecha`, `orden=precio` o `orden=relevancia`; p
 - **THEN** responde `200 OK` con los datos del evento y sin consultar disponibilidad a Reservas
 
 ### Requirement: Incluir disponibilidad de Reservas en el detalle público
-Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponibilidad/eventos/{eventoId}` en Reservas y combinar sus resultados con los sectores del evento mediante `sectorId`. Para cualquier otro estado no SHALL consultar a Reservas. Si Reservas no responde, falla o devuelve `404` o `500`, el detalle SHALL responder `200 OK` con disponibilidad `null` en los sectores afectados.
+Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponibilidad/eventos/{eventoId}` en Reservas y combinar sus resultados con los sectores mediante `sectorId`, salvo cuando el circuito rechace la llamada. Para otros estados no SHALL consultar a Reservas. Si Reservas falla o el circuito rechaza la llamada, el detalle SHALL responder `200 OK` con disponibilidad `null` en los sectores afectados.
 
 #### Scenario: Combinar disponibilidad por sectorId
 - **GIVEN** un evento `publicado` con sectores y Reservas responde `200` con disponibilidad
@@ -466,6 +466,11 @@ Para eventos `publicado` o `agotado`, el servicio SHALL consultar `GET /disponib
 - **GIVEN** un evento `publicado` o `agotado`
 - **WHEN** Reservas vence el timeout, no responde o devuelve `404` o `500`
 - **THEN** el detalle igual responde `200 OK` y cada disponibilidad no obtenida es `null`
+
+#### Scenario: Circuito de Reservas abierto
+- **GIVEN** un evento `publicado` o `agotado` y el circuito de Reservas abierto
+- **WHEN** se consulta el detalle
+- **THEN** responde `200 OK` con disponibilidad `null` en todos los sectores sin llamar a Reservas
 
 #### Scenario: No consultar disponibilidad para otros estados
 - **GIVEN** un evento `borrador`, `cancelado` o `finalizado` visible para el usuario

@@ -60,7 +60,17 @@ Los servicios SHALL usar la red externa de nombre fijo `ticketya-net` (`external
 #### Scenario: Comprobar la salud de la aplicación sin mostrar detalles
 - **GIVEN** la aplicación `lugares` está en ejecución
 - **WHEN** se ejecuta su healthcheck
-- **THEN** consulta `/actuator/health` y la respuesta informa el estado sin detalles de componentes
+- **THEN** consulta `/actuator/health`, que informa los componentes y los estados de los circuitos sin detalles internos de componentes
+
+#### Scenario: Circuito abierto sin degradar health general
+- **GIVEN** todos los indicadores de salud ajenos a circuitos están `UP` y al menos un circuito está `OPEN`
+- **WHEN** Docker consulta `/actuator/health`
+- **THEN** responde HTTP `200` con estado general `UP` y permite observar el circuito abierto
+
+#### Scenario: Fallas reales siguen afectando health
+- **GIVEN** un indicador de salud ajeno a circuitos está `DOWN`
+- **WHEN** se consulta `/actuator/health`
+- **THEN** el estado general es `DOWN` y no se oculta la falla por la configuración de circuitos
 
 #### Scenario: Mantener aplicación y rutas internas sin publicación al host
 - **GIVEN** se inicia el Compose base sin combinarlo con `docker-compose.dev.yml`

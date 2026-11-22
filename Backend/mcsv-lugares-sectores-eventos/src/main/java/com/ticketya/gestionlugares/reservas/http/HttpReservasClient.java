@@ -31,7 +31,7 @@ public class HttpReservasClient implements ReservasClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
                     throw new ReservasClientException("Reservas respondió " + response.getStatusCode()
-                            + " al inicializar disponibilidad");
+                            + " al inicializar disponibilidad", response.getStatusCode().value());
                 })
                 .toBodilessEntity(), "inicializar disponibilidad"));
     }
@@ -47,7 +47,7 @@ public class HttpReservasClient implements ReservasClient {
                         throw new ReservasConflictException("Reservas rechazó el cambio de estado de venta");
                     }
                     throw new ReservasClientException("Reservas respondió " + response.getStatusCode()
-                            + " al cambiar el estado de venta");
+                            + " al cambiar el estado de venta", response.getStatusCode().value());
                 })
                 .toBodilessEntity(), "cambiar el estado de venta"));
     }
@@ -60,7 +60,7 @@ public class HttpReservasClient implements ReservasClient {
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
                         throw new ReservasClientException("Reservas respondió " + response.getStatusCode()
-                                + " al consultar disponibilidad");
+                                + " al consultar disponibilidad", response.getStatusCode().value());
                     })
                     .body(DisponibilidadEventoResponse.class);
             if (disponibilidad == null) {

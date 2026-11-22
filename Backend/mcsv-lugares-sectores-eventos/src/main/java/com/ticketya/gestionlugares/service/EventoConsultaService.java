@@ -29,6 +29,7 @@ import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.LugarRepository;
 import com.ticketya.gestionlugares.reservas.ReservasClient;
 import com.ticketya.gestionlugares.reservas.ReservasClientException;
+import com.ticketya.gestionlugares.reservas.ReservasSincrono;
 import com.ticketya.gestionlugares.reservas.dto.DisponibilidadEventoResponse;
 import com.ticketya.gestionlugares.reservas.dto.SectorDisponibilidadResponse;
 import com.ticketya.gestionlugares.security.UserRoles;
@@ -44,14 +45,17 @@ public class EventoConsultaService {
     private final EventoRepository eventoRepository;
     private final LugarRepository lugarRepository;
     private final ReservasClient reservasClient;
+    private final ReservasSincrono reservasSincrono;
     private final CatalogoBusquedaCache catalogoBusquedaCache;
 
     public EventoConsultaService(MongoTemplate mongoTemplate, EventoRepository eventoRepository,
-            LugarRepository lugarRepository, ReservasClient reservasClient, CatalogoBusquedaCache catalogoBusquedaCache) {
+            LugarRepository lugarRepository, ReservasClient reservasClient, CatalogoBusquedaCache catalogoBusquedaCache,
+            ReservasSincrono reservasSincrono) {
         this.mongoTemplate = mongoTemplate;
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
         this.reservasClient = reservasClient;
+        this.reservasSincrono = reservasSincrono;
         this.catalogoBusquedaCache = catalogoBusquedaCache;
     }
 
@@ -120,7 +124,8 @@ public class EventoConsultaService {
             return Map.of();
         }
         try {
-            DisponibilidadEventoResponse respuesta = reservasClient.consultarDisponibilidad(evento.getId());
+            DisponibilidadEventoResponse respuesta = reservasSincrono.ejecutar(
+                    () -> reservasClient.consultarDisponibilidad(evento.getId()));
             if (respuesta == null || respuesta.sectores() == null) return Map.of();
             return respuesta.sectores().stream()
                     .filter(sector -> sector.sectorId() != null)

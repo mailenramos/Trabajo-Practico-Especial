@@ -13,25 +13,28 @@ import com.ticketya.gestionlugares.repository.EventoRepository;
 import com.ticketya.gestionlugares.repository.PersonalAccesoRepository;
 import com.ticketya.gestionlugares.security.UserRoles;
 import com.ticketya.gestionlugares.usuarios.http.HttpUsuariosClient;
+import com.ticketya.gestionlugares.usuarios.UsuariosSincrono;
 
 @Service
 public class PersonalAccesoService {
     private final EventoRepository eventos;
     private final PersonalAccesoRepository personal;
     private final HttpUsuariosClient usuarios;
+    private final UsuariosSincrono usuariosSincrono;
     private final Clock clock;
 
     public PersonalAccesoService(EventoRepository eventos, PersonalAccesoRepository personal,
-            HttpUsuariosClient usuarios, Clock clock) {
+            HttpUsuariosClient usuarios, Clock clock, UsuariosSincrono usuariosSincrono) {
         this.eventos = eventos;
         this.personal = personal;
         this.usuarios = usuarios;
+        this.usuariosSincrono = usuariosSincrono;
         this.clock = clock;
     }
 
     public AsignacionPersonalAcceso asignar(String eventoId, String correo, String userId, String userRoles) {
         autorizar(eventoId, userId, userRoles);
-        HttpUsuariosClient.Usuario usuario = usuarios.consultarPorCorreo(correo);
+        HttpUsuariosClient.Usuario usuario = usuariosSincrono.ejecutar(() -> usuarios.consultarPorCorreo(correo));
         if (!usuario.activo() || !usuario.roles().contains("PERSONAL_ACCESO")) {
             throw new IllegalArgumentException("El usuario debe estar activo y tener el rol PERSONAL_ACCESO");
         }

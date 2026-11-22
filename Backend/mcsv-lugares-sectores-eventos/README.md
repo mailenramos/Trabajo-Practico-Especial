@@ -240,6 +240,8 @@ Reservas llama a este servicio mediante el callback `PUT /eventos/{eventoId}/dis
 
 Si Reservas falla, no responde o no confirma con `204`, publicar responde `503` y el evento queda en borrador. Si falla al suspender o reactivar, MS1 responde `503` sin cambiar el evento; si Reservas responde `409`, MS1 devuelve `409` sin modificarlo. Cancelar tiene recuperación durable y un `503` no implica ausencia de efectos, como se detalla a continuación.
 
+Las llamadas síncronas de detalle, inicialización y activación al publicar, suspensión y reactivación comparten el circuit breaker `reservas`. Si está abierto, no se llama a Reservas: el detalle responde `200` con disponibilidades `null`, y publicar, suspender y reactivar responden `503` sin cambiar el evento. Si se abre después de inicializar y antes de activar la venta, el evento permanece en borrador pero la inicialización remota puede haber ocurrido; el reintento conserva la idempotencia existente. Los `4xx`, incluido `409`, no cuentan para el circuito y conservan sus respuestas habituales. La finalización programada, el dispatcher y la cancelación recuperable no usan este circuito.
+
 El equipo de Reservas confirmó que repetir `CANCELADA` sobre una venta cancelada responde `204` y que `CANCELADA` es terminal: intentar pasar a `ACTIVA` o `SUSPENDIDA` responde `409`. Las guardas de MS1 no detienen llamadas remotas que ya estaban en curso al registrar la intención.
 
 ### Cancelación recuperable
@@ -297,6 +299,26 @@ El `ORGANIZADOR` titular o `ADMIN` puede asignar con `POST /eventos/{eventoId}/p
 MS5 consulta `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion` en cada validación: devuelve `200` con `autorizado: false` incluso si el evento o la asignación no existen. Lee el estado actual sin caché, no exige headers de usuario y queda fuera del Gateway.
 
 MS1 consulta `GET {USUARIOS_BASE_URL}/internal/usuarios/por-correo?correo=...` con `X-Service-Token` y `X-Correlation-Id`, con timeouts de conexión de 2 s y lectura de 5 s. Fuera de Docker la URL por defecto es `http://localhost:8087`; en Docker es `http://usuarios:8087`. Sin URL o token el alta responde `503`.
+
+La consulta usa el circuito independiente `usuarios`: si está abierto, el alta responde `503` sin llamar a MS6 ni crear o reactivar la asignación. Los `4xx` remotos no cuentan para el circuito; `404` sigue respondiendo `404` y los errores de autenticación `401`/`403` siguen respondiendo `503`.
+
+### Configuración de circuit breakers
+
+Las propiedades `resilience4j.circuitbreaker.instances.reservas.*` y `resilience4j.circuitbreaker.instances.usuarios.*` permiten ajustar cada servicio independientemente. Ambos heredan los siguientes defaults de `resilience4j.circuitbreaker.configs.default.*`:
+
+| Propiedad | Default |
+|---|---|
+| `sliding-window-type` | `COUNT_BASED` |
+| `sliding-window-size` | `10` |
+| `minimum-number-of-calls` | `10` |
+| `failure-rate-threshold` | `50` (%) |
+| `wait-duration-in-open-state` | `30s` |
+| `permitted-number-of-calls-in-half-open-state` | `1` |
+| `slow-call-duration-threshold` | `365d` |
+
+Con el circuito abierto se rechazan las llamadas protegidas; al transcurrir la espera se permite una llamada de prueba en semiabierto. Si tiene éxito, el circuito se cierra; si falla, vuelve a abrirse. Cada instancia de MS1 mantiene su estado en memoria.
+
+Cada transición se registra en nivel `WARN` con el nombre del circuito y los estados anterior y nuevo. `/actuator/health` muestra los componentes y, en `components.circuitbreakers.components`, el `status` de `reservas` y `usuarios` (`CLOSED`, `OPEN` o `HALF_OPEN`), sin métricas ni detalles internos. El indicador estándar `circuitBreakers` permanece habilitado. Un circuito abierto no cambia el health general a `DOWN`: Docker sigue consultando ese mismo endpoint; otras fallas de salud sí pueden degradarlo. Actuator no se enruta por el Gateway.
 
 La carpeta 21 de Postman requiere MS6 disponible, un evento existente y un usuario activo con rol `PERSONAL_ACCESO`. Configurá `eventoPersonalId`, `organizadorPersonalId` y `correoPersonal`; la primera request guarda `usuarioPersonalId` para las siguientes.
 
@@ -388,7 +410,7 @@ El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destin
 - **Modificación de evento:** El modelo tiene una única fecha, `fechaHora`, y no una fecha de finalización. El efecto de cambiar el lugar sobre sectores, precios y disponibilidad —incluidos los borradores— ya está descrito en la limitación de [Modificar un evento](#modificar-un-evento).
 - **Finalización automática:** El scheduler considera eventos `PUBLICADO` o `AGOTADO` cuya `fechaHora` ya pasó y corre cada `EVENTOS_FINALIZACION_INTERVAL` (60 s por defecto). Solo después de que Reservas acepte `FINALIZADA` cambia el estado local a `finalizado`; si falla, lo vuelve a intentar en un ciclo posterior.
 - **Personal de acceso:** La revocación se refleja en la próxima consulta de autorización; una validación que ya obtuvo `autorizado=true` puede completarse. La consulta responde `autorizado=false` si no encuentra asignación activa; las pruebas también cubren un evento inexistente sin asignación.
-- **Resiliencia:** Los clientes HTTP configuran timeouts de conexión y lectura (2 s y 5 s por defecto; los de Reservas son configurables). El outbox reintenta `408`, `429`, `5xx` y errores de transporte; `3xx` y otros `4xx` son definitivos. Circuit breaker: no implementado; queda como mejora futura.
+- **Resiliencia:** Los clientes HTTP configuran timeouts de conexión y lectura (2 s y 5 s por defecto; los de Reservas son configurables). El outbox reintenta `408`, `429`, `5xx` y errores de transporte; `3xx` y otros `4xx` son definitivos. Las llamadas síncronas protegidas usan circuit breakers por servicio.
 - **MongoDB:** El Compose de MS1 configura un replica set `rs0` de un solo nodo, requerido para transacciones; las pruebas de integración usan Testcontainers.
 
 ## Pruebas con Postman

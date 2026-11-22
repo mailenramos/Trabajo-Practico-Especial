@@ -45,7 +45,11 @@ import com.ticketya.gestionlugares.usuarios.http.HttpUsuariosClient;
 import com.ticketya.gestionlugares.service.ResourceNotFoundException;
 import com.ticketya.gestionlugares.service.ServiceUnavailableException;
 
-@SpringBootTest(properties = {"outbox.dispatcher.interval=3600000", "servicio.token=token-prueba"})
+@SpringBootTest(properties = {"outbox.dispatcher.interval=3600000", "servicio.token=token-prueba",
+        "resilience4j.circuitbreaker.instances.usuarios.sliding-window-size=2",
+        "resilience4j.circuitbreaker.instances.usuarios.minimum-number-of-calls=2",
+        "resilience4j.circuitbreaker.instances.usuarios.failure-rate-threshold=100",
+        "resilience4j.circuitbreaker.instances.usuarios.wait-duration-in-open-state=2s"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
@@ -63,6 +67,7 @@ class PersonalAccesoIntegrationTest {
     @Autowired private PersonalAccesoRepository repository;
     @Autowired private EventoRepository eventos;
     @Autowired private MockMvc mockMvc;
+    @Autowired private io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry circuitos;
     @MockBean private HttpUsuariosClient usuarios;
 
     private static final String USUARIO_ID = "b06507ba-403b-4ce2-a828-72845ff212ad";
@@ -73,9 +78,42 @@ class PersonalAccesoIntegrationTest {
 
     @BeforeEach
     void limpiar() {
+        circuitos.circuitBreaker("usuarios").reset();
+        circuitos.circuitBreaker("reservas").reset();
         repository.deleteAll();
         eventos.deleteAll();
         reset(usuarios);
+    }
+
+    @Test
+    void circuitoAbiertoImpideAsignarOReactivarYSeRecupera() throws Exception {
+        guardarEvento();
+        repository.insert(nueva("evento-1", USUARIO_ID));
+        repository.revocarSiActiva("evento-1", USUARIO_ID, REVOCACION);
+        when(usuarios.consultarPorCorreo("personal@example.com"))
+                .thenThrow(new ServiceUnavailableException("timeout"))
+                .thenThrow(new ServiceUnavailableException("timeout"))
+                .thenReturn(new HttpUsuariosClient.Usuario(USUARIO_ID, List.of("PERSONAL_ACCESO"), true));
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        var circuito = circuitos.circuitBreaker("usuarios");
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.OPEN, circuito.getState());
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.CLOSED,
+                circuitos.circuitBreaker("reservas").getState());
+        verify(usuarios, times(2)).consultarPorCorreo("personal@example.com");
+        assertEquals(1, repository.count());
+        assertEquals(EstadoPersonalAcceso.REVOCADA,
+                repository.findByEventoIdAndUsuarioId("evento-1", USUARIO_ID).orElseThrow().getEstado());
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            mockMvc.perform(alta("evento-1", "admin-1", "ADMIN", "{\"correo\":\"personal@example.com\"}"))
+                    .andExpect(status().isCreated());
+        });
+        assertEquals(io.github.resilience4j.circuitbreaker.CircuitBreaker.State.CLOSED, circuito.getState());
+        verify(usuarios, times(3)).consultarPorCorreo("personal@example.com");
+        assertEquals(EstadoPersonalAcceso.ACTIVA,
+                repository.findByEventoIdAndUsuarioId("evento-1", USUARIO_ID).orElseThrow().getEstado());
     }
 
     @Test

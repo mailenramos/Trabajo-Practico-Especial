@@ -37,7 +37,9 @@ class EventoConsultaServiceTest {
         eventoRepository = mock(EventoRepository.class);
         lugarRepository = mock(LugarRepository.class);
         service = new EventoConsultaService(mongoTemplate, eventoRepository, lugarRepository,
-                mock(ReservasClient.class), new CatalogoBusquedaCache(mongoTemplate));
+                mock(ReservasClient.class), new CatalogoBusquedaCache(mongoTemplate),
+                new com.ticketya.gestionlugares.reservas.ReservasSincrono(
+                        io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry.ofDefaults()));
     }
 
     @Test
