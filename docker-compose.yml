@@ -38,6 +38,7 @@ services:
       # Emisor (iss) de los JWT: debe coincidir con el JWT_ISSUER de Usuarios.
       JWT_ISSUER: "${JWT_ISSUER:-ticketya-usuarios}"
       GATEWAY_CORS_ALLOWED_ORIGINS: "${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
+      GATEWAY_RESPONSE_TIMEOUT: 15s
     ports:
       - "8086:8086"
     networks: [ticketya-net]
