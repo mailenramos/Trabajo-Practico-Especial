@@ -1,0 +1,31 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1795469287985,212,Preparar identidad de prueba,200,OK,5 clientes concurrentes 1-1,text,true,,0,0,1,1,null,0,0,0
+1795469288226,140,Registro,201,Created,5 clientes concurrentes 1-1,text,true,,813,337,1,1,http://127.0.0.1:8086/auth/registro,137,0,8
+1795469288384,1,Preparar identidad de prueba,200,OK,5 clientes concurrentes 1-2,text,true,,0,0,2,2,null,0,0,0
+1795469288367,97,Login,200,OK,5 clientes concurrentes 1-1,text,true,,959,297,2,2,http://127.0.0.1:8086/auth/login,96,0,0
+1795469288386,95,Registro,201,Created,5 clientes concurrentes 1-2,text,true,,813,337,2,2,http://127.0.0.1:8086/auth/registro,95,0,1
+1795469288481,69,Login,200,OK,5 clientes concurrentes 1-2,text,true,,953,297,2,2,http://127.0.0.1:8086/auth/login,69,0,0
+1795469288787,1,Preparar identidad de prueba,200,OK,5 clientes concurrentes 1-3,text,true,,0,0,3,3,null,0,0,0
+1795469288790,88,Registro,201,Created,5 clientes concurrentes 1-3,text,true,,813,337,3,3,http://127.0.0.1:8086/auth/registro,88,0,1
+1795469288879,60,Login,200,OK,5 clientes concurrentes 1-3,text,true,,953,297,3,3,http://127.0.0.1:8086/auth/login,60,0,0
+1795469289184,0,Preparar identidad de prueba,200,OK,5 clientes concurrentes 1-4,text,true,,0,0,4,4,null,0,0,0
+1795469289185,76,Registro,201,Created,5 clientes concurrentes 1-4,text,true,,813,337,4,4,http://127.0.0.1:8086/auth/registro,76,0,0
+1795469289261,65,Login,200,OK,5 clientes concurrentes 1-4,text,true,,953,297,4,4,http://127.0.0.1:8086/auth/login,64,0,0
+1795469289585,2,Preparar identidad de prueba,200,OK,5 clientes concurrentes 1-5,text,true,,0,0,5,5,null,0,0,0
+1795469289588,103,Registro,201,Created,5 clientes concurrentes 1-5,text,true,,813,337,5,5,http://127.0.0.1:8086/auth/registro,103,0,1
+1795469289691,61,Login,200,OK,5 clientes concurrentes 1-5,text,true,,953,297,5,5,http://127.0.0.1:8086/auth/login,61,0,0
+1795469289752,294,Reserva,201,Created,5 clientes concurrentes 1-5,text,true,,697,705,5,5,http://127.0.0.1:8086/disponibilidad/eventos/6b04afdb3288ce2e952c1e73/reservas,293,0,0
+1795469289752,308,Reserva,201,Created,5 clientes concurrentes 1-4,text,true,,697,705,5,5,http://127.0.0.1:8086/disponibilidad/eventos/6b04afdb3288ce2e952c1e73/reservas,308,0,0
+1795469289752,339,Reserva,201,Created,5 clientes concurrentes 1-1,text,true,,697,705,5,5,http://127.0.0.1:8086/disponibilidad/eventos/6b04afdb3288ce2e952c1e73/reservas,339,0,0
+1795469289752,360,Reserva,201,Created,5 clientes concurrentes 1-2,text,true,,697,705,5,5,http://127.0.0.1:8086/disponibilidad/eventos/6b04afdb3288ce2e952c1e73/reservas,360,0,0
+1795469289752,377,Reserva,201,Created,5 clientes concurrentes 1-3,text,true,,697,705,5,5,http://127.0.0.1:8086/disponibilidad/eventos/6b04afdb3288ce2e952c1e73/reservas,377,0,0
+1795469290061,306,Compra,201,Created,5 clientes concurrentes 1-4,text,true,,1018,575,5,5,http://127.0.0.1:8086/compras,306,0,0
+1795469290092,276,Compra,201,Created,5 clientes concurrentes 1-1,text,true,,1018,575,5,5,http://127.0.0.1:8086/compras,276,0,0
+1795469290129,239,Compra,201,Created,5 clientes concurrentes 1-3,text,true,,1018,575,5,5,http://127.0.0.1:8086/compras,239,0,0
+1795469290113,256,Compra,201,Created,5 clientes concurrentes 1-2,text,true,,1018,575,5,5,http://127.0.0.1:8086/compras,255,0,0
+1795469290046,323,Compra,201,Created,5 clientes concurrentes 1-5,text,true,,1018,575,5,5,http://127.0.0.1:8086/compras,322,0,0
+1795469290369,660,Pago,200,OK,5 clientes concurrentes 1-2,text,true,,1035,649,5,5,http://127.0.0.1:8086/compras/e2103fbb-838c-425c-b59e-cf320e6c0a91/pago,660,0,0
+1795469290368,661,Pago,200,OK,5 clientes concurrentes 1-3,text,true,,1035,649,5,5,http://127.0.0.1:8086/compras/6194b5bd-8f92-4a93-9ceb-b3e646337922/pago,661,0,0
+1795469290368,662,Pago,200,OK,5 clientes concurrentes 1-1,text,true,,1035,649,5,5,http://127.0.0.1:8086/compras/d27dfa15-1ef9-42bc-816d-863bb3996533/pago,662,0,0
+1795469290369,661,Pago,200,OK,5 clientes concurrentes 1-5,text,true,,1035,649,5,5,http://127.0.0.1:8086/compras/40a55fe3-a3c4-4e96-9a65-d79532d54211/pago,661,0,0
+1795469290368,662,Pago,200,OK,5 clientes concurrentes 1-4,text,true,,1035,649,5,5,http://127.0.0.1:8086/compras/a09b8b31-403a-43ee-a0d3-4d3362c29805/pago,662,0,0
