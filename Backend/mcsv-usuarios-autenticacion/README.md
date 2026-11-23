@@ -9,6 +9,8 @@ Registra usuarios, verifica credenciales y emite tokens JWT (feature F12, US-12.
 - Salud: `GET /actuator/health` (healthcheck de Docker; sin detalles).
 - Logs a la consola (stdout) con `correlationId` (el `X-Correlation-Id` del pedido).
 - Swagger UI: `http://localhost:8087/swagger-ui.html`.
+- Contrato OpenAPI para la entrega: [`docs/openapi-ms6.json`](docs/openapi-ms6.json). Incluye la seguridad del Gateway y de las operaciones internas; el documento generado automáticamente por Springdoc puede no reflejar esas anotaciones.
+- Modelo de datos: [`docs/er-ms6.mmd`](docs/er-ms6.mmd), basado en la migración de PostgreSQL.
 
 ## Ejecución con Docker (recomendada)
 

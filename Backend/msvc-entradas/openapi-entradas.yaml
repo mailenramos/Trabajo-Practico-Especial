@@ -6,15 +6,18 @@ info:
     Emite y administra las entradas con código QR de compras confirmadas, valida el QR en el
     acceso al evento y registra el ingreso.
 
-    Los endpoints públicos llegan por el API Gateway con `X-User-Id` y `X-User-Roles` derivados
-    del JWT. Los de `/internal` son para Compras y devoluciones; si `SERVICIO_TOKEN` está
+    El cliente envía un JWT bearer al API Gateway para los endpoints públicos; el Gateway
+    valida el token y propaga `X-User-Id` y `X-User-Roles` a MS5. Los de `/internal` son
+    para Compras y devoluciones; si `SERVICIO_TOKEN` está
     configurado, exigen `X-Service-Token`. Todos aceptan y devuelven `X-Correlation-Id`.
 
     Estados: `VIGENTE` -> `UTILIZADA` (validación de QR) o `VIGENTE` -> `EN_REINTEGRO` ->
     `DEVUELTA`. Solo una de las transiciones que salen de `VIGENTE` puede completarse.
 servers:
+  - url: http://localhost:8086
+    description: API Gateway para las operaciones públicas
   - url: http://localhost:8085
-    description: Ejecución local del microservicio
+    description: MS5 directo para operaciones internas o desarrollo controlado
 tags:
   - name: Entradas
     description: Consultas del cliente o del administrador vía API Gateway
@@ -32,7 +35,7 @@ paths:
         `CLIENTE`: solo las propias (`idCliente` se ignora). `ADMIN`: todas, con filtro opcional
         por `idCliente`. Un usuario con solo `PERSONAL_ACCESO` recibe `403`.
       operationId: listarEntradas
-      security: [{UserId: [], UserRoles: []}]
+      security: [{bearerAuth: []}]
       parameters:
         - name: estado
           in: query
@@ -67,7 +70,7 @@ paths:
       summary: Ver una entrada con su QR
       description: El titular (`CLIENTE`) o un `ADMIN`.
       operationId: obtenerEntrada
-      security: [{UserId: [], UserRoles: []}]
+      security: [{bearerAuth: []}]
       parameters: [{$ref: '#/components/parameters/IdEntrada'}]
       responses:
         '200':
@@ -92,7 +95,7 @@ paths:
            cerrado. El cambio `VIGENTE` -> `UTILIZADA` y el registro del ingreso son atómicos:
            de varios escaneos simultáneos del mismo QR, solo uno tiene éxito.
       operationId: validarIngreso
-      security: [{UserId: [], UserRoles: []}]
+      security: [{bearerAuth: []}]
       parameters: [{$ref: '#/components/parameters/IdEvento'}]
       requestBody:
         required: true
@@ -126,7 +129,7 @@ paths:
               schema: {$ref: '#/components/schemas/Error'}
               examples:
                 yaUtilizada:
-                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_YA_UTILIZADA, mensaje: La entrada ya se utilizó para ingresar el 2026-12-15T20:10:00Z}
+                  value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_YA_UTILIZADA, mensaje: 'La entrada ya se utilizó para ingresar el 2026-12-15T20:10:00Z'}
                 noHabilitada:
                   value: {timestamp: '2026-12-15T20:30:00Z', status: 409, error: ENTRADA_NO_HABILITADA, mensaje: La entrada no está habilitada para ingresar (EN_REINTEGRO)}
                 otroEvento:
@@ -302,6 +305,11 @@ paths:
 
 components:
   securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: El cliente envía el JWT al Gateway, que valida y propaga la identidad a MS5.
     UserId:
       type: apiKey
       in: header

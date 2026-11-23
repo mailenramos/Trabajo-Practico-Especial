@@ -6,6 +6,9 @@ import com.ticketya.usuarios.web.dto.Dtos.RegistroPedido;
 import com.ticketya.usuarios.web.dto.Dtos.TokenRespuesta;
 import com.ticketya.usuarios.web.dto.Dtos.UsuarioRespuesta;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,10 @@ public class AutenticacionController {
     }
 
     @PostMapping("/registro")
+    @ApiResponse(responseCode = "201", description = "Cliente registrado.",
+            content = @Content(schema = @Schema(implementation = UsuarioRespuesta.class)))
+    @ApiResponse(responseCode = "400", description = "Datos inválidos.", content = @Content)
+    @ApiResponse(responseCode = "409", description = "Correo ya registrado.", content = @Content)
     @Operation(summary = "Registrarse como cliente",
             description = "Crea un usuario activo con rol CLIENTE. Cualquier rol enviado en el cuerpo se ignora.")
     public ResponseEntity<UsuarioRespuesta> registrar(@Valid @RequestBody RegistroPedido pedido) {
@@ -35,6 +42,10 @@ public class AutenticacionController {
     }
 
     @PostMapping("/login")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = TokenRespuesta.class)))
+    @ApiResponse(responseCode = "400", description = "Datos inválidos.", content = @Content)
+    @ApiResponse(responseCode = "401", description = "Credenciales inválidas.", content = @Content)
+    @ApiResponse(responseCode = "403", description = "Usuario inactivo.", content = @Content)
     @Operation(summary = "Iniciar sesión",
             description = "Devuelve un JWT HS256 con sub, email, roles, iss, iat y exp (por defecto, una hora).")
     public TokenRespuesta login(@Valid @RequestBody LoginPedido pedido) {

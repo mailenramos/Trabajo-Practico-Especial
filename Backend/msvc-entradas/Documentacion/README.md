@@ -1,5 +1,7 @@
 # Microservicio 5 – Gestión de Entradas
 
+El [diagrama entidad-relación actualizado](er-ms5.mmd) incluye el control de eventos y los ingresos de la Entrega 2. La imagen `DER.png` corresponde al esquema anterior.
+
 ## 1. Descripción general
 
 El microservicio de Gestión de Entradas forma parte de TicketYa, una plataforma de venta de entradas para eventos.

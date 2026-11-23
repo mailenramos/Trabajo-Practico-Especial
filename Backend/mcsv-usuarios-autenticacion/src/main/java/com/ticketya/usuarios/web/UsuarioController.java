@@ -7,7 +7,10 @@ import com.ticketya.usuarios.web.dto.Dtos.PerfilPedido;
 import com.ticketya.usuarios.web.dto.Dtos.RolesPedido;
 import com.ticketya.usuarios.web.dto.Dtos.UsuarioRespuesta;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -28,6 +31,10 @@ import java.util.UUID;
 @RequestMapping("/usuarios")
 @Validated
 @Tag(name = "Usuarios")
+@SecurityRequirement(name = "bearerAuth")
+@ApiResponse(responseCode = "200", description = "OK")
+@ApiResponse(responseCode = "401", description = "JWT o identidad ausente o inválida.", content = @Content)
+@ApiResponse(responseCode = "403", description = "Rol no autorizado.", content = @Content)
 public class UsuarioController {
 
     private final UsuarioService servicio;
@@ -43,6 +50,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/me")
+    @ApiResponse(responseCode = "400", description = "Datos inválidos.", content = @Content)
     @Operation(summary = "Actualizar mi perfil",
             description = "Solo cambian nombre y apellido; roles, estado y correo enviados se ignoran.")
     public UsuarioRespuesta actualizarPerfil(@Parameter(hidden = true) UsuarioActual actual,
@@ -62,12 +70,16 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
+    @ApiResponse(responseCode = "404", description = "Usuario no encontrado.", content = @Content)
     @Operation(summary = "Consultar un usuario (ADMIN)")
     public UsuarioRespuesta obtener(@Parameter(hidden = true) UsuarioActual actual, @PathVariable UUID id) {
         return servicio.obtener(actual, id);
     }
 
     @PutMapping("/{id}/roles")
+    @ApiResponse(responseCode = "400", description = "Datos inválidos.", content = @Content)
+    @ApiResponse(responseCode = "404", description = "Usuario no encontrado.", content = @Content)
+    @ApiResponse(responseCode = "409", description = "Cambio incompatible con las reglas de administración.", content = @Content)
     @Operation(summary = "Asignar roles (ADMIN)",
             description = "Reemplaza los roles del usuario. Rigen desde su próximo inicio de sesión.")
     public UsuarioRespuesta actualizarRoles(@Parameter(hidden = true) UsuarioActual actual,
@@ -77,6 +89,9 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}/estado")
+    @ApiResponse(responseCode = "400", description = "Datos inválidos.", content = @Content)
+    @ApiResponse(responseCode = "404", description = "Usuario no encontrado.", content = @Content)
+    @ApiResponse(responseCode = "409", description = "Cambio incompatible con las reglas de administración.", content = @Content)
     @Operation(summary = "Activar o desactivar un usuario (ADMIN)", description = "Borrado lógico.")
     public UsuarioRespuesta cambiarEstado(@Parameter(hidden = true) UsuarioActual actual,
                                           @PathVariable UUID id,

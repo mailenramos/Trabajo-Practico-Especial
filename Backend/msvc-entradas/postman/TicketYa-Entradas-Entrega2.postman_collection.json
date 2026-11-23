@@ -5,16 +5,46 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "gatewayUrl", "value": "http://localhost:8086" },
-    { "key": "entradasUrl", "value": "http://localhost:8085" },
-    { "key": "tokenCliente", "value": "" },
-    { "key": "tokenAdmin", "value": "" },
-    { "key": "tokenPersonal", "value": "" },
-    { "key": "serviceToken", "value": "" },
-    { "key": "eventoId", "value": "evento-prueba-01" },
-    { "key": "idCompra", "value": "a1234567-1234-4234-8234-123456789001" },
-    { "key": "idEntrada", "value": "" },
-    { "key": "codigoQr", "value": "" }
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "entradasUrl",
+      "value": "http://localhost:8085"
+    },
+    {
+      "key": "tokenCliente",
+      "value": ""
+    },
+    {
+      "key": "tokenAdmin",
+      "value": ""
+    },
+    {
+      "key": "tokenPersonal",
+      "value": ""
+    },
+    {
+      "key": "serviceToken",
+      "value": ""
+    },
+    {
+      "key": "eventoId",
+      "value": "evento-prueba-01"
+    },
+    {
+      "key": "idCompra",
+      "value": "a1234567-1234-4234-8234-123456789001"
+    },
+    {
+      "key": "idEntrada",
+      "value": ""
+    },
+    {
+      "key": "codigoQr",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -22,16 +52,85 @@
       "item": [
         {
           "name": "Mis entradas (cliente)",
-          "event": [{ "listen": "test", "script": { "exec": ["const r = pm.response.json(); if (r.content && r.content.length) { pm.collectionVariables.set('idEntrada', r.content[0].idEntrada); pm.collectionVariables.set('codigoQr', r.content[0].codigoQr); }"] } }],
-          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }], "url": "{{gatewayUrl}}/entradas?page=0&size=20" }
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json(); if (r.content && r.content.length) { pm.collectionVariables.set('idEntrada', r.content[0].idEntrada); pm.collectionVariables.set('codigoQr', r.content[0].codigoQr); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenCliente}}"
+              }
+            ],
+            "url": "{{gatewayUrl}}/entradas?page=0&size=20"
+          }
         },
         {
           "name": "Todas las entradas (admin)",
-          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }], "url": "{{gatewayUrl}}/entradas?idEvento={{eventoId}}" }
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              }
+            ],
+            "url": "{{gatewayUrl}}/entradas?idEvento={{eventoId}}"
+          }
         },
         {
           "name": "Entradas como personal de acceso (403)",
-          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }], "url": "{{gatewayUrl}}/entradas" }
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenPersonal}}"
+              }
+            ],
+            "url": "{{gatewayUrl}}/entradas"
+          }
+        },
+        {
+          "name": "Consultar entrada por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/entradas/{{idEntrada}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "entradas",
+                "{{idEntrada}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -42,36 +141,84 @@
           "name": "Validar QR (personal asignado)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenPersonal}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
-            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}"
+            }
           }
         },
         {
           "name": "Validar el mismo QR otra vez (409 ENTRADA_YA_UTILIZADA)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{tokenPersonal}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenPersonal}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
-            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}"
+            }
           }
         },
         {
           "name": "Validación excepcional (admin)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAdmin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
-            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}"
+            }
           }
         },
         {
           "name": "Validar como cliente (403)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{tokenCliente}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenCliente}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{gatewayUrl}}/eventos/{{eventoId}}/ingresos",
-            "body": { "mode": "raw", "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}" }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigoQr\": \"{{codigoQr}}\"\n}"
+            }
           }
         }
       ]
@@ -81,19 +228,148 @@
       "item": [
         {
           "name": "Entradas de una compra",
-          "request": { "method": "GET", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas" }
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              }
+            ],
+            "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas"
+          }
         },
         {
           "name": "Bloquear por devolución (409 ENTRADA_UTILIZADA si ya se usó)",
-          "request": { "method": "POST", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/entradas/{{idEntrada}}/reintegro" }
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              }
+            ],
+            "url": "{{entradasUrl}}/internal/entradas/{{idEntrada}}/reintegro"
+          }
         },
         {
           "name": "Cerrar evento cancelado",
-          "request": { "method": "POST", "header": [{ "key": "X-Service-Token", "value": "{{serviceToken}}" }], "url": "{{entradasUrl}}/internal/eventos/{{eventoId}}/entradas/reintegro" }
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              }
+            ],
+            "url": "{{entradasUrl}}/internal/eventos/{{eventoId}}/entradas/reintegro"
+          }
         },
         {
           "name": "Sin X-Service-Token (401 si SERVICIO_TOKEN está configurado)",
-          "request": { "method": "GET", "header": [], "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas" }
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{entradasUrl}}/internal/compras/{{idCompra}}/entradas"
+          }
+        },
+        {
+          "name": "Consultar entrada interna",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{entradasUrl}}/internal/entradas/{{idEntrada}}",
+              "host": [
+                "{{entradasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "entradas",
+                "{{idEntrada}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Marcar entrada devuelta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{entradasUrl}}/internal/entradas/{{idEntrada}}/devolucion",
+              "host": [
+                "{{entradasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "entradas",
+                "{{idEntrada}}",
+                "devolucion"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Emitir entradas de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Token",
+                "value": "{{serviceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{entradasUrl}}/internal/entradas/emision",
+              "host": [
+                "{{entradasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "entradas",
+                "emision"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idCompra\": \"{{idCompra}}\",\n  \"idCliente\": \"cliente-prueba\",\n  \"evento\": {\n    \"id\": \"{{eventoId}}\",\n    \"nombre\": \"Evento de prueba\",\n    \"comienzaEn\": \"2027-12-12T21:00:00Z\"\n  },\n  \"lugares\": [\n    {\n      \"idSector\": \"sector-prueba\",\n      \"nombreSector\": \"Campo\",\n      \"fila\": null,\n      \"numero\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     }

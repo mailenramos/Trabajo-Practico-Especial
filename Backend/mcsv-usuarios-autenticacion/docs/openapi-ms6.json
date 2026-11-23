@@ -1,0 +1,716 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TicketYa MS6 - Usuarios y autenticación",
+    "version": "1.0.0",
+    "description": "Contrato de las rutas de usuario mediante el Gateway y de las rutas internas directas. El Gateway valida JWT y propaga la identidad; MS6 no valida JWT directamente. Las rutas internas exigen X-Service-Token cuando SERVICIO_TOKEN está configurado."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8086",
+      "description": "Gateway para las rutas de usuario"
+    },
+    {
+      "url": "http://localhost:8087",
+      "description": "MS6 directo en desarrollo o red interna"
+    }
+  ],
+  "paths": {
+    "/usuarios/{id}/roles": {
+      "put": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Asignar roles (ADMIN)",
+        "description": "Reemplaza los roles del usuario. Rigen desde su próximo inicio de sesión.",
+        "operationId": "actualizarRoles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          },
+          "404": {
+            "description": "Usuario no encontrado."
+          },
+          "400": {
+            "description": "Datos inválidos."
+          },
+          "409": {
+            "description": "Cambio incompatible con las reglas de administración."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/usuarios/{id}/estado": {
+      "put": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Activar o desactivar un usuario (ADMIN)",
+        "description": "Borrado lógico.",
+        "operationId": "cambiarEstado",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstadoPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          },
+          "404": {
+            "description": "Usuario no encontrado."
+          },
+          "400": {
+            "description": "Datos inválidos."
+          },
+          "409": {
+            "description": "Cambio incompatible con las reglas de administración."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/usuarios/me": {
+      "get": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Consultar mi perfil",
+        "operationId": "perfil",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Actualizar mi perfil",
+        "description": "Solo cambian nombre y apellido; roles, estado y correo enviados se ignoran.",
+        "operationId": "actualizarPerfil",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PerfilPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          },
+          "400": {
+            "description": "Datos inválidos."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/auth/registro": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Registrarse como cliente",
+        "description": "Crea un usuario activo con rol CLIENTE. Cualquier rol enviado en el cuerpo se ignora.",
+        "operationId": "registrar",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Cliente registrado.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos."
+          },
+          "409": {
+            "description": "Correo ya registrado."
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Iniciar sesión",
+        "description": "Devuelve un JWT HS256 con sub, email, roles, iss, iat y exp (por defecto, una hora).",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenRespuesta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos."
+          },
+          "401": {
+            "description": "Credenciales inválidas."
+          },
+          "403": {
+            "description": "Usuario inactivo."
+          }
+        }
+      }
+    },
+    "/usuarios": {
+      "get": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Listar usuarios (ADMIN)",
+        "description": "Paginado y ordenado por correo. Filtros opcionales: rol exacto y correo parcial.",
+        "operationId": "listar",
+        "parameters": [
+          {
+            "name": "rol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "correo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaUsuariosRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/usuarios/{id}": {
+      "get": {
+        "tags": [
+          "Usuarios"
+        ],
+        "summary": "Consultar un usuario (ADMIN)",
+        "operationId": "obtener",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT o identidad ausente o inválida."
+          },
+          "403": {
+            "description": "Rol no autorizado."
+          },
+          "404": {
+            "description": "Usuario no encontrado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/internal/usuarios/{id}/contacto": {
+      "get": {
+        "tags": [
+          "Interno"
+        ],
+        "summary": "Correo de un usuario (Notificaciones)",
+        "description": "Responde también para cuentas inactivas.",
+        "operationId": "contacto",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactoRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token de servicio ausente o incorrecto cuando su validación está configurada."
+          },
+          "404": {
+            "description": "Usuario no encontrado."
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ]
+      }
+    },
+    "/internal/usuarios/por-correo": {
+      "get": {
+        "tags": [
+          "Interno"
+        ],
+        "summary": "Identificador y roles por correo (Lugares, sectores y eventos)",
+        "operationId": "porCorreo",
+        "parameters": [
+          {
+            "name": "correo",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentidadRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token de servicio ausente o incorrecto cuando su validación está configurada."
+          },
+          "404": {
+            "description": "Usuario no encontrado."
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RolesPedido": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "UsuarioRespuesta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "apellido": {
+            "type": "string"
+          },
+          "correo": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "activo": {
+            "type": "boolean"
+          },
+          "creadoEl": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EstadoPedido": {
+        "type": "object",
+        "properties": {
+          "activo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "activo"
+        ]
+      },
+      "PerfilPedido": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "apellido": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "apellido",
+          "nombre"
+        ]
+      },
+      "RegistroPedido": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "apellido": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "correo": {
+            "type": "string",
+            "maxLength": 254,
+            "minLength": 0
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?=.*\\p{L})(?=.*\\d).{8,72}$"
+          }
+        },
+        "required": [
+          "apellido",
+          "correo",
+          "nombre",
+          "password"
+        ]
+      },
+      "LoginPedido": {
+        "type": "object",
+        "properties": {
+          "correo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "correo",
+          "password"
+        ]
+      },
+      "TokenRespuesta": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "tipoToken": {
+            "type": "string"
+          },
+          "expiraEn": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PaginaUsuariosRespuesta": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsuarioRespuesta"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ContactoRespuesta": {
+        "type": "object",
+        "properties": {
+          "correo": {
+            "type": "string"
+          }
+        }
+      },
+      "IdentidadRespuesta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "activo": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "serviceToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Service-Token",
+        "description": "Exigido en rutas internas cuando SERVICIO_TOKEN está configurado."
+      }
+    }
+  }
+}
