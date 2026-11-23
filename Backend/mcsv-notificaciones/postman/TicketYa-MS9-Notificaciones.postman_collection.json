@@ -1,0 +1,1185 @@
+{
+  "info": {
+    "_postman_id": "47b60a74-44aa-4416-ae4c-76a26970275a",
+    "name": "TicketYa - MS9 Notificaciones",
+    "description": "TicketYa - MS9 Notificaciones (Entrega 2).\n\nMS9 es solo de uso interno: el Gateway no publica /internal/**. Los requests van directo a {{notificacionesUrl}} (puerto 8090) con X-Service-Token; en Docker el puerto no se publica, hay que levantar con docker-compose.dev.yml (127.0.0.1:8090).\n\nCómo usarla: levantar el sistema (README de la raíz), importar la colección y el environment 'TicketYa - MS9 local', completar servicioToken (el SERVICIO_TOKEN del .env) y correr la colección con el Runner, en orden. La carpeta 00 usa el Gateway para obtener el usuarioId real del cliente de prueba; la 04 consulta Mailpit para ver los correos.\n\nCada request manda X-Correlation-Id (pm-<hora>-<n>), que aparece en los logs como correlacionId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Preparación",
+      "item": [
+        {
+          "name": "Login CLIENTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{clienteEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Reinicia runId (para que los acontecimientoId sean nuevos en cada corrida) y guarda el JWT del cliente de prueba."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('runId', String(Date.now()));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda tokenCliente\", function () {",
+                  "  const j = pm.response.json(); const v = j.token;",
+                  "  pm.expect(v, \"tokenCliente presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"tokenCliente\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi usuario (CLIENTE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/usuarios/me",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Notificaciones obtiene el correo del destinatario en Usuarios por este id; con un id inexistente el aviso se registra pero el envío falla."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda usuarioId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"usuarioId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"usuarioId\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Obtiene el id real del cliente de prueba (usuarioId), para que el correo llegue a Mailpit."
+    },
+    {
+      "name": "01 - Recepción de avisos (X-Service-Token)",
+      "item": [
+        {
+          "name": "Aviso COMPRA_CONFIRMADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });",
+                  "pm.test(\"Guarda notificacionId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"notificacionId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"notificacionId\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reenvío del mismo aviso (idempotente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Misma clave (acontecimientoId + tipo + usuarioId): devuelve la notificación ya registrada y no crea otra."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"duplicado: true y misma notificación\", function () { const j = pm.response.json(); pm.expect(j.duplicado).to.be.true; pm.expect(j.id).to.eql(pm.collectionVariables.get(\"notificacionId\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso ENTRADAS_DISPONIBLES",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-entradas-disponibles-{{runId}}\",\n  \"tipo\": \"ENTRADAS_DISPONIBLES\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-entradas_disponibles\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso EVENTO_CANCELADO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-evento-cancelado-{{runId}}\",\n  \"tipo\": \"EVENTO_CANCELADO\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-evento_cancelado\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso EVENTO_MODIFICADO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-evento-modificado-{{runId}}\",\n  \"tipo\": \"EVENTO_MODIFICADO\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-evento_modificado\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"nuevaFecha\": \"21/12/2026\",\n    \"nuevoHorario\": \"22:00\",\n    \"nuevoLugar\": \"Estadio Norte, Rosario\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso NUEVO_EVENTO_DE_INTERES",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-nuevo-evento-de-interes-{{runId}}\",\n  \"tipo\": \"NUEVO_EVENTO_DE_INTERES\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-nuevo_evento_de_interes\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Festival Postman\",\n    \"fecha\": \"10/01/2027 20:00\",\n    \"lugar\": \"Teatro Municipal\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso DEVOLUCION_APROBADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-devolucion-aprobada-{{runId}}\",\n  \"tipo\": \"DEVOLUCION_APROBADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-devolucion_aprobada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"monto\": \"10000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso DEVOLUCION_RECHAZADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-devolucion-rechazada-{{runId}}\",\n  \"tipo\": \"DEVOLUCION_RECHAZADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-devolucion_rechazada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"motivo\": \"Fuera de plazo\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso RESULTADO_REINTEGRO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-resultado-reintegro-{{runId}}\",\n  \"tipo\": \"RESULTADO_REINTEGRO\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-resultado_reintegro\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"monto\": \"10000.00\",\n    \"resultado\": \"EXITOSO\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Registra el aviso en estado PENDIENTE y responde 202; el correo lo envía después la tarea programada (revisar Mailpit)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", function () { pm.expect(pm.response.code).to.be.oneOf([202]); });",
+                  "pm.test(\"Confirma la recepción\", function () { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); pm.expect(j).to.have.property(\"duplicado\"); pm.expect(j.estado).to.be.oneOf([\"PENDIENTE\", \"PROCESANDO\", \"ENVIADA\", \"ERROR_FINAL\"]); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Un aviso por cada uno de los 8 tipos de notificación, más el reenvío idempotente. Requiere servicioToken.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('servicioToken')) { throw new Error('Completar servicioToken en el environment (el SERVICIO_TOKEN del .env del sistema)'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Errores esperados",
+      "item": [
+        {
+          "name": "Sin X-Service-Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ACCESO_DENEGADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"ACCESO_DENEGADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "X-Service-Token incorrecto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "token-que-no-es"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ACCESO_DENEGADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"ACCESO_DENEGADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tipo desconocido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-tipo-que-no-existe-{{runId}}\",\n  \"tipo\": \"TIPO_QUE_NO_EXISTE\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-tipo_que_no_existe\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {}\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error VALIDACION (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"VALIDACION\"); });",
+                  "pm.test(\"Indica el campo tipo\", function () { pm.expect(pm.response.json().campos).to.have.property(\"tipo\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Falta usuarioId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error VALIDACION (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"VALIDACION\"); });",
+                  "pm.test(\"Indica el campo usuarioId\", function () { pm.expect(pm.response.json().campos).to.have.property(\"usuarioId\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "acontecimientoId de más de 100 caracteres",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"{{acontecimientoLargo}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 1,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('acontecimientoLargo', 'a'.repeat(101));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error VALIDACION (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"VALIDACION\"); });",
+                  "pm.test(\"Indica el campo acontecimientoId\", function () { pm.expect(pm.response.json().campos).to.have.property(\"acontecimientoId\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Versión de esquema no soportada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acontecimientoId\": \"pm-compra-confirmada-{{runId}}\",\n  \"tipo\": \"COMPRA_CONFIRMADA\",\n  \"versionEsquema\": 2,\n  \"ocurridoEn\": \"{{$isoTimestamp}}\",\n  \"recursoId\": \"recurso-compra_confirmada\",\n  \"usuarioId\": \"{{usuarioId}}\",\n  \"correlacionId\": \"pm-{{runId}}\",\n  \"datos\": {\n    \"evento\": \"Recital Postman\",\n    \"fecha\": \"20/12/2026 21:00\",\n    \"cantidad\": 2,\n    \"total\": \"20000.00\"\n  }\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ESQUEMA_NO_SOPORTADO (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"ESQUEMA_NO_SOPORTADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "JSON inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"acontecimientoId\": "
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error CUERPO_INVALIDO (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"CUERPO_INVALIDO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cuerpo que no es JSON (Content-Type text/plain)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "hola",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error TIPO_DE_CONTENIDO_NO_SOPORTADO (HTTP 415)\", function () { pm.response.to.have.status(415); pm.expect(pm.response.json().error).to.eql(\"TIPO_DE_CONTENIDO_NO_SOPORTADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Método no admitido (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/notificaciones",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "notificaciones"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error METODO_NO_PERMITIDO (HTTP 405)\", function () { pm.response.to.have.status(405); pm.expect(pm.response.json().error).to.eql(\"METODO_NO_PERMITIDO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ruta inexistente",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{notificacionesUrl}}/internal/no-existe",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "internal",
+                "no-existe"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error RUTA_NO_ENCONTRADA (HTTP 404)\", function () { pm.response.to.have.status(404); pm.expect(pm.response.json().error).to.eql(\"RUTA_NO_ENCONTRADA\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Casos que tienen que fallar de una forma conocida. Ninguno guarda una notificación. Requiere servicioToken.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('servicioToken')) { throw new Error('Completar servicioToken en el environment (el SERVICIO_TOKEN del .env del sistema)'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Monitoreo",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{notificacionesUrl}}/actuator/health",
+              "host": [
+                "{{notificacionesUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"status UP\", function () { pm.expect(pm.response.json().status).to.eql(\"UP\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Verificar el correo (Mailpit)",
+      "item": [
+        {
+          "name": "Últimos mails recibidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mailpitUrl}}/api/v1/messages?limit=20",
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "El envío es asíncrono (tarea programada cada 10 s): si todavía no llegó, esperar y repetir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Trae la lista de mensajes\", function () { pm.expect(pm.response.json()).to.have.property(\"messages\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mails del cliente de prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mailpitUrl}}/api/v1/search?query=to:{{clienteEmail}}&limit=20",
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "to:{{clienteEmail}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Trae la lista de mensajes\", function () { pm.expect(pm.response.json()).to.have.property(\"messages\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Mailpit es el SMTP de prueba del sistema (http://localhost:8025)."
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('runId')) { pm.collectionVariables.set('runId', String(Date.now())); }",
+          "pm.request.headers.upsert({ key: 'X-Correlation-Id', value: 'pm-' + Date.now() + '-' + Math.floor(Math.random() * 1000) });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "notificacionesUrl",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "mailpitUrl",
+      "value": "http://localhost:8025"
+    },
+    {
+      "key": "clienteEmail",
+      "value": "cliente@ticketya.test"
+    },
+    {
+      "key": "password",
+      "value": "Prueba123"
+    },
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "tokenCliente",
+      "value": ""
+    },
+    {
+      "key": "usuarioId",
+      "value": ""
+    },
+    {
+      "key": "notificacionId",
+      "value": ""
+    },
+    {
+      "key": "acontecimientoLargo",
+      "value": ""
+    }
+  ]
+}

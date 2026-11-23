@@ -1,11 +1,10 @@
 openapi: 3.0.3
 info:
   title: TicketYa - Notificaciones
-  version: 0.1.0
+  version: 2.0.0
   description: |
-    Microservicio de Gestión de notificaciones de TicketYa (numeración y puerto a confirmar
-    por el grupo). Recibe avisos de acontecimientos de otros servicios y envía correos al
-    cliente de forma asíncrona.
+    Microservicio 9 de TicketYa: Gestión de notificaciones (puerto 8090). Recibe avisos de
+    acontecimientos de otros servicios y envía correos al cliente de forma asíncrona.
 
     **Solo uso interno.** El API Gateway no publica `/internal/**`. Lo llaman los workers de
     outbox de Compras y devoluciones, Lugares, sectores y eventos (vía Compras) y Preferencias
@@ -24,9 +23,13 @@ info:
     **Sin entrega exactamente una vez:** si SMTP acepta el correo y se pierde la confirmación,
     un reintento puede enviarlo dos veces.
 
-    **Autorización entre servicios (provisoria, a acordar con el grupo):** cada llamada lleva el
+    **Autorización entre servicios (provisoria hasta JWT):** cada llamada lleva el
     encabezado `X-Service-Token` con el token compartido (variable `SERVICIO_TOKEN`). Sin token,
     con un token incorrecto o si el servicio no tiene token configurado, responde `403`.
+
+    **Correlación:** el servicio toma el encabezado `X-Correlation-Id` del pedido (lo reenvía
+    Compras) y lo pone en sus logs como `correlacionId`. Si no viene, o no es válido (hasta 100
+    caracteres entre letras, números y `. _ : -`), genera uno.
 
     **Formato de error:** `{"timestamp","status","error","mensaje","campos"?}`. El campo
     `error` lleva un código y `campos` solo aparece en los errores de validación.
@@ -42,14 +45,14 @@ info:
     | `TIPO_DE_CONTENIDO_NO_SOPORTADO` | 415 | El cuerpo no se envió como `application/json` |
     | `ERROR_INTERNO` | 500 | Error inesperado |
 
-    **Contrato a acordar:** forma exacta del aviso, campos de `datos` por tipo (abajo, la
-    propuesta), mecanismo de autorización entre servicios, servidor SMTP y remitente, motor de
-    base de datos y puerto.
+    **Versión del contrato:** `versionEsquema` 1. Cualquier otra versión se rechaza con
+    `400 ESQUEMA_NO_SOPORTADO`.
 servers:
   - url: http://localhost:8090
-    description: Local (puerto a confirmar)
+    description: Servicio directo. En Docker solo se alcanza dentro de la red interna; con el compose de desarrollo, en 127.0.0.1:8090
 tags:
   - name: Notificaciones
+  - name: Monitoreo
 paths:
   /internal/notificaciones:
     post:
@@ -62,6 +65,8 @@ paths:
         cuerpo.
       security:
         - TokenDeServicio: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
       requestBody:
         required: true
         content:
@@ -159,13 +164,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /actuator/health:
+    get:
+      tags: [Monitoreo]
+      summary: Estado del servicio (healthcheck de Docker)
+      description: |
+        Es lo único de actuator que se expone, sin detalles, y no pide token. `200` con
+        `{"status":"UP"}` si el servicio y su base de datos responden; `503` con
+        `{"status":"DOWN"}` si no. El correo SMTP no entra en el chequeo.
+      security: []
+      responses:
+        '200':
+          description: El servicio está en condiciones de atender
+          content:
+            application/json:
+              example:
+                status: UP
+        '503':
+          description: El servicio o su base de datos no responden
+          content:
+            application/json:
+              example:
+                status: DOWN
+
 components:
   securitySchemes:
     TokenDeServicio:
       type: apiKey
       in: header
       name: X-Service-Token
-      description: Token compartido entre servicios (provisorio, a acordar con el grupo)
+      description: Token compartido entre servicios (variable SERVICIO_TOKEN; provisorio hasta JWT)
+  parameters:
+    XCorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Identificador del pedido para unir los logs entre servicios. Si falta o no es válido, el servicio genera uno
+      schema: { type: string, maxLength: 100, pattern: '^[A-Za-z0-9._:-]{1,100}$' }
+      example: pc-145917-12
   schemas:
     Aviso:
       type: object
@@ -201,7 +237,7 @@ components:
           type: object
           additionalProperties: true
           description: |
-            Datos para generar el correo. Campos propuestos por tipo (contrato a acordar); si
+            Datos para generar el correo. Campos que usa la plantilla de cada tipo; si
             falta alguno, el correo usa un texto genérico:
 
             | Tipo | Campos |

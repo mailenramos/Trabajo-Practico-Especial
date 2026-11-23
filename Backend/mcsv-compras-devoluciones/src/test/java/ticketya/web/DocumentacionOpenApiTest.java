@@ -79,6 +79,54 @@ class DocumentacionOpenApiTest extends PruebaIntegracion {
         }
     }
 
+    /** Rutas de usuario con JWT (lo valida el Gateway); internas con token de servicio; el aviso de cancelación, sin nada. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void declaraBearerParaLasRutasDeUsuarioYTokenDeServicioParaLasInternas() throws Exception {
+        Map<String, Object> doc;
+        try (InputStream in = getClass().getResourceAsStream("/static/openapi.yaml")) {
+            doc = new Yaml().load(in);
+        }
+        Map<String, Object> esquemas = (Map<String, Object>)
+                ((Map<String, Object>) doc.get("components")).get("securitySchemes");
+        assertThat((Map<String, Object>) esquemas.get("bearerAuth"))
+                .containsEntry("type", "http").containsEntry("scheme", "bearer").containsEntry("bearerFormat", "JWT");
+        assertThat((Map<String, Object>) esquemas.get("TokenDeServicio"))
+                .containsEntry("in", "header").containsEntry("name", "X-Service-Token");
+
+        List<Map<String, Object>> global = (List<Map<String, Object>>) doc.get("security");
+        assertThat(global).hasSize(1);
+        assertThat(global.get(0)).containsKey("bearerAuth");
+
+        Map<String, Map<String, Object>> paths = (Map<String, Map<String, Object>>) doc.get("paths");
+
+        // Las rutas de usuario heredan el bearer global: ninguna lo reemplaza
+        List<String> deUsuario = List.of("/compras", "/compras/{compraId}", "/compras/{compraId}/pago",
+                "/devoluciones", "/devoluciones/{devolucionId}", "/devoluciones/{devolucionId}/aprobacion",
+                "/devoluciones/{devolucionId}/rechazo", "/reintegros", "/reintegros/{reintegroId}/reintento");
+        for (String ruta : deUsuario) {
+            paths.get(ruta).forEach((metodo, operacion) -> {
+                if (List.of("get", "post", "put", "delete").contains(metodo)) {
+                    assertThat((Map<String, Object>) operacion)
+                            .as("%s %s hereda el bearer global", metodo, ruta).doesNotContainKey("security");
+                }
+            });
+        }
+
+        // Las internas usan el token de servicio, no el JWT
+        for (String ruta : List.of("/internal/eventos/{eventoId}/co-compras",
+                "/internal/usuarios/{usuarioId}/historial-preferencias")) {
+            Map<String, Object> get = (Map<String, Object>) paths.get(ruta).get("get");
+            assertThat(((List<Map<String, Object>>) get.get("security")).get(0)).containsKey("TokenDeServicio");
+        }
+        Map<String, Object> modificacion = (Map<String, Object>) paths.get("/internal/eventos-modificados").get("post");
+        assertThat(((List<Map<String, Object>>) modificacion.get("security")).get(0)).containsKey("TokenDeServicio");
+
+        // El aviso de cancelación no lleva ni JWT ni token de servicio
+        Map<String, Object> cancelacion = (Map<String, Object>) paths.get("/eventos-cancelados").get("post");
+        assertThat((List<Object>) cancelacion.get("security")).isEmpty();
+    }
+
     @SuppressWarnings("unchecked")
     private static void juntarReferencias(Object nodo, List<String> referencias) {
         if (nodo instanceof Map<?, ?> mapa) {

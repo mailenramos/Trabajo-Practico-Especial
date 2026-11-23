@@ -1,6 +1,6 @@
 # TicketYa — Gestión de notificaciones
 
-Microservicio de la plataforma TicketYa (Arquitectura Web, TUDAI, UNICEN) que avisa por correo al cliente cuando se confirma una compra, se resuelve una devolución, se cancela o modifica un evento o se publica un evento de su interés. Numeración (MS9) y puerto (8090) a confirmar por el grupo.
+Microservicio de la plataforma TicketYa (Arquitectura Web, TUDAI, UNICEN) que avisa por correo al cliente cuando se confirma una compra, se resuelve una devolución, se cancela o modifica un evento o se publica un evento de su interés. Es el MS9 y escucha en el puerto 8090.
 
 Qué hace:
 
@@ -13,7 +13,15 @@ Qué hace:
 
 Qué no hace: no tiene endpoints públicos, no usa broker de mensajes, no envía SMS ni push y **no garantiza entrega exactamente una vez** (si SMTP acepta el correo y se pierde la confirmación, un reintento puede enviarlo dos veces).
 
-La API está documentada en `src/main/resources/static/openapi.yaml` (servida en `/openapi.yaml`).
+La API está documentada en `src/main/resources/static/openapi.yaml` (servida en `/openapi.yaml`). Es de uso interno, así que declara solo `TokenDeServicio` (`X-Service-Token`); el único endpoint sin token es `/actuator/health`.
+
+### Colección de Postman
+
+Está en [`postman/`](postman/): `TicketYa-MS9-Notificaciones.postman_collection.json` y el environment `TicketYa-MS9-Local.postman_environment.json`. Se importan los dos, se completa `servicioToken` (el `SERVICIO_TOKEN` del `.env`) y se corre la colección con el Runner: obtiene el `usuarioId` real del cliente de prueba, envía un aviso de cada uno de los 8 tipos, prueba la idempotencia y los errores, y consulta Mailpit. Como Docker no publica el puerto 8090, desde la raíz del repo:
+
+```powershell
+docker compose -f docker-compose.yml -f Backend/mcsv-notificaciones/docker-compose.dev.yml up -d notificaciones
+```
 
 ## Requisitos
 

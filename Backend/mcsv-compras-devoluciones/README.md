@@ -138,6 +138,16 @@ La documentación completa (rutas, parámetros, ejemplos de pedido y respuesta, 
 
 Medios de pago admitidos: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER` y `DIGITAL_WALLET`.
 
+### Seguridad en el OpenAPI y colección de Postman
+
+El OpenAPI declara tres esquemas: `bearerAuth` (JWT que valida el Gateway) para las rutas de usuario, `TokenDeServicio` (`X-Service-Token`) para `/internal/**`, y ninguna autenticación para `POST /eventos-cancelados`. La tabla con el rol que exige el Gateway en cada operación está en la descripción del documento.
+
+La colección de Postman está en [`postman/`](postman/): `TicketYa-MS3-Compras.postman_collection.json` y el environment `TicketYa-MS3-Local.postman_environment.json`. Se importan los dos, se completa `servicioToken` (el `SERVICIO_TOKEN` del `.env`) y se corre la colección completa con el Runner, en orden: login de los tres roles, preparación de un evento, compra y pago, devoluciones, reintegros, endpoints internos y casos de error. Las rutas de usuario van por el Gateway (8086). Las carpetas `05` y los dos últimos casos de `06` van directo a MS3 y necesitan el puerto 8083, que Docker no publica; desde la raíz del repo:
+
+```powershell
+docker compose -f docker-compose.yml -f Backend/mcsv-compras-devoluciones/docker-compose.dev.yml up -d compras
+```
+
 ### Identificación del usuario
 
 Desde la Entrega 2, el API Gateway valida el JWT del usuario, descarta los encabezados de identidad que manda el cliente y propaga estos dos. Este servicio no recibe ni valida el token:
@@ -149,7 +159,7 @@ Las reglas de titularidad no cambian: un cliente ve y opera solo sus compras y d
 
 **Compatibilidad:** si no llega `X-User-Roles` pero sí el encabezado anterior `X-User-Role` (un solo rol, de la Entrega 1), se lo toma como único rol. Si llegan los dos, manda `X-User-Roles`. `X-User-Role` está obsoleto y se retira cuando todo el grupo use el Gateway nuevo.
 
-**Seguridad:** el servicio confía en estos encabezados, así que solo debe ser alcanzable a través del Gateway. En la configuración de entrega (Docker), el puerto 8083 no debe publicarse fuera de la red `ticketya-net`; solo el Gateway llega a él. Esa configuración todavía no está en el repositorio. Los endpoints `/internal/**` no pasan por el Gateway y usan `X-Service-Token`.
+**Seguridad:** el servicio confía en estos encabezados, así que solo debe ser alcanzable a través del Gateway. En la configuración de entrega (Docker), el puerto 8083 no debe publicarse fuera de la red `ticketya-net`; solo el Gateway llega a él. El `docker-compose.yml` de esta carpeta no lo publica; solo `docker-compose.dev.yml` lo publica, ligado a `127.0.0.1`, para desarrollo. Los endpoints `/internal/**` no pasan por el Gateway y usan `X-Service-Token`.
 
 **Correlación:** el servicio toma el `X-Correlation-Id` que agrega el Gateway (o genera uno si no viene) y lo reenvía en cada llamada a Entradas. También lo usa como `correlacionId` de los avisos a Notificaciones generados durante ese pedido. Las llamadas que nacen de tareas programadas llevan un identificador nuevo.
 
