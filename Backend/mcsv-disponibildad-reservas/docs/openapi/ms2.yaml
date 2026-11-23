@@ -6,8 +6,12 @@ info:
   description: >-
     Contratos HTTP de MS2 para disponibilidad y reservas, junto
     con la integración saliente documentada de Outbox hacia MS1. Las operaciones
-    internas usan REST/JSON directamente, fuera del API Gateway y sin
-    autenticación entre microservicios. Las operaciones de cliente pasan por el
+    internas de MS1 y MS3 hacia las rutas históricas /disponibilidad de MS2 usan
+    REST/JSON directamente, fuera del Gateway y sin token de servicio; requieren
+    una red confiable. El filtro de MS2 exige X-Service-Token solo para /internal/**.
+    MS2 envía X-Service-Token al consultar /internal/** de MS1 y consumir turnos
+    en MS7; el callback de disponibilidad a MS1 usa una ruta histórica sin ese
+    requisito. Las operaciones de cliente pasan por el
     Gateway. Puertos locales: MS1 8081, MS2 8080 y MS3 8083. El contrato de
     consulta pública de compras/reservas propias está fuera del alcance de MS2 y corresponde a MS3.
     Los UUID mal formados producen 400 PARAMETRO_INVALIDO. Los identificadores

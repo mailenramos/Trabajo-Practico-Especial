@@ -1,0 +1,50 @@
+services:
+  db-ms2:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: temporal_ms2
+      MYSQL_DATABASE: ms2_test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  ms1:
+    image: python:3.12-alpine
+    volumes:
+      - ./ms1_simulado.py:/test/ms1.py:ro
+    command: ["python", "/test/ms1.py", "--port", "8081"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/internal/eventos/salud')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  ms2-a: &ms2
+    image: ticketya-reservas:prueba
+    environment:
+      SERVICIO_TOKEN: prueba_interna_ms2_2026
+      MS2_DB_URL: jdbc:mysql://db-ms2:3306/ms2_test
+      MS2_DB_USERNAME: root
+      MS2_DB_PASSWORD: temporal_ms2
+      MS1_API_BASE_URL: http://ms1:8081
+      MS7_API_BASE_URL: http://ms7-no-usado:8088
+    depends_on:
+      db-ms2: {condition: service_healthy}
+      ms1: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null"]
+      interval: 3s
+      timeout: 5s
+      retries: 50
+  ms2-b:
+    <<: *ms2
+    depends_on:
+      ms2-a: {condition: service_healthy}
+  tests:
+    image: python:3.12-alpine
+    volumes:
+      - ./integracion_ms2_ms7.py:/test/integracion_ms2_ms7.py:ro
+      - ./concurrencia_ms2.py:/test/concurrencia_ms2.py:ro
+    command: ["python", "-u", "/test/concurrencia_ms2.py"]
+    depends_on:
+      ms2-b: {condition: service_healthy}

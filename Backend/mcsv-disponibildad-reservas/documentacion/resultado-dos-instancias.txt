@@ -1,0 +1,3 @@
+OK: dos instancias MS2, un mismo asiento numerado, una sola reserva
+OK: NUMERADO: 10 clientes, 2 instancias, 1 reserva HTTP 201, 9 conflictos HTTP 409, 1 confirmación y 1 lugar vendido
+OK: NO_NUMERADO: 10 clientes, 2 instancias, 1 reserva HTTP 201, 9 conflictos HTTP 409, 1 confirmación y 1 lugar vendido

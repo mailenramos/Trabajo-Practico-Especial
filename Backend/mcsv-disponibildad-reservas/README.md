@@ -57,7 +57,7 @@ El servicio utiliza `http://localhost:8080` como URL base.
 
 MS2 tiene una operación pública, accesible a través del API Gateway, y operaciones internas destinadas a la comunicación entre microservicios.
 
-Las llamadas internas utilizan REST/JSON, sin pasar por el Gateway y sin autenticación entre microservicios, según el acuerdo del equipo.
+Las llamadas entre servicios utilizan REST/JSON directamente, sin pasar por el Gateway. Las rutas históricas de MS1 y MS3 hacia MS2 están bajo `/disponibilidad/**` y no exigen token de servicio: deben quedar en una red confiable. El filtro de MS2 exige `X-Service-Token` para `/internal/**`, no para esas rutas. Las llamadas de MS2 a `/internal/**` de MS1 y MS7 envían `X-Service-Token`; el callback de disponibilidad a MS1 usa su ruta histórica fuera de `/internal/**`.
 
 ### Operación pública
 
@@ -278,6 +278,8 @@ docs/openapi/ms2.yaml
 
 Este archivo documenta las rutas, parámetros, encabezados, cuerpos y respuestas de las operaciones públicas e internas.
 
+La colección Postman de `postman/` usa `gatewayUrl` y un JWT de cliente en `accessToken` para crear reservas. Las operaciones de MS1/MS3 usan `baseUrl` para acceso directo en una red confiable; no pasan por el Gateway. El token se obtiene de `POST /auth/login` y se configura localmente en Postman.
+
 ## Base de datos y migraciones
 
 MS2 utiliza MySQL con JPA/Hibernate para la persistencia y Flyway para gestionar el esquema.
@@ -373,9 +375,9 @@ Los nombres y la red son ejemplos que deben coincidir con el despliegue real.
 
 Además de `./mvnw test`, las pruebas MySQL requieren una instancia nueva y descartable en un puerto local distinto de 3307, con esquemas `ms2_disposable` y `ms2_r2_disposable`. Configurá `MS2_TEST_MYSQL_URL`, `MS2_TEST_MYSQL_PASSWORD`, `MS2_R2_MYSQL_URL` y `MS2_R2_MYSQL_PASSWORD` con esa instancia y ejecutá `./mvnw -Dms2.mysql.integration=true test`. Las pruebas crean y eliminan esquemas; nunca apuntes a bases de desarrollo.
 
-Para el entorno aislado de integración MS2–MS7 ejecutá `sh tests/integracion/ejecutar-compose.sh`. Levanta dos instancias de cada servicio, bases MySQL independientes, MS1 simulado, un proxy de fallos delante de MS7 real y el ejecutor de pruebas, con un nombre de proyecto único. El script elimina los contenedores, la red y los volúmenes de ese proyecto al terminar o fallar. No reemplaza las pruebas con MS1, MS3, MS6 y Gateway reales del equipo. La última ejecución individual con MySQL aislado registró 300 pruebas de MS2 y 59 de MS7, sin omisiones.
+El entorno aislado `tests/integracion/compose.test.yaml` define dos instancias por servicio, bases MySQL independientes, MS1 simulado y un proxy de fallos. Su script elimina los recursos del proyecto de prueba al terminar. La configuración y el proxy requieren actualización para propagar el token de servicio actual; no se debe asumir que la suite completa siga funcionando sin esa adaptación.
 
-La ejecución Compose verifica consumo con fallo de reserva y reingreso, competencia por asiento, FIFO, idempotencia, límite por cliente, recuperación ante indisponibilidad simulada de MS1, ingresos simultáneos en dos MS7, vencimiento real de un turno y pérdida de la respuesta de un consumo real. El proxy simula la indisponibilidad de MS7 sin detener su instancia. El simulador no verifica los contratos ni la disponibilidad del MS1 del equipo.
+El 23 de noviembre de 2026 se ejecutaron 58 pruebas `DisponibilidadMySqlConcurrencyTests` con MySQL 8.4 real: todas pasaron, sin omisiones. También se ejecutó el caso existente de dos instancias MS2 sobre una base MySQL compartida y MS1 simulado: para el mismo asiento hubo una reserva 201 y un conflicto 409. Otros dos escenarios con diez clientes y las dos instancias verificaron el mismo asiento y el último lugar no numerado: en cada caso solo una reserva se confirmó. El detalle y los límites están en [evidencia de concurrencia](documentacion/evidencia-concurrencia-ms2.md). El flujo grupal sin fila se probó con JMeter; ver el [informe](../../docs/pruebas-carga/informe.md). Estas ejecuciones no acreditan el flujo grupal con fila activa ni la suite completa del proxy.
 
 La [matriz de cumplimiento individual](documentacion/Matriz-Cumplimiento-Entrega-2.md) reúne las verificaciones y distingue las limitaciones aceptadas y los pendientes de integración grupal.
 
@@ -400,7 +402,6 @@ esté activo el override; también puede consultarse el estado con `docker compo
 Actuator expone únicamente health sin detalles. La comprobación HTTP usa curl,
 instalado en la imagen. No eliminar el volumen para detener los servicios.
 
-La autenticación interna `X-Service-Token` / `SERVICIO_TOKEN` aún requiere acuerdo
-sobre alcance, validación, errores y despliegue coordinado; no está habilitada.
+`SERVICIO_TOKEN` es obligatorio al iniciar MS2 y debe coincidir con el configurado en MS1 y MS7 para las llamadas salientes protegidas. El filtro entrante de `/internal/**` devuelve 403 si el token falta o es incorrecto; las rutas históricas `/disponibilidad/**` no pasan por ese filtro y requieren aislamiento de red.
 
 Cada intento diferido del outbox genera un nuevo ID de correlación: no conserva el ID original de la solicitud que creó la notificación. El ID del intento se incluye en sus logs y en el header enviado a MS1.

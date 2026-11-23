@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "658e3c66-bd4c-478a-b198-3f739c7b3fc1",
     "name": "TicketYa MS2 - Gestión de disponibilidad y reservas",
-    "description": "MS2: operaciones internas MS1/MS3 y creación pública con identidad y rol CLIENTE propagados por Gateway. El flujo consulta MS1 y, si corresponde, MS7. Los nombres de cantidadReservada y cantidadVendida están pendientes de confirmación con MS1 y MS3.",
+    "description": "MS2: reserva pública por Gateway con JWT de CLIENTE y operaciones internas MS1/MS3 por acceso directo en red confiable. Las reservas nuevas consultan MS1 y consumen turno en MS7 cuando corresponde.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "58900759",
     "_collection_link": "https://go.postman.co/collection/58900759-658e3c66-bd4c-478a-b198-3f739c7b3fc1?source=collection_link"
@@ -406,21 +406,12 @@
                         "method": "POST",
                         "header": [
                           {
-                            "description": "Identificador String del titular propagado por el Gateway.",
-                            "key": "X-User-Id",
-                            "value": "{{usuarioId}}"
-                          },
-                          {
                             "key": "Content-Type",
                             "value": "application/json"
                           },
                           {
                             "key": "Accept",
                             "value": "application/json"
-                          },
-                          {
-                            "key": "X-User-Roles",
-                            "value": "{{roles}}"
                           },
                           {
                             "key": "X-Correlation-Id",
@@ -438,9 +429,9 @@
                           }
                         },
                         "url": {
-                          "raw": "{{baseUrl}}/disponibilidad/eventos/:eventoId/reservas",
+                          "raw": "{{gatewayUrl}}/disponibilidad/eventos/:eventoId/reservas",
                           "host": [
-                            "{{baseUrl}}"
+                            "{{gatewayUrl}}"
                           ],
                           "path": [
                             "disponibilidad",
@@ -456,7 +447,17 @@
                             }
                           ]
                         },
-                        "description": "Gateway valida el JWT; MS2 exige CLIENTE. Las solicitudes nuevas consultan MS1 y, cuando corresponde, consumen un turno en MS7. Reintentos idénticos vigentes responden 200."
+                        "description": "El Gateway valida el JWT y propaga la identidad; MS2 exige CLIENTE. Las solicitudes nuevas consultan MS1 y, cuando corresponde, consumen un turno en MS7. Los reintentos idénticos vigentes responden 200.",
+                        "auth": {
+                          "type": "bearer",
+                          "bearer": [
+                            {
+                              "key": "token",
+                              "value": "{{accessToken}}",
+                              "type": "string"
+                            }
+                          ]
+                        }
                       },
                       "response": [
                         {
@@ -2125,6 +2126,15 @@
     {
       "key": "usuarioId",
       "value": "CLIENTE-42"
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "secret"
     }
   ]
 }

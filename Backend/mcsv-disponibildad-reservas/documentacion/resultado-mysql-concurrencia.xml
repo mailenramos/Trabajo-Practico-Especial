@@ -1,0 +1,119 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="9.73" tests="58" errors="0" skipped="0" failures="0" flakes="0">
+  <testcase name="mysqlValidationFailureLeavesNoInitializationRows" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.128">
+    </testcase>
+  <testcase name="concurrentMySqlConfirmationsOfOneReservationTransferCountsOnlyOnce" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.198">
+    </testcase>
+  <testcase name="concurrentDifferentMySqlInitializationsKeepOnlyWinnerAndReturnConflict" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.322">
+    </testcase>
+  <testcase name="concurrentMySqlExpirationConfirmationAndManualReleaseApplyOneTerminalTransition" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.079">
+    </testcase>
+  <testcase name="mysqlEventStatusCheckIsCaseSensitiveAndAcceptsCanonicalPublished" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.041">
+    </testcase>
+  <testcase name="flywayMigratesBlankSchemaAndHibernateValidatesIt" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.021">
+    </testcase>
+  <testcase name="solicitudesSimultaneasConLaMismaClaveRecuperanUnaSolaReserva" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.066">
+    </testcase>
+  <testcase name="mysqlClientLimitsAreIndependentAcrossCustomersAndEvents" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.119">
+    </testcase>
+  <testcase name="suspensionYLimiteSeVerificanDespuesDeConsumir" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.185">
+    </testcase>
+  <testcase name="generatedAndExistingCheckConstraintsArePresentAndEnforced" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.033">
+    </testcase>
+  <testcase name="lecturaBloqueanteVeVencimientoConfirmadoDespuesDeUnaInstantaneaRepeatableRead" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.048">
+    </testcase>
+  <testcase name="concurrentMySqlSalesStateChangesAndReservationCreationSerializeOnEventLock" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.147">
+    </testcase>
+  <testcase name="concurrentMySqlRefundIdsCannotReturnMoreThanRemainingQuantity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.178">
+    </testcase>
+  <testcase name="cancelacionDuranteConsumoImpideCrearReserva" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.049">
+    </testcase>
+  <testcase name="v7PreservesHistoricalFingerprintsAndRowsButStopsMatchingCaseAliases" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.614">
+    </testcase>
+  <testcase name="mysqlPersistsCompleteInitializationAndEffectiveDefaultLimit" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.011">
+    </testcase>
+  <testcase name="erroresDePoliticaYTurnoImpidenCrearUnaReservaNueva" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.058">
+    </testcase>
+  <testcase name="concurrentRequestsCannotExceedPerClientEventLimit" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.098">
+    </testcase>
+  <testcase name="concurrentFirstClientEventAggregateCreationsProduceOneMySqlRow" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.052">
+    </testcase>
+  <testcase name="concurrentSameClientRequestIdAcrossDifferentEventsCreatesOnlyOneReservation" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.074">
+    </testcase>
+  <testcase name="solicitudesConDistintasClavesNoExcedenElInventarioConFila" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.084">
+    </testcase>
+  <testcase name="mysqlRejectsReservedAndSoldQuantitiesAboveCapacity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.003">
+    </testcase>
+  <testcase name="exactExternalIdsAndIdempotencyKeysPreserveCaseAccentsAndSpaces" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.321">
+    </testcase>
+  <testcase name="differentEventLimitsArePersistedEnforcedAndCountConfirmedSales" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.174">
+    </testcase>
+  <testcase name="autorizacionVenceMientrasEsperaElBloqueoDelEvento" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.874">
+    </testcase>
+  <testcase name="mysqlClientEventUniqueAndCheckConstraintsArePresentAndEnforced" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.009">
+    </testcase>
+  <testcase name="reservationExpiryRoundTripsAsTheSameUtcInstantInMySql" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.031">
+    </testcase>
+  <testcase name="mysqlRejectsNegativeSoldQuantity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.002">
+    </testcase>
+  <testcase name="mysqlInitializationPersistsEventLimitAndRejectsNonPositiveValuesBeforeWriting" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.011">
+    </testcase>
+  <testcase name="mysqlFailureAfterParentAndSectorWritesRollsBackWholeInitialization" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.025">
+    </testcase>
+  <testcase name="creacionConFilaYRecuperacionNoConsultanNuevamenteServicios" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.02">
+    </testcase>
+  <testcase name="concurrentTransactionsCannotOversellLastMySqlCapacity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.009">
+    </testcase>
+  <testcase name="concurrentMySqlReservationRequestsCannotReserveTheSameSeatTwice" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.023">
+    </testcase>
+  <testcase name="mysqlRejectsNegativeReservedQuantity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.002">
+    </testcase>
+  <testcase name="concurrentMySqlIdenticalReservationRetriesCreateOneHoldAndReturnSameReservation" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.018">
+    </testcase>
+  <testcase name="errorRemotoRecuperaReservaCreadaConcurrentemente" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.02">
+    </testcase>
+  <testcase name="concurrentIdenticalMySqlInitializationsCreateOneCompleteInventory" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.009">
+    </testcase>
+  <testcase name="mysqlReservationRetriesAfterAReproducibleDeadlockWithoutDuplicateEffects" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.127">
+    </testcase>
+  <testcase name="mysqlPartialRefundWritesRestorationNotificationOnceAndKeepsSuspension" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.046">
+    </testcase>
+  <testcase name="mysqlIdenticalRetryReturnsExistingDataAndDifferentRetryConflicts" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.013">
+    </testcase>
+  <testcase name="mysqlPersistsEveryEventStatusAndRejectsUnknownStatus" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.012">
+    </testcase>
+  <testcase name="mysqlVersionedFingerprintsRetryAndLegacyFingerprintsFailClosed" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.01">
+    </testcase>
+  <testcase name="mysqlSeatCompositeBusinessKeyRejectsDuplicateRows" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.002">
+    </testcase>
+  <testcase name="configuredServerIsMySql8413" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.001">
+    </testcase>
+  <testcase name="falloRemotoNoCreaReservaYReintentoUsaLaMismaHuella" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.021">
+    </testcase>
+  <testcase name="failedMultiSeatOperationRollsBackEarlierMySqlUpdates" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.011">
+    </testcase>
+  <testcase name="concurrentMySqlReservationRequestsCannotOversellNonNumberedCapacity" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.015">
+    </testcase>
+  <testcase name="resumenDeSectoresCuentaEstadosEnMySql" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.021">
+    </testcase>
+  <testcase name="concurrentMySqlRetriesOfOneRefundIdApplyRefundExactlyOnce" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.07">
+    </testcase>
+  <testcase name="sinFilaNoConsumeYUnaAutorizacionVencidaNoCreaReserva" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.027">
+    </testcase>
+  <testcase name="schedulerYReservaConcurrentesNoDuplicanElDescuentoDeVencida" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.037">
+    </testcase>
+  <testcase name="concurrentCancellationConfirmationManualReleaseAndExpirationLeaveNoPartialReservationState" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.146">
+    </testcase>
+  <testcase name="inventarioInsuficienteDespuesDelConsumoNoCreaReserva" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.028">
+    </testcase>
+  <testcase name="concurrentTransactionsCannotReserveTheSameMySqlSeat" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.01">
+    </testcase>
+  <testcase name="vencidaYCreacionesConcurrentesCompitenConSchedulerSinDescuentosDuplicados" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.032">
+    </testcase>
+  <testcase name="baselineVersionOneAdoptsLegacySchemaAndRunsOnlyLaterMigrations" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.39">
+    </testcase>
+  <testcase name="concurrentMySqlPaymentRejectionReleasesOneReservationOnlyOnce" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.023">
+    </testcase>
+  <testcase name="existingMySqlAggregateIsRefreshedAfterPessimisticLock" classname="ar.edu.unicen.ms_disponibilidad_reservas.service.DisponibilidadMySqlConcurrencyTests" time="0.008">
+    </testcase>
+</testsuite>
