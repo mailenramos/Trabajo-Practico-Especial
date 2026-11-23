@@ -25,7 +25,10 @@ abstract class ClienteRest {
         this(servicio, urlBase, timeoutConexion, timeoutLectura, new ClientHttpRequestInterceptor[0]);
     }
 
-    /** Con interceptores que se aplican a todas las llamadas del cliente (por ejemplo, encabezados). */
+    /**
+     * Con interceptores propios del cliente (por ejemplo, el token de servicio). Todos los clientes
+     * llevan además {@link PropagacionDeCorrelacion}, que agrega X-Correlation-Id a cada llamada.
+     */
     protected ClienteRest(String servicio, String urlBase, Duration timeoutConexion, Duration timeoutLectura,
                           ClientHttpRequestInterceptor... interceptores) {
         this.servicio = servicio;
@@ -33,7 +36,10 @@ abstract class ClienteRest {
         fabrica.setConnectTimeout(timeoutConexion);
         fabrica.setReadTimeout(timeoutLectura);
         this.http = RestClient.builder().baseUrl(urlBase).requestFactory(fabrica)
-                .requestInterceptors(lista -> lista.addAll(java.util.List.of(interceptores)))
+                .requestInterceptors(lista -> {
+                    lista.add(PropagacionDeCorrelacion.INSTANCIA);
+                    lista.addAll(java.util.List.of(interceptores));
+                })
                 .build();
     }
 
