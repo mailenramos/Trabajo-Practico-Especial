@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "d46157b6-f765-4303-ae45-85d00f105a82",
     "name": "TicketYa MS7 - Fila virtual",
-    "description": "Los endpoints públicos requieren Gateway e identidad confiable; los internos se usan únicamente en redes de servicio. Las operaciones administrativas y ciertos ingresos consultan MS1.",
+    "description": "Las operaciones públicas usan el Gateway y requieren JWT: CLIENTE para ingreso y turno propio; ORGANIZADOR o ADMIN para administración. Las operaciones internas usan acceso directo y X-Service-Token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -14,26 +14,28 @@
           {
             "key": "Accept",
             "value": "application/json"
-          },
-          {
-            "key": "X-User-Id",
-            "value": "{{usuarioId}}"
-          },
-          {
-            "key": "X-User-Roles",
-            "value": "CLIENTE"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/ingresos",
+          "raw": "{{gatewayUrl}}/filas/eventos/{{eventoId}}/ingresos",
           "host": [
-            "{{baseUrl}}"
+            "{{gatewayUrl}}"
           ],
           "path": [
             "filas",
             "eventos",
             "{{eventoId}}",
             "ingresos"
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
           ]
         }
       },
@@ -47,26 +49,28 @@
           {
             "key": "Accept",
             "value": "application/json"
-          },
-          {
-            "key": "X-User-Id",
-            "value": "{{usuarioId}}"
-          },
-          {
-            "key": "X-User-Roles",
-            "value": "CLIENTE"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/mi-turno",
+          "raw": "{{gatewayUrl}}/filas/eventos/{{eventoId}}/mi-turno",
           "host": [
-            "{{baseUrl}}"
+            "{{gatewayUrl}}"
           ],
           "path": [
             "filas",
             "eventos",
             "{{eventoId}}",
             "mi-turno"
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
           ]
         }
       },
@@ -80,25 +84,27 @@
           {
             "key": "Accept",
             "value": "application/json"
-          },
-          {
-            "key": "X-User-Id",
-            "value": "{{usuarioId}}"
-          },
-          {
-            "key": "X-User-Roles",
-            "value": "ADMIN"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}",
+          "raw": "{{gatewayUrl}}/filas/eventos/{{eventoId}}",
           "host": [
-            "{{baseUrl}}"
+            "{{gatewayUrl}}"
           ],
           "path": [
             "filas",
             "eventos",
             "{{eventoId}}"
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
           ]
         }
       },
@@ -114,22 +120,14 @@
             "value": "application/json"
           },
           {
-            "key": "X-User-Id",
-            "value": "{{usuarioId}}"
-          },
-          {
-            "key": "X-User-Roles",
-            "value": "ADMIN"
-          },
-          {
             "key": "Content-Type",
             "value": "application/json"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/configuracion",
+          "raw": "{{gatewayUrl}}/filas/eventos/{{eventoId}}/configuracion",
           "host": [
-            "{{baseUrl}}"
+            "{{gatewayUrl}}"
           ],
           "path": [
             "filas",
@@ -146,6 +144,16 @@
               "language": "json"
             }
           }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
         }
       },
       "response": []
@@ -160,22 +168,14 @@
             "value": "application/json"
           },
           {
-            "key": "X-User-Id",
-            "value": "{{usuarioId}}"
-          },
-          {
-            "key": "X-User-Roles",
-            "value": "ADMIN"
-          },
-          {
             "key": "Content-Type",
             "value": "application/json"
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/filas/eventos/{{eventoId}}/estado",
+          "raw": "{{gatewayUrl}}/filas/eventos/{{eventoId}}/estado",
           "host": [
-            "{{baseUrl}}"
+            "{{gatewayUrl}}"
           ],
           "path": [
             "filas",
@@ -192,6 +192,16 @@
               "language": "json"
             }
           }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
         }
       },
       "response": []
@@ -295,6 +305,15 @@
     {
       "key": "huellaSolicitud",
       "value": "v1:huella"
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "secret"
     }
   ]
 }

@@ -48,6 +48,7 @@ class ApiGatewayIntegrationTests {
     private static final Backend MS3 = Backend.start();
     private static final Backend MS5 = Backend.start();
     private static final Backend MS6 = Backend.start();
+    private static final Backend MS7 = Backend.start();
     private static final Backend MS8 = Backend.start();
     private static final String SECRET = "integration-test-secret-with-at-least-32-bytes";
     private static final String ISSUER = "ticketya-usuarios";
@@ -67,6 +68,7 @@ class ApiGatewayIntegrationTests {
         registry.add("gateway.services.ms3-url", MS3::url);
         registry.add("gateway.services.ms5-url", MS5::url);
         registry.add("gateway.services.ms6-url", MS6::url);
+        registry.add("gateway.services.ms7-url", MS7::url);
         registry.add("gateway.services.ms8-url", MS8::url);
     }
 
@@ -77,6 +79,7 @@ class ApiGatewayIntegrationTests {
         MS3.stop();
         MS5.stop();
         MS6.stop();
+        MS7.stop();
         MS8.stop();
     }
 
@@ -87,7 +90,35 @@ class ApiGatewayIntegrationTests {
         MS3.clear();
         MS5.clear();
         MS6.clear();
+        MS7.clear();
         MS8.clear();
+    }
+
+    @Test
+    void routesFilaWithJwtRolesAndTrustedIdentity() throws Exception {
+        List<RouteCase> routes = List.of(
+                new RouteCase("POST", "/filas/eventos/evento-1/ingresos", MS7, "CLIENTE"),
+                new RouteCase("GET", "/filas/eventos/evento-1/mi-turno", MS7, "CLIENTE"),
+                new RouteCase("GET", "/filas/eventos/evento-1", MS7, "ORGANIZADOR"),
+                new RouteCase("PUT", "/filas/eventos/evento-1/configuracion", MS7, "ADMIN"),
+                new RouteCase("PUT", "/filas/eventos/evento-1/estado", MS7, "ORGANIZADOR"));
+        for (RouteCase route : routes) {
+            String body = route.method().equals("PUT") ? "{}" : null;
+            assertEquals(401, send(route.method(), route.path(), body).statusCode(), route.path());
+            String wrongRole = route.role().equals("CLIENTE") ? "ADMIN" : "CLIENTE";
+            assertEquals(403, sendAs(route.method(), route.path(), body, wrongRole, "otro").statusCode(), route.path());
+            assertNull(MS7.poll());
+            assertEquals(200, sendAs(route.method(), route.path(), body, route.role(), "usuario-real",
+                    "X-User-Id", "suplantado", "X-User-Roles", "PERSONAL_ACCESO").statusCode(), route.path());
+            CapturedRequest forwarded = MS7.take();
+            assertEquals(route.method(), forwarded.method());
+            assertEquals(route.path(), forwarded.path());
+            assertEquals("usuario-real", forwarded.header("X-User-Id"));
+            assertEquals(route.role(), forwarded.header("X-User-Roles"));
+        }
+        assertEquals(404, sendAs("POST", "/internal/filas/eventos/evento-1/consumos", "{}", "ADMIN", "admin").statusCode());
+        assertEquals(404, sendAs("PUT", "/internal/filas/eventos/evento-1/cancelacion", null, "ADMIN", "admin").statusCode());
+        assertNull(MS7.poll());
     }
 
     @Test

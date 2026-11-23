@@ -1,6 +1,10 @@
 # TicketYa API Gateway — Entrega 2
 
-Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones, Entradas, Usuarios (MS6) y Preferencias/Recomendaciones (MS8). Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto. Valida JWT, aplica autorización por rol y propaga una identidad derivada exclusivamente del token.
+Gateway HTTP para las operaciones públicas de Eventos/Lugares, Disponibilidad/Reservas, Compras/Devoluciones, Entradas, Usuarios (MS6), Fila virtual (MS7) y Preferencias/Recomendaciones (MS8). Conserva los paths de los servicios, no agrega `/api/v1` y escucha en `http://localhost:8086` por defecto. Valida JWT, aplica autorización por rol y propaga una identidad derivada exclusivamente del token.
+
+## Docker Compose general
+
+Desde la raíz del repositorio, seguí los requisitos y la configuración de variables del [README general](../../README.md), y ejecutá `docker compose up -d --build`. El Gateway escucha en `localhost:8086` y se conecta a MS7 por `http://fila-virtual:8088` en la red compartida. Para consultar el estado usá `docker compose ps`.
 
 ## Requisitos y ejecución
 
@@ -51,6 +55,7 @@ Si un request público responde `503`, comprobá que su servicio destino esté e
 | `MS3_URL` | `http://localhost:8083` | Compras y Devoluciones. |
 | `MS5_URL` | `http://localhost:8085` | Entradas. |
 | `MS6_URL` | `http://localhost:8087` | Usuarios y autenticación. |
+| `MS7_URL` | `http://localhost:8088` | Fila virtual. |
 | `MS8_URL` | `http://localhost:8089` | Preferencias y recomendaciones. |
 | `JWT_ISSUER` | `ticketya-usuarios` | Emisor (`iss`) exigido en los JWT; debe coincidir con el de MS6. |
 | `GATEWAY_CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Orígenes web permitidos para CORS, separados por coma. |
@@ -71,6 +76,8 @@ Sin token, una ruta protegida responde `401 NO_AUTENTICADO`. Un token vencido, c
 | Consultar y editar el perfil propio (`/usuarios/me`) | Cualquier rol |
 | Listar/consultar usuarios, asignar roles, activar/desactivar | `ADMIN` |
 | Preferencias y recomendaciones propias (`/preferencias/me`, `/recomendaciones/me`) | `CLIENTE` |
+| Ingresar a la fila y consultar el turno propio | `CLIENTE` |
+| Consultar, configurar y cambiar el estado de la fila | `ORGANIZADOR`, `ADMIN` (MS7 verifica la propiedad para organizadores) |
 | Consultar lugares | `CLIENTE`, `ORGANIZADOR`, `ADMIN`, `PERSONAL_ACCESO` |
 | Crear lugares/eventos/sectores, configurar y publicar eventos | `ORGANIZADOR`, `ADMIN` |
 | Suspender, reactivar o cancelar eventos | `ADMIN` |
@@ -96,6 +103,7 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 | Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
 | Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`; `POST /eventos/{eventoId}/ingresos`. |
 | Usuarios (MS6) | `POST /auth/registro`; `POST /auth/login`; `GET, PUT /usuarios/me`; `GET /usuarios`; `GET /usuarios/{id}`; `PUT /usuarios/{id}/roles`; `PUT /usuarios/{id}/estado`. |
+| Fila virtual (MS7) | `POST /filas/eventos/{eventoId}/ingresos`; `GET /filas/eventos/{eventoId}/mi-turno`; `GET /filas/eventos/{eventoId}`; `PUT /filas/eventos/{eventoId}/configuracion`; `PUT /filas/eventos/{eventoId}/estado`. |
 | Preferencias/Recomendaciones (MS8) | `GET, PUT, DELETE /preferencias/me`; `GET /recomendaciones/me`. |
 
 No se enrutan `/internal/**`, `/actuator/**`, consultas/confirmaciones/liberaciones internas de reservas, el callback `PUT /eventos/{eventoId}/disponibilidad`, `POST /eventos-cancelados`, emisión interna de entradas, `POST /internal/preferencias/eventos-publicados` ni endpoints de Pagos. Los paths desconocidos y métodos no permitidos no se reenvían.
@@ -104,4 +112,4 @@ No se enrutan `/internal/**`, `/actuator/**`, consultas/confirmaciones/liberacio
 
 Cada solicitud conserva un `X-Correlation-Id` (identificador de correlación acordado por el grupo) de hasta 100 caracteres `[A-Za-z0-9._-]` o genera un UUID nuevo; se devuelve al cliente y se propaga al servicio destino. Mientras Pagos migra, `X-Request-Id` se acepta como alternativa de entrada y se reenvía con el mismo valor. El log de consola registra ID, método, path, usuario, roles, status y duración; no registra query strings ni credenciales. Las escrituras no se reintentan automáticamente para evitar duplicar operaciones. Ante desconexión o timeout, el Gateway responde HTTP 503 en el formato de error existente.
 
-Para construir la imagen desde esta carpeta: `docker build -t ticketya/api-gateway .`. El contenedor requiere la clave JWT y las URLs destino por variables de entorno. Este Dockerfile no reemplaza el `docker-compose.yml` de la plataforma, que queda fuera del alcance de este cambio.
+Para construir la imagen desde esta carpeta: `docker build -t ticketya/api-gateway .`. El contenedor requiere la clave JWT y las URLs destino por variables de entorno. El Compose general configura esas conexiones como se indica en el README de la raíz.

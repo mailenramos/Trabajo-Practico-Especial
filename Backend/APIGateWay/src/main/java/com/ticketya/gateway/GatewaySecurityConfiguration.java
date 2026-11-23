@@ -122,6 +122,12 @@ public class GatewaySecurityConfiguration {
                         .pathMatchers(HttpMethod.PUT, "/usuarios/*/roles", "/usuarios/*/estado").hasRole("ADMIN")
                         // MS8 - Preferencias y recomendaciones del cliente
                         .pathMatchers("/preferencias/me", "/recomendaciones/me").hasRole("CLIENTE")
+                        // MS7 - Fila virtual; MS7 verifica además la titularidad del evento.
+                        .pathMatchers(HttpMethod.POST, "/filas/eventos/*/ingresos").hasRole("CLIENTE")
+                        .pathMatchers(HttpMethod.GET, "/filas/eventos/*/mi-turno").hasRole("CLIENTE")
+                        .pathMatchers(HttpMethod.GET, "/filas/eventos/*").hasAnyRole("ORGANIZADOR", "ADMIN")
+                        .pathMatchers(HttpMethod.PUT, "/filas/eventos/*/configuracion", "/filas/eventos/*/estado")
+                        .hasAnyRole("ORGANIZADOR", "ADMIN")
                         .pathMatchers(HttpMethod.GET, "/lugares", "/lugares/**")
                         .hasAnyRole(ALL_ROLES)
                         .pathMatchers(HttpMethod.PUT, "/eventos/*")

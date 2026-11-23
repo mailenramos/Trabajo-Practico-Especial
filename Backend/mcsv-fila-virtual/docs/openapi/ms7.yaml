@@ -4,8 +4,8 @@ info:
   version: 0.1.0
   description: >-
     Contrato HTTP implementado para la fila virtual simplificada. Las rutas
-    de usuario están previstas para accederse mediante Gateway, que valida JWT y
-    propaga X-User-Id y X-User-Roles; el Gateway actual aún no enruta estas rutas.
+    de usuario se acceden mediante Gateway, que valida JWT y
+    propaga X-User-Id y X-User-Roles.
     MS7 no valida el JWT directamente y no debe confiar en encabezados de identidad
     enviados por clientes externos. Las rutas internas usan el token compartido
     X-Service-Token entre servicios en la red privada. MS7 consulta y actualiza
@@ -18,7 +18,7 @@ servers:
     description: MS7 local; acceso directo para desarrollo controlado
 tags:
   - name: Public - Gateway
-    description: Operaciones públicas previstas a través de Gateway.
+    description: Operaciones públicas a través de Gateway.
   - name: Internal - MS2
     description: Consumo de turno por MS2, fuera del Gateway.
   - name: Internal - MS1
@@ -249,7 +249,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Validación en Gateway; MS7 no valida el JWT directamente. El Gateway actual no enruta las operaciones de fila.
+      description: Validación en Gateway; MS7 no valida el JWT directamente.
     serviceToken:
       type: apiKey
       in: header

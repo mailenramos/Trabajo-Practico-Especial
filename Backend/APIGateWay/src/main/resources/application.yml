@@ -155,6 +155,26 @@ spring:
               predicates:
                 - Path=/usuarios/{usuarioId}/roles,/usuarios/{usuarioId}/estado
                 - Method=PUT
+            - id: ms7-ingreso
+              uri: ${gateway.services.ms7-url:${MS7_URL:http://localhost:8088}}
+              predicates:
+                - Path=/filas/eventos/{eventoId}/ingresos
+                - Method=POST
+            - id: ms7-mi-turno
+              uri: ${gateway.services.ms7-url:${MS7_URL:http://localhost:8088}}
+              predicates:
+                - Path=/filas/eventos/{eventoId}/mi-turno
+                - Method=GET
+            - id: ms7-consultar-fila
+              uri: ${gateway.services.ms7-url:${MS7_URL:http://localhost:8088}}
+              predicates:
+                - Path=/filas/eventos/{eventoId}
+                - Method=GET
+            - id: ms7-configuracion-estado
+              uri: ${gateway.services.ms7-url:${MS7_URL:http://localhost:8088}}
+              predicates:
+                - Path=/filas/eventos/{eventoId}/configuracion,/filas/eventos/{eventoId}/estado
+                - Method=PUT
             - id: ms8-preferencias
               uri: ${gateway.services.ms8-url:${MS8_URL:http://localhost:8089}}
               predicates:

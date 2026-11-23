@@ -33,6 +33,7 @@ services:
       MS3_URL: http://compras:8083
       MS5_URL: http://entradas:8085
       MS6_URL: http://usuarios:8087
+      MS7_URL: http://fila-virtual:8088
       MS8_URL: http://preferencias:8089
       JWT_SECRET: "${JWT_SECRET:?Configure JWT_SECRET en .env}"
       # Emisor (iss) de los JWT: debe coincidir con el JWT_ISSUER de Usuarios.
