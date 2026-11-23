@@ -1,6 +1,6 @@
 # Modelo de datos
 
-Este servicio persiste tres colecciones MongoDB propias: `lugares`, `eventos` y `outbox`. Los sectores son subdocumentos embebidos; no tienen colección propia. En el diagrama, `PK` indica la clave del documento o la clave estable del subdocumento, no una restricción de clave foránea de MongoDB.
+Este servicio persiste cuatro colecciones MongoDB propias: `lugares`, `eventos`, `outbox` y `personal_acceso`. Los sectores son subdocumentos embebidos; no tienen colección propia. En el diagrama, `PK` indica la clave del documento o la clave estable del subdocumento, no una restricción de clave foránea de MongoDB.
 
 ```mermaid
 erDiagram
@@ -35,6 +35,8 @@ erDiagram
         Instant fechaHora
         EstadoEvento estado
         boolean ventaSuspendida
+        boolean requiereFila
+        boolean cancelacionPendiente
         int limiteEntradasPorCliente
         BigDecimal precioMinimo "nullable hasta publicar"
         string motivoCancelacion "nullable"
@@ -56,7 +58,10 @@ erDiagram
         string _id PK "ID estable; único"
         string tipo
         string eventoId "referencia lógica al evento"
+        string correlationId "nullable"
         string destino
+        string metodoHttp "nullable; POST por defecto"
+        string motivoCancelacion "nullable"
         object payload
         EstadoAvisoOutbox estado
         int intentos
@@ -68,32 +73,50 @@ erDiagram
         Instant entregadoEn "nullable"
     }
 
+    ASIGNACION_PERSONAL_ACCESO {
+        string _id PK
+        string eventoId "referencia lógica al evento"
+        string usuarioId "UUID de MS6"
+        EstadoPersonalAcceso estado
+        Instant asignadaEn
+        Instant revocadaEn "nullable"
+    }
+
     LUGAR ||--o{ SECTOR_LUGAR : "sectores embebidos"
     LUGAR ||--o{ EVENTO : "evento.lugarId referencia lugar._id"
     EVENTO ||--o{ SECTOR_EVENTO : "sectores embebidos"
     EVENTO ||--o{ AVISO_OUTBOX : "eventoId referencia lógica"
+    EVENTO ||--o{ ASIGNACION_PERSONAL_ACCESO : "eventoId referencia lógica"
 ```
 
 `LUGAR._id` y `EVENTO._id` son propiedades Java `String` marcadas con `@Id`; el código las crea como hexadecimal de `ObjectId`. `SECTOR_LUGAR.id` se genera como UUID en formato `String`. Al crear un evento se copia ese valor a `SECTOR_EVENTO.sectorId`. `TipoSector` admite `NUMERADO` y `NO_NUMERADO`; `EstadoEvento` admite `BORRADOR`, `PUBLICADO`, `AGOTADO`, `CANCELADO` y `FINALIZADO` (la API los serializa en minúsculas).
 
-La relación `evento.lugarId` es una referencia por ID entre documentos de este mismo servicio. Se resuelve mediante `LugarRepository`; no hay una clave foránea ni una relación gestionada por MongoDB. Las listas de sectores, en cambio, forman parte de cada documento.
+`Lugar.version` y `Evento.version` llevan `@Version` para control optimista de concurrencia. La versión persistida de un evento publicado o agotado se incluye en el aviso de modificación a Compras; `requiereFila` es la política vigente que mantiene MS1, y `cancelacionPendiente` marca una intención de cancelación todavía no confirmada por Reservas.
 
-La colección `outbox` guarda avisos de cambio a otros servicios. El campo `eventoId` es una referencia lógica, no una clave foránea. La cancelación usa el ID determinístico `cancelacion-{eventoId}`; la publicación usa `publicacion-{eventoId}`, tipo `PUBLICACION`, con destino `POST {PREFERENCIAS_BASE_URL}/internal/preferencias/eventos-publicados` y un payload de `eventoId`, `nombre`, `tipo`, `participantes`, `ciudad` y `fechaHora`. Los avisos transitan por `PENDIENTE`, `PROCESANDO`, `ENTREGADO` y `ERROR_FINAL`; `leaseHasta` marca el vencimiento de una reclamación.
+La relación `evento.lugarId` es una referencia por ID entre documentos de este mismo servicio. Se resuelve mediante `LugarRepository`; no hay una clave foránea ni una relación gestionada por MongoDB. Del mismo modo, `eventoId` en outbox y `personal_acceso` es lógico. Las listas de sectores, en cambio, forman parte de cada documento.
 
-Los documentos `Evento` ya no tienen el campo `avisoCancelacionPendiente`. El backfill de arranque migra los documentos legacy que aún lo contienen y lo elimina después de insertar o encontrar el aviso correspondiente en `outbox`.
+La colección `outbox` guarda avisos de cambio a otros servicios. `eventoId` es una referencia lógica, no una clave foránea. Además de los avisos `PUBLICACION`, `CANCELACION`, `CANCELACION_FILA` y `MODIFICACION`, guarda el trabajo `CANCELACION_RESERVAS` que representa una intención durable de cancelación. La intención también se refleja en `Evento.cancelacionPendiente` mientras espera la confirmación de Reservas. Los avisos transitan por `PENDIENTE`, `PROCESANDO`, `ENTREGADO` y `ERROR_FINAL`; `leaseHasta` marca el vencimiento de una reclamación. `metodoHttp` y `payload` son opcionales; sin método, la entrega usa `POST`.
+
+Los avisos de publicación, modificación y cancelación confirmada tienen IDs estables como `publicacion-{eventoId}`, `modificacion-{eventoId}-v{version}` y `cancelacion-{eventoId}`. El de confirmación de cancelación usa `cancelacion-reservas-{eventoId}` y el de fila `cancelacion-fila-{eventoId}`. `correlationId` se persiste cuando existe para conservar la trazabilidad durante los reintentos. El backfill de arranque migra documentos legacy que aún tengan el antiguo campo `avisoCancelacionPendiente`; el campo vigente del documento `Evento` es `cancelacionPendiente`.
+
+`ASIGNACION_PERSONAL_ACCESO` representa una asignación por evento y usuario de MS6. `usuarioId` es el UUID textual devuelto por MS6, no una referencia a una colección local. La asignación se conserva al revocarla (`estado=REVOCADA`) y puede reactivarse.
 
 ## Relaciones con otros servicios
 
-En la Entrega 1, este servicio se comunica directamente por REST/JSON. Las referencias entre servicios son IDs: no hay claves foráneas ni lecturas directas a bases de datos ajenas.
+Las rutas de gestión pública llegan por el API Gateway; las rutas internas y las llamadas salientes son HTTP/JSON directas entre servicios, sin pasar por el Gateway. Las referencias entre servicios son IDs: no hay claves foráneas ni lecturas directas a bases de datos ajenas.
 
 | Dirección | Dato | Comportamiento verificado en este repositorio |
 |---|---|---|
-| Entrada a este servicio | `organizadorId` | Se toma del header `X-User-Id` y se guarda en el evento. En esta Entrega 1 no hay integración con un servicio de usuarios en este código. |
-| Este servicio → Reservas | `eventoId`, `sectorId`, `fila`, `numero` | Al publicar, se envía el ID del evento en la ruta y el ID de cada sector en el body. Para sectores numerados se generan y envían los pares de coordenadas de asiento; Reservas recibe esos datos para inicializar disponibilidad. |
+| Gateway → este servicio | Identidad y rutas de catálogo/eventos/personas | Las rutas públicas incluyen búsqueda y detalle de eventos; las rutas de gestión protegidas propagan `X-User-Id` y `X-User-Roles`. El Gateway valida el JWT. |
+| Este servicio → Reservas | `eventoId`, `sectorId`, `fila`, `numero`, estado de venta | Al publicar, se inicializa disponibilidad; la consulta de detalle pide disponibilidad; suspensión/reactivación y cancelación cambian el estado de venta. Para sectores numerados se generan coordenadas de asientos. Reservas llama de vuelta a `PUT /eventos/{eventoId}/disponibilidad` para actualizar la proyección local. |
 | Compras → este servicio | `eventoId` | Compras consulta `GET /internal/eventos/{eventoId}`. La respuesta incluye el ID del evento y cada `sectorId`, además del nombre del evento, nombre del sector y precio. |
 | Preferencias (MS8) → este servicio | Eventos publicados o agotados | MS8 consulta `GET /internal/eventos-publicados` directamente, sin headers de usuario. La ruta es interna, no se publica por el API Gateway y devuelve una respuesta paginada ordenada por fecha e ID. |
+| Este servicio → Compras | Avisos `CANCELACION` y `MODIFICACION` | Outbox envía `POST /eventos-cancelados` y `POST /internal/eventos-modificados` con ID de aviso estable. La modificación reporta la versión confirmada del evento. |
+| Este servicio → MS7 Fila virtual | Aviso `CANCELACION_FILA` | Outbox envía `PUT /internal/filas/eventos/{eventoId}/cancelacion` después de confirmar la cancelación en MS1. |
 | Este servicio → Preferencias (MS8) | Aviso `PUBLICACION` | Después de confirmar Reservas, MS1 persiste evento y aviso en una transacción; luego envía `POST /internal/preferencias/eventos-publicados` con el ID estable en `X-Aviso-Id`. |
-| Reservas → este servicio | `eventoId` y `agotado` | Reservas notifica cambios de disponibilidad mediante `PUT /eventos/{eventoId}/disponibilidad`; el callback actualiza el estado local entre `PUBLICADO` y `AGOTADO`. |
+| Este servicio → Usuarios (MS6) | `usuarioId`, estado y roles | Para asignar personal consulta `GET /internal/usuarios/por-correo`; exige usuario activo con rol `PERSONAL_ACCESO` y guarda el UUID retornado. La llamada usa `X-Service-Token` y el circuito `usuarios`. |
+| Fila virtual (MS7) → este servicio | `requiereFila` | Actualiza directamente `PUT /internal/eventos/{eventoId}/politica-fila`; la ruta no se publica por el Gateway. |
+| Entradas (MS5) → este servicio | Autorización de una asignación | Consulta directamente `GET /internal/eventos/{eventoId}/personal-acceso/{usuarioId}/autorizacion`; devuelve el estado actual sin caché ni headers de usuario. |
 
 **Límite de verificación:** este repositorio no contiene el código de persistencia ni de compra de Reservas o Compras. El cliente de este servicio y el stub de Postman permiten verificar los datos enviados a Reservas; el endpoint interno permite verificar los datos que este servicio entrega a Compras. No permiten confirmar, por sí solos, qué campos guardan las implementaciones reales de esos otros servicios. Por eso, la copia de `eventoId`, `sectorId` y `(fila, numero)` en Reservas, y la copia de nombre/precio en Compras, no se afirman aquí como persistencias externas verificadas.
 
@@ -121,9 +144,10 @@ Además de los índices automáticos `_id_` de MongoDB, el código declara los s
 | `eventos` | `idx_eventos_tipo` | `tipo` ascendente | Filtro por tipo de evento. |
 | `eventos` | `idx_eventos_participantes` | `participantes` ascendente (multikey) | Filtro por participante. |
 | `eventos` | `Evento_TextIndex` | `nombre`, `descripcion`, `participantes` | Búsqueda de texto y orden por relevancia. |
-| `outbox` | `_id_` (automático, único) | `_id` ascendente | Impide IDs de aviso duplicados; cancelación usa `cancelacion-{eventoId}` y publicación `publicacion-{eventoId}`. |
+| `outbox` | `_id_` (automático, único) | `_id` ascendente | Impide IDs de aviso duplicados; los avisos usan IDs estables por evento y tipo/versión. |
 | `outbox` | `idx_outbox_estado_proximo_intento` | `estado`, `proximoIntento`, `intentos` ascendentes | Reclamar avisos pendientes cuyo próximo intento venció y que no agotaron los intentos. |
 | `outbox` | `idx_outbox_estado_lease` | `estado`, `leaseHasta`, `intentos` ascendentes | Recuperar avisos `PROCESANDO` con lease vencido y seleccionar candidatos al barrido de intentos agotados. |
+| `personal_acceso` | `idx_personal_acceso_evento_usuario` (único) | `eventoId`, `usuarioId` ascendentes | Garantiza como máximo una asignación conservada por combinación evento/usuario; la reactivación actualiza el documento existente. |
 
 El orden por `precioMinimo` se realiza en las consultas, pero no hay un índice de precio declarado en el modelo. Los índices compuestos ayudan a los filtros/órdenes indicados, aunque el plan elegido depende de la consulta y de MongoDB.
 
@@ -141,7 +165,9 @@ En el perfil `dev`, `DevSampleDataInitializer` inserta eventos de ejemplo direct
 ## Evidencia en código
 
 - Documentos y subdocumentos: `domain/Lugar.java`, `domain/Sector.java`, `domain/Evento.java`, `domain/EventoSector.java`.
+- Asignaciones y estados: `domain/AsignacionPersonalAcceso.java`, `domain/EstadoPersonalAcceso.java`, `repository/PersonalAccesoRepository.java`.
 - Copia de lugar a evento y de ciudad/sectores: `service/EventoService.java`.
 - Generación de sectores de asiento para Reservas y callback: `service/EventoLifecycleService.java`, `api/EventoController.java`.
-- Índices MongoDB: anotaciones de `domain/Lugar.java`, `domain/Evento.java` y `domain/AvisoOutbox.java`; pruebas en `LugarRepositoryMongoTest`, `EventoRepositoryMongoTest` y `OutboxAvisoRepositoryMongoTest`.
+- Outbox y recuperación de cancelaciones: `domain/AvisoOutbox.java`, `outbox/EventoCancelacionOutboxService.java`, `outbox/OutboxDispatcher.java`.
+- Índices MongoDB: anotaciones de `domain/Lugar.java`, `domain/Evento.java`, `domain/AvisoOutbox.java` y `domain/AsignacionPersonalAcceso.java`; pruebas en `LugarRepositoryMongoTest`, `EventoRepositoryMongoTest` y `OutboxAvisoRepositoryMongoTest`.
 - Contratos de integración: `api/EventoInternoResponse.java`, `reservas/dto/InicializarDisponibilidadRequest.java` y `reservas/dto/SectorDisponibilidadRequest.java`.
