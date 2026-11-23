@@ -2,14 +2,14 @@
 
 Microservicio **Spring Boot de TicketYa** que administra una fila FIFO por evento para regular el acceso a la creación de reservas. No gestiona inventario ni garantiza que queden entradas: esa responsabilidad corresponde a MS2.
 
-La implementación corresponde al alcance simplificado de la Entrega 2. Persiste filas y turnos en MySQL mediante JPA/Hibernate y administra el esquema con Flyway. La integración saliente con MS1 está implementada contra el contrato acordado y fue probada con un servidor HTTP simulado; el MS1 del repositorio todavía debe completar ese contrato. La integración MS2–MS7 está implementada y fue probada con ambos servicios reales y MS1 simulado; las rutas y seguridad del Gateway siguen pendientes de integración grupal.
+La implementación corresponde al alcance simplificado de la Entrega 2. Persiste filas y turnos en MySQL mediante JPA/Hibernate y administra el esquema con Flyway. MS1 implementa el contrato de consulta y política de fila, y el Gateway enruta las cinco operaciones públicas de MS7 con JWT y roles. El flujo con MS1, MS2, MS3, MS4, MS5, MS6, MS7 y Gateway reales se verificó con fila activa y pago simulado; ver [evidencia de integración](../mcsv-disponibildad-reservas/documentacion/evidencia-compra-fila-activa.md).
 
 ## Requisitos
 
 - JDK 21.
 - Maven mediante el wrapper incluido (`./mvnw`).
 - MySQL 8 compatible con `utf8mb4_0900_bin`; las pruebas de persistencia se ejecutaron con MySQL 8.4.13.
-- MS1 disponible y adaptado al contrato de fila virtual para los flujos que lo consultan.
+- MS1 disponible para los flujos que consultan la política y la propiedad del evento.
 - Docker, si se utiliza una instancia descartable de MySQL para pruebas.
 
 ## Levantar la base de datos y el servicio
@@ -144,11 +144,11 @@ MS7 utiliza `http://localhost:8088` como URL local. El contrato detallado, con v
 | PUT | `/filas/eventos/{eventoId}/configuracion` | `ORGANIZADOR` propietario o `ADMIN` |
 | PUT | `/filas/eventos/{eventoId}/estado` | `ORGANIZADOR` propietario o `ADMIN` |
 
-Gateway debe validar el JWT, eliminar los encabezados de identidad externos y propagar `X-User-Id` y `X-User-Roles` separados por comas. MS7 comprueba esos encabezados y roles, pero no valida por sí mismo el JWT. El ingreso comprueba en MS1 que el evento no esté cancelado ni finalizado y que requiera fila. Las consultas y operaciones administrativas consultan MS1 para verificar el evento y, cuando corresponde, su propietario.
+El Gateway valida el JWT, elimina los encabezados de identidad externos y propaga `X-User-Id` y `X-User-Roles` separados por comas. MS7 comprueba esos encabezados y roles, pero no valida por sí mismo el JWT. El ingreso comprueba en MS1 que el evento no esté cancelado ni finalizado y que requiera fila. Las consultas y operaciones administrativas consultan MS1 para verificar el evento y, cuando corresponde, su propietario.
 
 La consulta y la actualización de política a MS1 usan circuitos independientes de Resilience4j 2.4.0: ventana de 10 llamadas, mínimo de 5, umbral del 50 % y espera de 30 segundos, definidos en código. La consulta GET reintenta una vez errores transitorios después de 100 ms; el PUT no tiene reintentos automáticos. Los timeouts HTTP configurables conservan los valores predeterminados de 2 segundos de conexión y 5 de lectura. Un circuito abierto se trata como indisponibilidad de MS1, sin autorizar operaciones que requieran su comprobación.
 
-El entorno de integración aislado se ejecuta desde MS2 con `sh tests/integracion/ejecutar-compose.sh`. Usa dos instancias reales de cada servicio, bases separadas y MS1 simulado; las pruebas contra MS1 y Gateway reales siguen siendo integración grupal.
+El entorno de integración aislado desde MS2 usa dos instancias reales de cada servicio, bases separadas y MS1 simulado. Su configuración y proxy requieren adaptación al token de servicio actual; no se debe asumir que la suite completa funciona sin ella. La prueba grupal mínima con MS1 y Gateway reales está documentada en la [evidencia de integración](../mcsv-disponibildad-reservas/documentacion/evidencia-compra-fila-activa.md).
 
 La integración comprueba FIFO y liberación de cupo, ingresos concurrentes entre instancias, vencimiento real, consumo con fallo definitivo de reserva y reingreso. Un proxy de pruebas permite perder una respuesta de consumo real y simular indisponibilidad de MS7 sin detener la instancia; no sustituye la validación con las dependencias grupales reales.
 
@@ -207,7 +207,7 @@ Ejemplo de respuesta:
 }
 ```
 
-Las rutas internas no validan individualmente la identidad del servicio llamador. Deben quedar fuera del Gateway y accesibles solo desde la red privada acordada; esa protección de despliegue todavía debe integrarse.
+Las rutas internas requieren `X-Service-Token` coincidente con `SERVICIO_TOKEN`; el filtro devuelve `403` si falta o es incorrecto. El token compartido autentica a los servicios autorizados, pero no identifica individualmente al llamador. Las rutas internas quedan fuera del Gateway.
 
 ## Validaciones y errores
 
@@ -231,7 +231,7 @@ MS7 consulta `GET /internal/eventos/{eventoId}` de MS1 y espera `eventoId`, `est
 
 En activación, MS7 prepara la configuración local, solicita `true` a MS1 y activa localmente tras la confirmación. En desactivación, cierra la fila e invalida turnos locales antes de solicitar `false`. Si la respuesta es incierta, no se informa éxito y puede repetirse el mismo cambio idempotentemente.
 
-**Pendiente en MS1 real:** agregar `organizadorId` y `requiereFila` a la respuesta interna, implementar el `PUT` de política y notificar la cancelación a MS7. **MS2 implementa** la consulta de política y el consumo del turno. Se verificó el flujo con MS2 y MS7 reales y MS1 simulado; falta la prueba grupal con MS1 y Gateway reales.
+MS1 implementa esos campos, el `PUT` de política y el aviso de cancelación a MS7. MS2 consulta la política y consume el turno. La [prueba grupal con fila activa](../mcsv-disponibildad-reservas/documentacion/evidencia-compra-fila-activa.md) comprobó activación, ingreso, reserva y compra con MS1 y Gateway reales; no comprobó la cancelación ni el aviso correspondiente.
 
 La coordinación simplificada acepta indisponibilidad temporal ante fallos. No deben ejecutarse cambios administrativos opuestos simultáneamente sobre un evento: debe resolverse el anterior antes de iniciar otro. No se incorporan preautorizaciones, operaciones de reserva adicionales, generaciones, políticas versionadas, outbox para fila ni transacciones distribuidas.
 
@@ -287,13 +287,13 @@ docker run --rm --name ticketya-ms7 --network ticketya-interna \
 
 Los nombres y la red son ejemplos que deben coincidir con el despliegue real.
 
-La colección individual [Postman](postman/TicketYa-MS7.postman_collection.json) contiene los siete endpoints; las operaciones internas se deben ejecutar únicamente en entornos confiables. Las pruebas con MS1 simulado no sustituyen la verificación con los servicios reales.
+La colección individual [Postman](postman/TicketYa-MS7.postman_collection.json) contiene los siete endpoints: las operaciones públicas se prueban mediante el Gateway con JWT y las internas se ejecutan directamente con `X-Service-Token` en entornos confiables.
 
 ## Correlación de solicitudes
 
 MS7 acepta `X-Correlation-Id` con 1 a 128 caracteres alfanuméricos, punto, guion, guion bajo o dos puntos. Si falta o no cumple el formato, genera un UUID. Devuelve el identificador en el encabezado de respuesta, incluso en errores; lo incorpora al MDC para los logs y lo propaga en las consultas y actualizaciones sincrónicas a MS1. El contexto se limpia al finalizar la solicitud. Las tareas programadas no heredan la correlación de solicitudes terminadas.
 
-El registro HTTP incluye método, operación, estado, duración y, cuando se validaron identidad y rol, usuario; las solicitudes internas y las identidades no validadas se registran sin usuario. La centralización con Alloy, Loki y Grafana queda pendiente de integración grupal. Hibernate no imprime SQL por defecto; para diagnóstico se puede establecer `SPRING_JPA_SHOW_SQL=true`.
+El registro HTTP incluye método, operación, estado, duración y, cuando se validaron identidad y rol, usuario; las solicitudes internas y las identidades no validadas se registran sin usuario. El Compose general configura Alloy, Loki y Grafana; la trazabilidad completa entre servicios requiere verificación grupal. Hibernate no imprime SQL por defecto; para diagnóstico se puede establecer `SPRING_JPA_SHOW_SQL=true`.
 
 
 ## Integración Docker Compose (Entrega 2)
