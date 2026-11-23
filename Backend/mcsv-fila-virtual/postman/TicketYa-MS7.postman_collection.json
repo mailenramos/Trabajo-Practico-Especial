@@ -208,6 +208,10 @@
           {
             "key": "Content-Type",
             "value": "application/json"
+          },
+          {
+            "key": "X-Service-Token",
+            "value": "{{serviceToken}}"
           }
         ],
         "url": {
@@ -243,6 +247,10 @@
           {
             "key": "Accept",
             "value": "application/json"
+          },
+          {
+            "key": "X-Service-Token",
+            "value": "{{serviceToken}}"
           }
         ],
         "url": {
@@ -263,6 +271,11 @@
     }
   ],
   "variable": [
+    {
+      "key": "serviceToken",
+      "value": "",
+      "type": "secret"
+    },
     {
       "key": "baseUrl",
       "value": "http://localhost:8088"

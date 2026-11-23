@@ -4,13 +4,12 @@ info:
   version: 0.1.0
   description: >-
     Contrato HTTP implementado para la fila virtual simplificada. Las rutas
-    públicas deben accederse mediante Gateway. Los encabezados X-User-Id y
-    X-User-Roles son propagados por Gateway, no deben aceptarse directamente del
-    cliente externo. La validación JWT y la protección de red siguen pendientes
-    de integración. Las rutas internas se utilizan entre servicios por la red
-    privada y no autentican individualmente al llamador. MS1 debe completar los
-    campos y la operación de política acordados. El consumo de MS2 está implementado
-    y se probó con MS2 y MS7 reales y MS1 simulado; falta la integración grupal.
+    de usuario están previstas para accederse mediante Gateway, que valida JWT y
+    propaga X-User-Id y X-User-Roles; el Gateway actual aún no enruta estas rutas.
+    MS7 no valida el JWT directamente y no debe confiar en encabezados de identidad
+    enviados por clientes externos. Las rutas internas usan el token compartido
+    X-Service-Token entre servicios en la red privada. MS7 consulta y actualiza
+    la política de fila en MS1; MS2 consulta esa política y consume turnos en MS7.
     Todas las respuestas incluyen X-Correlation-Id, incluso en errores. Si el
     encabezado recibido falta o es inválido, MS7 genera un UUID; el identificador
     también se propaga en las llamadas sincrónicas a MS1.
@@ -205,7 +204,8 @@ paths:
         después del vencimiento; otro evento o huella produce 409. El campo
         autorizacionVigente no demuestra la existencia de una reserva. Es falso
         cuando el turno venció, la fila está desactivada o fue cancelada.
-      security: []
+      security:
+        - serviceToken: []
       requestBody:
         required: true
         content:
@@ -220,6 +220,7 @@ paths:
               schema: { $ref: '#/components/schemas/ConsumoTurnoResponse' }
               example: { turnoId: 125, eventoId: evento-123, solicitudId: SOL-9b8d, estado: CONSUMIDO, expiraEn: '2026-11-17T15:05:00Z', autorizacionVigente: true }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/InvalidServiceToken' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
@@ -235,10 +236,12 @@ paths:
       description: >-
         Operación idempotente. Crea la fila cancelada si todavía no existe,
         invalida turnos esperando y habilitados y conserva los consumidos.
-      security: []
+      security:
+        - serviceToken: []
       responses:
         '204': { description: Cancelación registrada o repetida. }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/InvalidServiceToken' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 components:
   securitySchemes:
@@ -246,7 +249,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Validación prevista en Gateway; MS7 no valida el JWT directamente.
+      description: Validación en Gateway; MS7 no valida el JWT directamente. El Gateway actual no enruta las operaciones de fila.
+    serviceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: Token compartido configurado mediante SERVICIO_TOKEN para llamadas internas entre servicios.
   parameters:
     CorrelationId:
       name: X-Correlation-Id
@@ -361,6 +369,8 @@ components:
         campos:
           - { campo: cupo, mensaje: debe ser mayor que 0 }
   responses:
+    InvalidServiceToken:
+      description: Token de servicio ausente o incorrecto; la solicitud es rechazada por el filtro antes de llegar al controlador.
     BadRequest:
       description: Solicitud o parámetro inválido.
       content:
