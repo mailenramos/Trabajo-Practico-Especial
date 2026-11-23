@@ -34,5 +34,11 @@ class OpenApiTest {
         Map<String, Object> rutas = (Map<String, Object>) documento.get("paths");
         Map<String, Object> post = (Map<String, Object>) ((Map<String, Object>) rutas.get("/internal/notificaciones")).get("post");
         assertThat(((Map<String, Object>) post.get("responses")).keySet()).contains("202", "400", "403");
+        assertThat(rutas).containsKey("/actuator/health");
+        Map<String, Object> componentes = (Map<String, Object>) documento.get("components");
+        assertThat((Map<String, Object>) ((Map<String, Object>) componentes.get("securitySchemes")).get("TokenDeServicio"))
+                .containsEntry("name", "X-Service-Token");
+        assertThat(((Map<String, Object>) componentes.get("parameters")).get("XCorrelationId"))
+                .isInstanceOf(Map.class);
     }
 }

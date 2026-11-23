@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TicketYa - Compras
-  version: 0.1.0
+  version: 2.0.0
   description: |
     Microservicio 3 de TicketYa: compra de entradas a partir de una reserva, pago,
     consulta de compras, devoluciones de entradas, reintegros y cancelación de eventos.
@@ -19,6 +19,25 @@ info:
     (`ticketya-net`).
     `POST /eventos-cancelados` es una llamada interna del servicio de eventos y no lleva
     esos encabezados.
+
+    **Autenticación y roles (vía API Gateway):** las rutas de usuario se consumen por el
+    Gateway (`http://localhost:8086`) con un JWT en `Authorization: Bearer <token>`, que se
+    obtiene en `POST /auth/login` de Usuarios (campo `token` de la respuesta). El Gateway valida
+    la firma y el vencimiento, y exige estos roles antes de reenviar el pedido:
+
+    | Operación | Rol exigido por el Gateway |
+    |---|---|
+    | `POST /compras`, `POST /compras/{compraId}/pago`, `POST /devoluciones` | `CLIENTE` |
+    | `GET /compras`, `GET /compras/{compraId}`, `GET /devoluciones`, `GET /devoluciones/{devolucionId}` | `CLIENTE` o `ADMIN` |
+    | `POST /devoluciones/{devolucionId}/aprobacion`, `POST /devoluciones/{devolucionId}/rechazo` | `ADMIN` |
+    | `GET /reintegros`, `POST /reintegros/{reintegroId}/reintento` | `ADMIN` |
+    | `POST /eventos-cancelados` y `/internal/**` | No se publican en el Gateway |
+
+    Errores que responde el Gateway antes de llegar a este servicio: `401 NO_AUTENTICADO` (falta
+    el token), `401 TOKEN_INVALIDO` (token inválido, vencido o no emitido por TicketYa) y
+    `403 ACCESO_DENEGADO` (el rol no alcanza). Este servicio no valida el JWT: las operaciones de
+    usuario declaran `bearerAuth` porque es lo que exige el contrato público, y reciben del
+    Gateway `X-User-Id` y `X-User-Roles`.
 
     **Endpoints internos (Entrega 2):** las rutas `/internal/**` no pasan por el API Gateway
     ni llevan encabezados de usuario. Exigen el encabezado `X-Service-Token` con el token
@@ -41,9 +60,11 @@ info:
     | `PARAMETRO_INVALIDO` | 400 | El ID de la ruta no es un UUID, o el `limite` no es un entero mayor a 0 |
     | `CLAVE_IDEMPOTENCIA_INVALIDA` | 400 | Falta `Idempotency-Key` o supera los 100 caracteres |
     | `MEDIO_DE_PAGO_INVALIDO` | 400 | El medio de pago no es uno de los cuatro admitidos |
-    | `USUARIO_NO_IDENTIFICADO` | 401 | Falta el encabezado `X-User-Id` |
+    | `USUARIO_NO_IDENTIFICADO` | 401 | Falta el encabezado `X-User-Id` (la llamada no pasó por el Gateway) |
+    | `NO_AUTENTICADO` | 401 | Gateway: falta el token JWT |
+    | `TOKEN_INVALIDO` | 401 | Gateway: el token es inválido, está vencido o no fue emitido por TicketYa |
     | `RESERVA_AJENA` | 403 | La reserva es de otro cliente |
-    | `ACCESO_DENEGADO` | 403 | La compra o la devolución es de otro cliente |
+    | `ACCESO_DENEGADO` | 403 | La compra o la devolución es de otro cliente. El Gateway usa el mismo código cuando el rol no alcanza |
     | `ENTRADA_AJENA` | 403 | La entrada es de otro cliente |
     | `SOLO_ADMINISTRADOR` | 403 | La operación es solo para administradores |
     | `SERVICIO_NO_AUTORIZADO` | 403 | Llamada a `/internal/**` sin un `X-Service-Token` válido |
@@ -71,8 +92,10 @@ info:
     | `RESERVA_SIN_LUGARES` | 502 | La reserva no trae lugares |
     | `SERVICIO_NO_DISPONIBLE` | 503 | Otro servicio no respondió. En el pago, repetir con la misma `Idempotency-Key` |
 servers:
+  - url: http://localhost:8086
+    description: API Gateway local (entrada pública; rutas de usuario, con JWT)
   - url: http://localhost:8083
-    description: Local
+    description: Servicio directo (red interna de Docker o perfil dev; /internal/** y /eventos-cancelados, sin Gateway)
 tags:
   - name: Compras
   - name: Devoluciones
@@ -82,6 +105,8 @@ tags:
     description: Aviso de Eventos (MS1) cuando un evento cambia de fecha, horario o lugar
   - name: Recomendaciones (interno)
     description: Consultas sobre compras confirmadas para Gestión de preferencias y recomendaciones (MS8)
+security:
+  - bearerAuth: []
 paths:
   /compras:
     post:
@@ -755,6 +780,7 @@ paths:
     post:
       tags: [Cancelación de eventos]
       summary: Aviso de cancelación de un evento (llamada interna de Eventos)
+      security: []
       description: |
         E-1. Idempotente por `eventoId`: el mismo evento se procesa una sola vez. Responde
         enseguida y procesa en segundo plano:
@@ -1023,6 +1049,11 @@ paths:
 
 components:
   securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT emitido por Usuarios en `POST /auth/login`. Lo valida el API Gateway, no este servicio
     TokenDeServicio:
       type: apiKey
       in: header
@@ -1342,25 +1373,52 @@ components:
             error: PARAMETRO_INVALIDO
             mensaje: El parámetro compraId no tiene un formato válido
     NoIdentificado:
-      description: Falta X-User-Id
+      description: Falta `X-User-Id` (llamada que no pasó por el Gateway) o, por el Gateway, falta el token o es inválido
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-          example:
-            timestamp: '2026-11-08T18:00:00Z'
-            status: 401
-            error: USUARIO_NO_IDENTIFICADO
-            mensaje: Falta el encabezado X-User-Id
+          examples:
+            sinUsuario:
+              summary: Llamada directa sin X-User-Id
+              value:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 401
+                error: USUARIO_NO_IDENTIFICADO
+                mensaje: Falta el encabezado X-User-Id
+            sinToken:
+              summary: Por el Gateway, sin Authorization
+              value:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 401
+                error: NO_AUTENTICADO
+                mensaje: Se requiere un token JWT válido
+            tokenInvalido:
+              summary: Por el Gateway, token vencido o inválido
+              value:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 401
+                error: TOKEN_INVALIDO
+                mensaje: El token es inválido, está vencido o no fue emitido por TicketYa
     AccesoDenegado:
-      description: La compra es de otro cliente
+      description: La compra es de otro cliente o, por el Gateway, el rol no está autorizado para la operación
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-          example:
-            timestamp: '2026-11-08T18:00:00Z'
-            status: 403
-            error: ACCESO_DENEGADO
-            mensaje: La compra 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718 pertenece a otro cliente
+          examples:
+            compraAjena:
+              summary: La compra es de otro cliente
+              value:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 403
+                error: ACCESO_DENEGADO
+                mensaje: La compra 3f2a9c1e-8b7d-4e6f-a1b2-c3d4e5f60718 pertenece a otro cliente
+            rolNoAutorizado:
+              summary: Por el Gateway, el rol no alcanza
+              value:
+                timestamp: '2026-11-08T18:00:00Z'
+                status: 403
+                error: ACCESO_DENEGADO
+                mensaje: El rol no está autorizado para esta operación
     CompraNoEncontrada:
       description: La compra no existe
       content:

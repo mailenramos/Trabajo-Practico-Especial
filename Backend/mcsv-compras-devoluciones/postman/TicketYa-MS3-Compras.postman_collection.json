@@ -1,0 +1,2084 @@
+{
+  "info": {
+    "_postman_id": "cc1be9ed-f5be-42eb-a6fc-106fdddd2a6d",
+    "name": "TicketYa - MS3 Compras y devoluciones",
+    "description": "TicketYa - MS3 Compras y devoluciones (Entrega 2).\n\nLas rutas de usuario van por el API Gateway ({{gatewayUrl}}, puerto 8086) con JWT; las /internal/** y /eventos-cancelados van directo a MS3 ({{comprasUrl}}, puerto 8083).\n\nCómo usarla: levantar el sistema con Docker Compose (README de la raíz), importar la colección y el environment 'TicketYa - MS3 local', completar servicioToken (el SERVICIO_TOKEN del .env) y correr la colección completa con el Runner, en orden. Los usuarios de prueba requieren USUARIOS_DATOS_PRUEBA=true.\n\nCada request manda X-Correlation-Id (pm-<hora>-<n>): buscalo en los logs para seguir el pedido entre servicios.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Autenticación",
+      "item": [
+        {
+          "name": "Login ADMIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{adminEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Usuarios de prueba del perfil con USUARIOS_DATOS_PRUEBA=true (clave Prueba123). Guarda el JWT en tokenAdmin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda el JWT de ADMIN en tokenAdmin\", function () {",
+                  "  const j = pm.response.json(); const v = j.token;",
+                  "  pm.expect(v, \"tokenAdmin presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"tokenAdmin\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login ORGANIZADOR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{organizadorEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Usuarios de prueba del perfil con USUARIOS_DATOS_PRUEBA=true (clave Prueba123). Guarda el JWT en tokenOrganizador."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda el JWT de ORGANIZADOR en tokenOrganizador\", function () {",
+                  "  const j = pm.response.json(); const v = j.token;",
+                  "  pm.expect(v, \"tokenOrganizador presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"tokenOrganizador\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login CLIENTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{clienteEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Usuarios de prueba del perfil con USUARIOS_DATOS_PRUEBA=true (clave Prueba123). Guarda el JWT en tokenCliente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda el JWT de CLIENTE en tokenCliente\", function () {",
+                  "  const j = pm.response.json(); const v = j.token;",
+                  "  pm.expect(v, \"tokenCliente presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"tokenCliente\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi usuario (CLIENTE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/usuarios/me",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Guarda el id del cliente (usuarioIdCliente) para las consultas internas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda usuarioIdCliente\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"usuarioIdCliente presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"usuarioIdCliente\", v);",
+                  "});",
+                  "pm.test(\"Tiene el rol CLIENTE\", function () { pm.expect(pm.response.json().roles).to.include(\"CLIENTE\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Obtiene los tres JWT. Correr primero: el resto de la colección usa tokenAdmin, tokenOrganizador y tokenCliente."
+    },
+    {
+      "name": "01 - Preparación del evento",
+      "item": [
+        {
+          "name": "Crear lugar (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/lugares",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "lugares"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Estadio Postman {{$timestamp}}\",\n  \"direccion\": \"Calle Falsa 123\",\n  \"ciudad\": \"Tandil\",\n  \"latitud\": -37.32,\n  \"longitud\": -59.13\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda lugarId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"lugarId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"lugarId\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear sector (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/lugares/{{lugarId}}/sectores",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "lugares",
+                "{{lugarId}}",
+                "sectores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Campo\",\n  \"tipo\": \"NO_NUMERADO\",\n  \"capacidad\": 100\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda sectorId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"sectorId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"sectorId\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear evento (ORGANIZADOR)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/eventos",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Recital Postman {{$timestamp}}\",\n  \"descripcion\": \"Colección de MS3\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda de Prueba\"\n  ],\n  \"fechaHora\": \"{{fechaEvento}}\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "La fecha es 120 días a futuro, para respetar la regla de las 72 horas de las devoluciones."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('fechaEvento', new Date(Date.now() + 120 * 24 * 3600 * 1000).toISOString().replace(/\\.\\d{3}Z$/, 'Z'));",
+                  "pm.collectionVariables.set('versionEvento', '1');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda eventoId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"eventoId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"eventoId\", v);",
+                  "});",
+                  "function buscar(o, k) { if (o && typeof o === \"object\") { if (typeof o[k] === \"string\") return o[k]; for (const v of Object.values(o)) { const r = buscar(v, k); if (r) return r; } } return null; }",
+                  "pm.collectionVariables.set(\"sectorIdEvento\", buscar(pm.response.json(), \"sectorId\") || pm.collectionVariables.get(\"sectorId\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fijar precio del sector (ORGANIZADOR)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/eventos/{{eventoId}}/sectores/{{sectorIdEvento}}/precio",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "sectores",
+                "{{sectorIdEvento}}",
+                "precio"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"precio\": 10000\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Publicar evento (ORGANIZADOR)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/eventos/{{eventoId}}/publicar",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "eventos",
+                "{{eventoId}}",
+                "publicar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Crea un evento publicado con 100 lugares a $10000. Guarda lugarId, sectorId, eventoId y sectorIdEvento."
+    },
+    {
+      "name": "02 - Compras (CLIENTE)",
+      "item": [
+        {
+          "name": "Reservar 2 lugares",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/disponibilidad/eventos/{{eventoId}}/reservas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "disponibilidad",
+                "eventos",
+                "{{eventoId}}",
+                "reservas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitudId\": \"{{$guid}}\",\n  \"detalles\": [\n    {\n      \"sectorId\": \"{{sectorIdEvento}}\",\n      \"cantidad\": 2\n    }\n  ]\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda reservaId\", function () {",
+                  "  const j = pm.response.json(); const v = j.reservaId;",
+                  "  pm.expect(v, \"reservaId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"reservaId\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar compra",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reservaId}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "201 la primera vez; 200 si se repite el pedido mientras la compra sigue pendiente (devuelve la misma)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "pm.test(\"Guarda compraId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"compraId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"compraId\", v);",
+                  "});",
+                  "pm.test(\"La compra queda PENDIENTE con 2 lugares y total 20000\", function () { const j = pm.response.json(); pm.expect(j.estado).to.eql(\"PENDIENTE\"); pm.expect(j.lugares.length).to.eql(2); pm.expect(Number(j.total)).to.eql(20000); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar mis compras",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Es una lista\", function () { pm.expect(pm.response.json()).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de la compra",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{compraId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{compraId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Es la compra pedida\", function () { pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"compraId\")); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagar la compra",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{claveIdempotencia}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{compraId}}/pago",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{compraId}}",
+                "pago"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medioDePago\": \"CREDIT_CARD\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Usa una Idempotency-Key nueva en cada ejecución. Confirma la compra y emite las entradas en Entradas (MS5); guarda las dos entradaId."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('claveIdempotencia', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 201 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });",
+                  "pm.test(\"Compra CONFIRMADA con entradas emitidas\", function () { const j = pm.response.json(); pm.expect(j.estado).to.eql(\"CONFIRMADA\"); pm.expect(j.lugares.every(l => !!l.entradaId)).to.be.true; });",
+                  "const lugares = pm.response.json().lugares || [];",
+                  "if (lugares[0]) pm.collectionVariables.set(\"entradaId\", lugares[0].entradaId);",
+                  "if (lugares[1]) pm.collectionVariables.set(\"entradaId2\", lugares[1].entradaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Repetir el pago con la misma Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{claveIdempotencia}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{compraId}}/pago",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{compraId}}",
+                "pago"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medioDePago\": \"CREDIT_CARD\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "No vuelve a cobrar: responde el resultado original."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 201 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]); });",
+                  "pm.test(\"Sigue CONFIRMADA y no duplica entradas\", function () { const j = pm.response.json(); pm.expect(j.estado).to.eql(\"CONFIRMADA\"); pm.expect(j.lugares.length).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Reserva, compra y pago del cliente. Correr en orden."
+    },
+    {
+      "name": "03 - Devoluciones",
+      "item": [
+        {
+          "name": "Solicitar devolución de la entrada 1 (CLIENTE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entradaId\": \"{{entradaId}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda devolucionId\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"devolucionId presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"devolucionId\", v);",
+                  "});",
+                  "pm.test(\"Queda PENDIENTE\", function () { pm.expect(pm.response.json().estado).to.eql(\"PENDIENTE\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Solicitar devolución de la entrada 2 (CLIENTE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entradaId\": \"{{entradaId2}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Se usa para probar el rechazo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda devolucionId2\", function () {",
+                  "  const j = pm.response.json(); const v = j.id;",
+                  "  pm.expect(v, \"devolucionId2 presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"devolucionId2\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar mis devoluciones (CLIENTE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Es una lista\", function () { pm.expect(pm.response.json()).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar devoluciones pendientes (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones?estado=PENDIENTE",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "PENDIENTE"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Todas PENDIENTE\", function () { pm.expect(pm.response.json().every(d => d.estado === \"PENDIENTE\")).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de la devolución (CLIENTE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones/{{devolucionId}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones",
+                "{{devolucionId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aprobar la devolución 1 (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones/{{devolucionId}}/aprobacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones",
+                "{{devolucionId}}",
+                "aprobacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "200 si el reintegro y el cambio de estado de la entrada se completaron; 202 si algún paso quedó pendiente (se retoma con el reintento del reintegro)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+                  "pm.test(\"Queda APROBADA con su reintegro\", function () { const j = pm.response.json(); pm.expect(j.estado).to.eql(\"APROBADA\"); pm.expect(j.reintegro).to.be.ok; });",
+                  "const r = pm.response.json().reintegro; if (r) pm.collectionVariables.set(\"reintegroId\", r.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rechazar la devolución 2 (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones/{{devolucionId2}}/rechazo",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones",
+                "{{devolucionId2}}",
+                "rechazo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Prueba de rechazo desde Postman\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Queda RECHAZADA con el motivo\", function () { const j = pm.response.json(); pm.expect(j.estado).to.eql(\"RECHAZADA\"); pm.expect(j.motivoRechazo).to.eql(\"Prueba de rechazo desde Postman\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Volver a aprobar una devolución ya resuelta (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones/{{devolucionId}}/aprobacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones",
+                "{{devolucionId}}",
+                "aprobacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error DEVOLUCION_YA_RESUELTA (HTTP 409)\", function () { pm.response.to.have.status(409); pm.expect(pm.response.json().error).to.eql(\"DEVOLUCION_YA_RESUELTA\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Solicitud, aprobación y rechazo. Usa las dos entradas de la compra pagada."
+    },
+    {
+      "name": "04 - Reintegros (ADMIN)",
+      "item": [
+        {
+          "name": "Listar reintegros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reintegros",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reintegros"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Es una lista\", function () { pm.expect(pm.response.json()).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar reintegros fallidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reintegros?estado=FALLIDO",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reintegros"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "FALLIDO"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Todos FALLIDO\", function () { pm.expect(pm.response.json().every(r => r.estado === \"FALLIDO\")).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reintentar el reintegro de la devolución aprobada",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reintegros/{{reintegroId}}/reintento",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reintegros",
+                "{{reintegroId}}",
+                "reintento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Es seguro repetirlo: no duplica el reintegro. 200 si quedó exitoso y completo; 202 si algo sigue pendiente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+                  "pm.test(\"El reintegro no queda FALLIDO\", function () { pm.expect(pm.response.json().estado).to.be.oneOf([\"EXITOSO\", \"PENDIENTE\"]); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Solo ADMIN. El reintegro sale de aprobar la devolución de la carpeta 03."
+    },
+    {
+      "name": "05 - Endpoints internos (directo a MS3, X-Service-Token)",
+      "item": [
+        {
+          "name": "Aviso de evento modificado (de MS1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/eventos-modificados",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos-modificados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"{{eventoId}}\",\n  \"version\": {{versionEvento}},\n  \"fechaHora\": \"2027-09-20T23:00:00Z\",\n  \"lugar\": \"Estadio Norte\",\n  \"ciudad\": \"Rosario\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Cambia la fecha y el lugar del evento en las compras y genera el aviso EVENTO_MODIFICADO al cliente (mail en Mailpit). 202 si es una versión nueva."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+                  "pm.test(\"Informa el resultado\", function () { pm.expect(pm.response.json().resultado).to.be.oneOf([\"ACEPTADA\", \"YA_PROCESADA\", \"VERSION_ANTERIOR\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Repetir el aviso (idempotente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/eventos-modificados",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos-modificados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"{{eventoId}}\",\n  \"version\": {{versionEvento}},\n  \"fechaHora\": \"2027-09-20T23:00:00Z\",\n  \"lugar\": \"Estadio Norte\",\n  \"ciudad\": \"Rosario\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "La misma versión ya procesada responde 200 y no cambia nada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"YA_PROCESADA\", function () { pm.expect(pm.response.json().resultado).to.eql(\"YA_PROCESADA\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aviso de evento cancelado (de MS1) - usa un evento de mentira",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/eventos-cancelados",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "eventos-cancelados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"{{eventoParaCancelar}}\",\n  \"motivo\": \"Prueba desde Postman\",\n  \"canceladoEn\": \"{{$isoTimestamp}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "No lleva token ni JWT. ATENCIÓN: dispara el flujo real de cancelación (reintegros automáticos de todas las compras del evento). Por eso usa eventoParaCancelar, un id que no corresponde a ningún evento real. No lo apuntes al evento de esta colección si querés seguir probando devoluciones."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 o 202\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Co-compras de un evento (de MS8)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/eventos/{{eventoId}}/co-compras?limite=5",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos",
+                "{{eventoId}}",
+                "co-compras"
+              ],
+              "query": [
+                {
+                  "key": "limite",
+                  "value": "5"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Trae coCompras\", function () { pm.expect(pm.response.json().coCompras).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historial de preferencias de un cliente (de MS8)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/usuarios/{{usuarioIdCliente}}/historial-preferencias",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "usuarios",
+                "{{usuarioIdCliente}}",
+                "historial-preferencias"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Trae tipos y eventos comprados\", function () { const j = pm.response.json(); pm.expect(j.tipos).to.be.an(\"array\"); pm.expect(j.eventosComprados).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Se llaman directo a MS3 (8083), sin Gateway. En Docker el puerto no se publica: levantar con docker-compose.dev.yml (127.0.0.1:8083) o ejecutar el servicio local. Requieren servicioToken en el environment.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('servicioToken')) { throw new Error('Completar servicioToken en el environment (el SERVICIO_TOKEN del .env del sistema)'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Errores esperados",
+      "item": [
+        {
+          "name": "Sin token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error NO_AUTENTICADO (HTTP 401)\", function () { pm.response.to.have.status(401); pm.expect(pm.response.json().error).to.eql(\"NO_AUTENTICADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "token.invalido.abc",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error TOKEN_INVALIDO (HTTP 401)\", function () { pm.response.to.have.status(401); pm.expect(pm.response.json().error).to.eql(\"TOKEN_INVALIDO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CLIENTE intenta aprobar una devolución (rol insuficiente)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/devoluciones/{{$guid}}/aprobacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "devoluciones",
+                "{{$guid}}",
+                "aprobacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ACCESO_DENEGADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"ACCESO_DENEGADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CLIENTE intenta listar reintegros (rol insuficiente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reintegros",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reintegros"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ACCESO_DENEGADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"ACCESO_DENEGADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Id de compra que no es un UUID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/no-es-un-uuid",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "no-es-un-uuid"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error PARAMETRO_INVALIDO (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"PARAMETRO_INVALIDO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compra inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{$guid}}",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{$guid}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error COMPRA_NO_ENCONTRADA (HTTP 404)\", function () { pm.response.to.have.status(404); pm.expect(pm.response.json().error).to.eql(\"COMPRA_NO_ENCONTRADA\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pago sin Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{compraId}}/pago",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{compraId}}",
+                "pago"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medioDePago\": \"CREDIT_CARD\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error CLAVE_IDEMPOTENCIA_INVALIDA (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"CLAVE_IDEMPOTENCIA_INVALIDA\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pago con un medio de pago inválido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras/{{compraId}}/pago",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras",
+                "{{compraId}}",
+                "pago"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medioDePago\": \"BITCOIN\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error MEDIO_DE_PAGO_INVALIDO (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"MEDIO_DE_PAGO_INVALIDO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compra sin reservaId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/compras",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "compras"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error VALIDACION (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"VALIDACION\"); });",
+                  "pm.test(\"Indica el campo\", function () { pm.expect(pm.response.json().campos).to.have.property(\"reservaId\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Interno sin X-Service-Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/eventos-modificados",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos-modificados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"x\",\n  \"version\": 1,\n  \"lugar\": \"x\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Directo a MS3 (8083)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error SERVICIO_NO_AUTORIZADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"SERVICIO_NO_AUTORIZADO\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Interno con aviso inválido (versión 0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Token",
+                "value": "{{servicioToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{comprasUrl}}/internal/eventos-modificados",
+              "host": [
+                "{{comprasUrl}}"
+              ],
+              "path": [
+                "internal",
+                "eventos-modificados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"x\",\n  \"version\": 0,\n  \"lugar\": \"x\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Directo a MS3 (8083). Requiere servicioToken."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('servicioToken')) { throw new Error('Completar servicioToken en el environment (el SERVICIO_TOKEN del .env del sistema)'); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error VALIDACION (HTTP 400)\", function () { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql(\"VALIDACION\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Casos que tienen que fallar de una forma conocida. Las dos últimas llaman directo a MS3."
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'X-Correlation-Id', value: 'pm-' + Date.now() + '-' + Math.floor(Math.random() * 1000) });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "comprasUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@ticketya.test"
+    },
+    {
+      "key": "organizadorEmail",
+      "value": "organizador@ticketya.test"
+    },
+    {
+      "key": "clienteEmail",
+      "value": "cliente@ticketya.test"
+    },
+    {
+      "key": "password",
+      "value": "Prueba123"
+    },
+    {
+      "key": "eventoParaCancelar",
+      "value": "evento-postman-inexistente"
+    },
+    {
+      "key": "versionEvento",
+      "value": "1"
+    },
+    {
+      "key": "tokenAdmin",
+      "value": ""
+    },
+    {
+      "key": "tokenOrganizador",
+      "value": ""
+    },
+    {
+      "key": "tokenCliente",
+      "value": ""
+    },
+    {
+      "key": "usuarioIdCliente",
+      "value": ""
+    },
+    {
+      "key": "lugarId",
+      "value": ""
+    },
+    {
+      "key": "sectorId",
+      "value": ""
+    },
+    {
+      "key": "eventoId",
+      "value": ""
+    },
+    {
+      "key": "sectorIdEvento",
+      "value": ""
+    },
+    {
+      "key": "fechaEvento",
+      "value": ""
+    },
+    {
+      "key": "reservaId",
+      "value": ""
+    },
+    {
+      "key": "compraId",
+      "value": ""
+    },
+    {
+      "key": "claveIdempotencia",
+      "value": ""
+    },
+    {
+      "key": "entradaId",
+      "value": ""
+    },
+    {
+      "key": "entradaId2",
+      "value": ""
+    },
+    {
+      "key": "devolucionId",
+      "value": ""
+    },
+    {
+      "key": "devolucionId2",
+      "value": ""
+    },
+    {
+      "key": "reintegroId",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{tokenCliente}}",
+        "type": "string"
+      }
+    ]
+  }
+}
