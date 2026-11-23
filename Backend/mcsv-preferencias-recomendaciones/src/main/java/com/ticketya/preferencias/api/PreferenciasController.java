@@ -14,8 +14,11 @@ import com.ticketya.preferencias.security.UserIdentity;
 import com.ticketya.preferencias.service.PreferenciasService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -23,6 +26,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/preferencias")
 @Validated
 @Tag(name = "Preferencias")
+@SecurityRequirement(name = "bearerAuth")
 public class PreferenciasController {
     private final PreferenciasService preferenciasService;
 
@@ -34,8 +38,10 @@ public class PreferenciasController {
     @Operation(summary = "Consultar las preferencias del cliente autenticado")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Preferencias consultadas"),
-            @ApiResponse(responseCode = "401", description = "Falta identidad"),
-            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE")
+            @ApiResponse(responseCode = "401", description = "Falta identidad",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
     })
     public PreferenciaResponse obtener(
             @RequestAttribute(UserIdentity.USER_ID_ATTRIBUTE) String usuarioId) {
@@ -46,9 +52,12 @@ public class PreferenciasController {
     @Operation(summary = "Reemplazar las preferencias del cliente autenticado")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Preferencias guardadas"),
-            @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
-            @ApiResponse(responseCode = "401", description = "Falta identidad"),
-            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE")
+            @ApiResponse(responseCode = "400", description = "Solicitud inválida",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "401", description = "Falta identidad",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
     })
     public PreferenciaResponse reemplazar(
             @RequestAttribute(UserIdentity.USER_ID_ATTRIBUTE) String usuarioId,
@@ -60,8 +69,10 @@ public class PreferenciasController {
     @Operation(summary = "Eliminar las preferencias del cliente autenticado")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Preferencias eliminadas"),
-            @ApiResponse(responseCode = "401", description = "Falta identidad"),
-            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE")
+            @ApiResponse(responseCode = "401", description = "Falta identidad",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class))),
+            @ApiResponse(responseCode = "403", description = "El usuario no tiene el rol CLIENTE",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)))
     })
     public ResponseEntity<Void> eliminar(
             @RequestAttribute(UserIdentity.USER_ID_ATTRIBUTE) String usuarioId) {

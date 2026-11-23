@@ -34,6 +34,24 @@ El override publica MS8 en `8089:8089` y MongoDB únicamente en `127.0.0.1:27018
 docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 ```
 
+### Compose general
+
+Desde la raíz del repositorio, configurar su `.env` según `.env.example`,
+crear la red `ticketya-net` e iniciar `docker compose up -d --build`. El
+Compose general incluye el Compose base de MS8, que **no publica puertos**.
+Las rutas de cliente se acceden a través del Gateway en
+`http://localhost:8086`; para consultar MS8 directamente desde el contenedor:
+
+```sh
+docker compose exec preferencias wget -q -O - http://localhost:8089/v3/api-docs
+```
+
+Si existe un `.env` en esta carpeta con `EVENTOS_BASE_URL`, `COMPRAS_BASE_URL`
+o `NOTIFICACIONES_BASE_URL` apuntando a stubs, comentar esas líneas antes de
+usar el Compose general, para que se utilicen las URLs de los servicios reales.
+No se deben enviar headers de identidad desde clientes externos: el Gateway
+los inyecta después de validar el JWT.
+
 ## Ejecutar MS8 en el host
 
 Crear `ticketya-net` como se indica arriba. Iniciar MongoDB usando el Compose de desarrollo:
@@ -80,6 +98,23 @@ Ejemplo de cuerpo PUT:
 - Healthcheck Actuator: <http://localhost:8089/actuator/health>
 - Swagger UI: <http://localhost:8089/swagger-ui/index.html>
 - Documento OpenAPI: <http://localhost:8089/v3/api-docs>
+
+Swagger UI y `/v3/api-docs` se consultan directamente en MS8 cuando se
+publica el puerto con el override de desarrollo; no están expuestos por el
+Gateway. El documento exportado está en [docs/openapi.json](docs/openapi.json)
+y el diseño en [docs/diseno.md](docs/diseno.md). Para actualizar el JSON con
+MS8 ejecutándose en el host o con el override de desarrollo:
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8089/v3/api-docs -OutFile docs\openapi.json
+```
+
+El esquema `bearerAuth` describe el acceso por Gateway con JWT y rol
+`CLIENTE`. En acceso directo MS8 no valida ese JWT: requiere los headers
+`X-User-Id` y `X-User-Roles` de un intermediario confiable. El callback
+interno requiere `X-Service-Token`, no bearer, y no está expuesto por el
+Gateway. Seleccionar el servidor correspondiente en Swagger UI; para
+probar el callback interno se necesita acceso directo.
 
 ### Cómo se calculan las recomendaciones
 
@@ -155,6 +190,15 @@ En la red compartida, el Gateway `gateway:8086` llega a MS8 mediante `MS8_URL=ht
 ## Postman
 
 La colección `postman/Preferencias.postman_collection.json` incluye las operaciones de preferencias y recomendaciones y una carpeta para el callback interno. Define `baseUrl` como `http://localhost:8089`; configura la variable `servicioToken` para la solicitud interna y, opcionalmente, habilita su header `X-Aviso-Id`.
+
+La carpeta **Por el Gateway** usa `gatewayUrl` (`http://localhost:8086`) y
+requiere el Compose general y los usuarios de prueba habilitados en MS6.
+Ejecuta primero los logins de cliente y organizador: guardan sus tokens en
+variables de colección; luego ejecuta las consultas y las pruebas de acceso
+`401`/`403`. El PUT reemplaza las preferencias del cliente de prueba. Los
+tokens se generan al ejecutar los logins; no exportarlos ni compartirlos.
+Las solicitudes directas existentes requieren el puerto de desarrollo y
+headers de identidad explícitos.
 
 ### Probar avisos con el stub de Notificaciones
 

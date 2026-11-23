@@ -13,9 +13,138 @@
     {
       "key": "servicioToken",
       "value": ""
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "tokenCliente",
+      "value": ""
+    },
+    {
+      "key": "tokenOrganizador",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "Por el Gateway",
+      "description": "Requiere el compose general y usuarios de prueba habilitados. Ejecutar primero ambos logins. El PUT reemplaza las preferencias del cliente. No exportar ni compartir los tokens obtenidos.",
+      "item": [
+        {
+          "name": "Login cliente",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('tokenCliente', '');"] }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const token = pm.response.json().token;",
+                  "  pm.test('El login devuelve token', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                  "  if (typeof token === 'string' && token) pm.collectionVariables.set('tokenCliente', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"cliente@ticketya.test\",\"password\":\"Prueba123\"}" },
+            "url": "{{gatewayUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login organizador",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('tokenOrganizador', '');"] }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const token = pm.response.json().token;",
+                  "  pm.test('El login devuelve token', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                  "  if (typeof token === 'string' && token) pm.collectionVariables.set('tokenOrganizador', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"correo\":\"organizador@ticketya.test\",\"password\":\"Prueba123\"}" },
+            "url": "{{gatewayUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Consultar preferencias como cliente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenCliente}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/preferencias/me"
+          }
+        },
+        {
+          "name": "Reemplazar preferencias como cliente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenCliente}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"tiposEvento\":[\"MUSICA\"],\"artistas\":[\"Artista de ejemplo\"],\"ciudades\":[\"Buenos Aires\"]}" },
+            "url": "{{gatewayUrl}}/preferencias/me"
+          }
+        },
+        {
+          "name": "Consultar recomendaciones como cliente",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenCliente}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/recomendaciones/me"
+          }
+        },
+        {
+          "name": "Consultar preferencias sin token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 401', () => pm.response.to.have.status(401));"] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/preferencias/me"
+          }
+        },
+        {
+          "name": "Consultar preferencias como organizador",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenOrganizador}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/preferencias/me"
+          }
+        }
+      ]
+    },
     {
       "name": "Avisos internos",
       "item": [
