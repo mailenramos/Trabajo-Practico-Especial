@@ -31,7 +31,7 @@ flowchart LR
     MS8["MS8 Preferencias :8089"]
 
     U -->|"REST/JSON por Gateway"| GW
-    GW -->|"Públicas: búsqueda/detalle; protegidas: lugares, gestión de eventos y personal. Propaga X-User-Id / X-User-Roles"| MS1
+    GW -->|"Públicas: búsqueda/detalle, protegidas: lugares, gestión de eventos y personal. Propaga X-User-Id / X-User-Roles"| MS1
     MS1 -->|"Spring Data MongoDB"| DB
 
     MS1 -->|"Síncrono: PUT /disponibilidad/eventos/{id}, PUT /disponibilidad/eventos/{id}/venta, GET /disponibilidad/eventos/{id}.<br/>Circuit breaker reservas"| R
@@ -85,7 +85,7 @@ sequenceDiagram
                 GL->>DB: Marca aviso ENTREGADO
             else Preferencias falla o no responde
                 P--xGL: Error / respuesta no exitosa
-                Note over GL,DB: Publicación confirmada; el aviso queda PENDIENTE o ERROR_FINAL
+                Note over GL,DB: Publicación confirmada, el aviso queda PENDIENTE o ERROR_FINAL
                 Note over GL,P: El dispatcher reintenta de forma asíncrona
             end
             GL-->>GW: 200 OK
@@ -93,7 +93,7 @@ sequenceDiagram
         else Reservas no confirma activación
             R--xGL: Error / timeout / respuesta no aceptada
             GL-->>GW: 503 Service Unavailable
-            Note over GL,DB: El evento permanece BORRADOR; no se revierte la disponibilidad ya inicializada
+            Note over GL,DB: El evento permanece BORRADOR, no se revierte la disponibilidad ya inicializada
             GW-->>Organizador: 503 Service Unavailable
         end
     else Reservas no confirma inicialización
@@ -122,7 +122,7 @@ sequenceDiagram
     MS1->>DB: Valida titular/ADMIN, estado y ausencia de cancelación pendiente
     DB-->>MS1: Evento y versión actuales
     MS1->>DB: Transacción: guarda modificación y aviso MODIFICACION
-    Note over MS1,DB: Solo para eventos PUBLICADO o AGOTADO; el aviso incluye la nueva versión
+    Note over MS1,DB: Solo para eventos PUBLICADO o AGOTADO, el aviso incluye la nueva versión
     DB-->>MS1: Commit
     MS1-->>GW: 200 OK con evento actualizado
     GW-->>Organizador: Evento actualizado
@@ -134,7 +134,7 @@ sequenceDiagram
         S->>DB: Marca ENTREGADO
     else Compras falla o no responde
         C--xS: Error / respuesta no exitosa
-        Note over S,DB: Reintenta con backoff; agotados los intentos queda ERROR_FINAL
+        Note over S,DB: Reintenta con backoff, agotados los intentos queda ERROR_FINAL
     end
 ```
 
@@ -173,7 +173,7 @@ sequenceDiagram
             MS1->>DB: Marca aviso ENTREGADO
         else Compras falla o responde no exitoso
             C--xMS1: Error / respuesta no exitosa
-            Note over MS1,DB: La cancelación queda confirmada; outbox reintenta
+            Note over MS1,DB: La cancelación queda confirmada, outbox reintenta
         end
         MS1->>F: PUT /internal/filas/eventos/{id}/cancelacion + X-Aviso-Id
         Note over MS1,F: La entrega de este aviso también es independiente y reintentable
@@ -182,7 +182,7 @@ sequenceDiagram
     else Reservas falla o no confirma
         R--xMS1: Error / timeout / respuesta distinta de 204
         MS1->>DB: Conserva intención y programa reintento
-        MS1-->>GW: 503 Service Unavailable; cancelacionPendiente=true
+        MS1-->>GW: 503 Service Unavailable, cancelacionPendiente=true
         GW-->>Admin: 503 Service Unavailable
         S->>DB: Reclama el aviso en próximos ciclos
         S->>R: Reintenta PUT venta CANCELADA
@@ -206,7 +206,7 @@ sequenceDiagram
     participant R as Reservas
 
     Consumidor->>GW: GET /eventos/{id} (sin token para publicado/agotado)
-    GW->>GL: Reenvía solicitud; headers opcionales para borradores
+    GW->>GL: Reenvía solicitud, headers opcionales para borradores
     GL->>DB: Lee evento y lugar
     DB-->>GL: Datos persistidos
     alt Estado PUBLICADO o AGOTADO
@@ -217,14 +217,14 @@ sequenceDiagram
             GL-->>GW: 200 OK con disponibilidad
         else Reservas falla, no responde o no hay datos
             R--xGL: Error / timeout / sin disponibilidad
-            GL-->>GW: 200 OK; disponibilidad=null
+            GL-->>GW: 200 OK, disponibilidad=null
         end
     else Borrador
         Note over GL,R: Requiere X-User-Id y ORGANIZADOR titular o ADMIN
-        GL-->>GW: 200 OK solo para propietario autorizado; de lo contrario 401/404
+        GL-->>GW: 200 OK solo para propietario autorizado, de lo contrario 401/404
     else Estado distinto de PUBLICADO/AGOTADO
-        Note over GL,R: El borrador exige titular ORGANIZADOR o ADMIN; cancelado/finalizado son visibles sin disponibilidad
-        GL-->>GW: 200 OK para borrador autorizado, cancelado o finalizado; 401/404 si el borrador no está autorizado
+        Note over GL,R: El borrador exige titular ORGANIZADOR o ADMIN, cancelado/finalizado son visibles sin disponibilidad
+        GL-->>GW: 200 OK para borrador autorizado, cancelado o finalizado, 401/404 si el borrador no está autorizado
     end
     GW-->>Consumidor: Detalle del evento
 ```
@@ -251,11 +251,11 @@ sequenceDiagram
         GW-->>Organizador: Asignación creada
     else Circuito de usuarios abierto o fallo de MS6
         MS6--xMS1: No disponible
-        MS1-->>GW: 503 Service Unavailable; no persiste asignación
+        MS1-->>GW: 503 Service Unavailable, no persiste asignación
         GW-->>Organizador: Error
     else Usuario inexistente, inactivo o sin rol requerido
         MS6-->>MS1: No válido / no encontrado
-        MS1-->>GW: 400 o 404; no persiste asignación
+        MS1-->>GW: 400 o 404, no persiste asignación
     end
 ```
 
