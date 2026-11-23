@@ -30,7 +30,7 @@ docker compose up -d --build
 Para desarrollo local con puertos publicados, combiná explícitamente el Compose base y el archivo dev:
 
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
 El archivo dev publica la aplicación en `8081:8081` y MongoDB solo en `127.0.0.1:27017:27017`. El Compose base no publica puertos. Los datos de MongoDB persisten en el volumen `mongodb_data`.
@@ -418,7 +418,7 @@ El trabajo de Reservas usa sus timeouts configurables; los avisos a otros destin
 En `postman/` están las dos colecciones:
 
 - `TicketYa - Lugares y sectores.postman_collection.json`: pruebas de lugares y sectores.
-- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 23**.
+- `TicketYa - Eventos.postman_collection.json`: pruebas de eventos, integraciones y búsqueda, con carpetas numeradas de **00 a 26**.
 
 Las carpetas son: 00 Preparación; 01 Crear evento; 02 Límite por cliente al crear; 03 Precio por sector; 04 Modificar límite; 05 Publicar y gestión (validaciones previas); 06 flujo completo con Reservas; 07 fallo al publicar con Reservas apagado; 08 GET internos para Compras y Preferencias; 09 aviso de cancelación con Reservas y Compras; 10 aviso pendiente con Compras apagado; 11 reenvío del aviso; 12 preparación de búsqueda; 13 filtros; 14 orden y relevancia; 15 paginación y validaciones; 16 roles y headers; 17 detalle con Reservas encendido; 18 detalle sin disponibilidad con Reservas apagado; 19 identidad JWT, roles y titularidad.
 
@@ -427,6 +427,12 @@ La carpeta **20 Política de fila** usa `eventoCompraId` preparado por la carpet
 La carpeta **21 Personal de acceso** prueba la gestión implementada. Configurá localmente `eventoPersonalId`, `organizadorPersonalId`, `correoPersonal` y `usuarioPersonalId`. La carpeta **22 Cancelación recuperable** contiene requests para el caso feliz, la repetición, la intención pendiente y los controles de los stubs; ejecutá sus escenarios por separado como se indica más abajo.
 
 La carpeta **23 Modificar evento** usa `eventoPublicadoId`, `borradorId`, `eventoCancelaId`, `lugarOtroId` y `orgTitular`; prepará eventos y lugares existentes y configurá el ID del organizador titular. Ejecutá los casos individualmente: cambiar fecha y repetir usan el mismo valor, y los casos de borrador y cancelado requieren eventos en esos estados. Para probar avisos ejecutá `node postman/compras-eventos-stub.js` con MS1 apuntando a `COMPRAS_BASE_URL` y `SERVICIO_TOKEN` configurado. Consultá `GET http://localhost:8083/_stub/avisos`; para simular una falla usá `POST http://localhost:8083/_stub/modo/error`, modificá un evento publicado y esperá al scheduler hasta ver la respuesta `500` en los avisos. Luego restaurá `POST http://localhost:8083/_stub/modo/ok` y esperá el próximo reintento. El stub es una simulación local, no garantiza que el receptor real de Compras esté desplegado.
+
+La carpeta **24 Errores HTTP** requiere MS1 accesible en `baseUrl` mediante `docker-compose.dev.yml` o `mvn spring-boot:run`; comprueba 404, 405, 415 y correlación.
+
+La carpeta **25 Por el Gateway** requiere el compose general de la raíz y usuarios de prueba habilitados; configurá `eventoGatewayId` con un evento publicado y ejecutá la carpeta en orden. Los tokens se guardan en Postman: no exportarlos ni compartirlos.
+
+La carpeta **26 Health y circuitos** requiere MS1 accesible en `baseUrl` mediante `docker-compose.dev.yml` o `mvn spring-boot:run`; verifica health y explica cómo observar el circuito de Reservas abierto.
 
 Para el flujo de eventos, importá cada colección una vez y ejecutá primero **00 Preparación**. No reimportes la colección entre carpetas: se perderían las variables guardadas durante la corrida. **05 Publicar y gestión: validaciones previas** funciona con Reservas encendido o apagado. **08 GET internos** no depende de servicios externos; la consulta de Preferencias puede devolver contenido vacío si todavía no hay eventos publicados o agotados.
 

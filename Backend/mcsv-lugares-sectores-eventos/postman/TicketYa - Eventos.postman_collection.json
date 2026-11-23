@@ -12834,6 +12834,139 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "24 Errores HTTP",
+      "description": "Requiere MS1 accesible directamente en {{baseUrl}}: levantar el stack de MS1 con docker-compose.dev.yml o ejecutar mvn spring-boot:run con sus dependencias disponibles.",
+      "item": [
+        {
+          "name": "Ruta inexistente (404)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Código 404', () => pm.response.to.have.status(404));",
+            "pm.test('Body de error', () => { const j = pm.response.json(); pm.expect(j.timestamp).to.be.a('string').and.not.empty; pm.expect(j.status).to.eql(404); pm.expect(j.error).to.be.a('string').and.not.empty; pm.expect(j.mensaje).to.be.a('string').and.not.empty; });",
+            "pm.test('Correlación presente', () => { pm.expect(pm.response.headers.get('X-Correlation-Id')).to.be.a('string').and.not.empty; });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{baseUrl}}/ruta-que-no-existe" },
+          "response": []
+        },
+        {
+          "name": "Método no permitido (405)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Código 405', () => pm.response.to.have.status(405));",
+            "pm.test('Body de error', () => { const j = pm.response.json(); pm.expect(j.timestamp).to.be.a('string').and.not.empty; pm.expect(j.status).to.eql(405); pm.expect(j.error).to.be.a('string').and.not.empty; pm.expect(j.mensaje).to.be.a('string').and.not.empty; });",
+            "pm.test('Correlación presente', () => { pm.expect(pm.response.headers.get('X-Correlation-Id')).to.be.a('string').and.not.empty; });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "DELETE", "header": [], "url": "{{baseUrl}}/eventos" },
+          "response": []
+        },
+        {
+          "name": "Tipo de contenido no soportado (415)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Código 415', () => pm.response.to.have.status(415));",
+            "pm.test('Body de error', () => { const j = pm.response.json(); pm.expect(j.timestamp).to.be.a('string').and.not.empty; pm.expect(j.status).to.eql(415); pm.expect(j.error).to.be.a('string').and.not.empty; pm.expect(j.mensaje).to.be.a('string').and.not.empty; });",
+            "pm.test('Correlación presente', () => { pm.expect(pm.response.headers.get('X-Correlation-Id')).to.be.a('string').and.not.empty; });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "X-User-Id", "value": "admin-1" }, { "key": "X-User-Roles", "value": "ADMIN" }, { "key": "Content-Type", "value": "text/plain" }], "body": { "mode": "raw", "raw": "texto" }, "url": "{{baseUrl}}/lugares" },
+          "response": []
+        },
+        {
+          "name": "Ruta inexistente con correlación explícita (404)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Código 404', () => pm.response.to.have.status(404));",
+            "pm.test('Body de error', () => { const j = pm.response.json(); pm.expect(j.timestamp).to.be.a('string').and.not.empty; pm.expect(j.status).to.eql(404); pm.expect(j.error).to.be.a('string').and.not.empty; pm.expect(j.mensaje).to.be.a('string').and.not.empty; });",
+            "pm.test('Correlación conservada', () => { pm.expect(pm.response.headers.get('X-Correlation-Id')).to.eql('postman-404'); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [{ "key": "X-Correlation-Id", "value": "postman-404" }], "url": "{{baseUrl}}/ruta-que-no-existe" },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "25 Por el Gateway",
+      "description": "Requiere el compose general de la raíz levantado, con Gateway, MS1, MS6 y sus dependencias disponibles y usuarios de prueba habilitados. Configurar eventoGatewayId con el ID de un evento publicado existente en ese stack. Ejecutar en orden: los logins guardan tokens y la creación guarda lugarGatewayId. No enviar headers de identidad; el Gateway los deriva del JWT. Los tokens quedan en variables locales de Postman: no exportarlos ni compartirlos.",
+      "item": [
+        {
+          "name": "Login ADMIN (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.collectionVariables.unset('tokenAdmin');",
+            "pm.test('Código 200 y token', () => { pm.response.to.have.status(200); const token = pm.response.json().token; pm.expect(token).to.be.a('string').and.not.empty; pm.collectionVariables.set('tokenAdmin', token); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"correo\":\"admin@ticketya.test\",\"password\":\"Prueba123\"}" }, "url": "{{gatewayUrl}}/auth/login" },
+          "response": []
+        },
+        {
+          "name": "Login ORGANIZADOR (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.collectionVariables.unset('tokenOrganizador');",
+            "pm.test('Código 200 y token', () => { pm.response.to.have.status(200); const token = pm.response.json().token; pm.expect(token).to.be.a('string').and.not.empty; pm.collectionVariables.set('tokenOrganizador', token); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"correo\":\"organizador@ticketya.test\",\"password\":\"Prueba123\"}" }, "url": "{{gatewayUrl}}/auth/login" },
+          "response": []
+        },
+        {
+          "name": "Login CLIENTE (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.collectionVariables.unset('tokenCliente');",
+            "pm.test('Código 200 y token', () => { pm.response.to.have.status(200); const token = pm.response.json().token; pm.expect(token).to.be.a('string').and.not.empty; pm.collectionVariables.set('tokenCliente', token); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"correo\":\"cliente@ticketya.test\",\"password\":\"Prueba123\"}" }, "url": "{{gatewayUrl}}/auth/login" },
+          "response": []
+        },
+        {
+          "name": "Listar eventos anónimamente (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{gatewayUrl}}/eventos" },
+          "response": []
+        },
+        {
+          "name": "Detalle de evento publicado anónimamente (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{gatewayUrl}}/eventos/{{eventoGatewayId}}" },
+          "response": []
+        },
+        {
+          "name": "Listar lugares anónimamente (401)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 401', () => pm.response.to.have.status(401));"] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{gatewayUrl}}/lugares" },
+          "response": []
+        },
+        {
+          "name": "Listar lugares como CLIENTE (403)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 403', () => pm.response.to.have.status(403));"] } }],
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenCliente}}", "type": "string" }] }, "method": "GET", "header": [], "url": "{{gatewayUrl}}/lugares" },
+          "response": []
+        },
+        {
+          "name": "Crear lugar como ADMIN (201)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.collectionVariables.unset('lugarGatewayId');",
+            "pm.test('Código 201 e ID', () => { pm.response.to.have.status(201); const id = pm.response.json().id; pm.expect(id).to.be.a('string').and.not.empty; pm.collectionVariables.set('lugarGatewayId', id); });"
+          ] } }],
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenAdmin}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"nombre\":\"Lugar Postman Gateway\",\"direccion\":\"Av. Corrientes 1234\",\"ciudad\":\"Buenos Aires\",\"latitud\":-34.6037,\"longitud\":-58.3816}" }, "url": "{{gatewayUrl}}/lugares" },
+          "response": []
+        },
+        {
+          "name": "Consultar lugar como ORGANIZADOR (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Código 200', () => pm.response.to.have.status(200));"] } }],
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{tokenOrganizador}}", "type": "string" }] }, "method": "GET", "header": [], "url": "{{gatewayUrl}}/lugares/{{lugarGatewayId}}" },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "26 Health y circuitos",
+      "description": "Requiere MS1 accesible directamente en {{baseUrl}}: levantar el stack de MS1 con docker-compose.dev.yml o ejecutar mvn spring-boot:run con sus dependencias disponibles. Para observar reservas en OPEN, preparar un evento publicado, apagar Reservas y consultar varias veces GET {{baseUrl}}/eventos/{id} con ese ID; con la configuración por defecto se necesitan al menos 10 llamadas fallidas y una tasa de fallos del 50% en la ventana. Repetir enseguida el health y revisar components.circuitbreakers.components.reservas.status; OPEN dura 30 segundos por defecto antes de permitir una prueba en HALF_OPEN.",
+      "item": [
+        {
+          "name": "Health y estados de circuitos (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Código 200', () => pm.response.to.have.status(200));",
+            "pm.test('Health UP y estados de circuitos presentes', () => { const j = pm.response.json(); pm.expect(j.status).to.eql('UP'); pm.expect(j.components).to.be.an('object'); pm.expect(j.components.circuitbreakers).to.be.an('object'); const circuitos = j.components.circuitbreakers.components; pm.expect(circuitos).to.be.an('object'); ['reservas', 'usuarios'].forEach(nombre => { pm.expect(circuitos[nombre]).to.be.an('object'); pm.expect(circuitos[nombre].status).to.be.oneOf(['CLOSED', 'OPEN', 'HALF_OPEN']); }); });"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "header": [], "url": "{{baseUrl}}/actuator/health" },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
@@ -12857,6 +12990,12 @@
     }
   ],
   "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8086" },
+    { "key": "eventoGatewayId", "value": "" },
+    { "key": "lugarGatewayId", "value": "" },
+    { "key": "tokenAdmin", "value": "" },
+    { "key": "tokenOrganizador", "value": "" },
+    { "key": "tokenCliente", "value": "" },
     { "key": "eventoCancelacionOkId", "value": "" },
     { "key": "eventoCancelacionPendienteId", "value": "" },
     { "key": "filaUrl", "value": "http://localhost:8088" },

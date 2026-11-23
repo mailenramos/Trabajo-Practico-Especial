@@ -133,6 +133,29 @@ docker compose down      # elimina los contenedores; los datos quedan en los vol
 docker compose down -v   # elimina también los volúmenes: BORRA TODOS LOS DATOS
 ```
 
+### Equipos con menos memoria
+
+El sistema completo necesita unos 6 GB de memoria para los contenedores y bastante CPU durante el arranque, porque las diez JVM arrancan a la vez. Se recomiendan 16 GB de RAM con 10 GB asignados a Docker (ver Requisitos). Con menos recursos hay dos alternativas, que se pueden combinar:
+
+**Arrancar en etapas**, para evitar el pico de CPU:
+
+```sh
+docker compose up -d mongodb mongodb-preferencias mysql-compras mysql-reservas mysql-fila-virtual mysql-notificaciones pagos-db postgres-entradas postgres-usuarios mailpit
+docker compose up -d usuarios lugares reservas
+# esperar a que estén healthy (docker compose ps)
+docker compose up -d pagos entradas compras notificaciones
+# esperar a que estén healthy
+docker compose up -d
+```
+
+**Levantar solo el flujo principal** (sin observabilidad, Fila virtual ni Preferencias):
+
+```sh
+docker compose up -d gateway usuarios lugares reservas compras pagos entradas notificaciones mailpit
+```
+
+Las bases de esos servicios se levantan solas. El flujo de compra funciona igual; los avisos dirigidos a los servicios que no están levantados quedan pendientes en los outbox y se reintentan cuando se los inicia.
+
 ### Problemas comunes
 
 - **`network ticketya-net declared as external, but could not be found`**: falta el paso 1 (`docker network create ticketya-net`).
