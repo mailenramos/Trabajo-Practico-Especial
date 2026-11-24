@@ -51,4 +51,27 @@ class EventosClienteRestTest {
 
         assertThat(cliente.obtenerEvento("evento-1").orElseThrow().tipo()).isNull();
     }
+
+    @Test
+    void leeElOrganizadorDelEvento() {
+        servidor.responder(200, """
+                {"eventoId":"evento-1","nombre":"Recital","fechaInicio":"2026-12-01T21:00:00Z",
+                 "estado":"publicado","organizadorId":"organizador-1","requiereFila":false,
+                 "sectores":[{"sectorId":"platea","nombre":"Platea","precio":15000.00,"tipo":"NUMERADO",
+                              "filas":20,"asientosPorFila":30,"capacidad":null}]}""");
+
+        Evento evento = cliente.obtenerEvento("evento-1").orElseThrow();
+
+        assertThat(evento.organizadorId()).isEqualTo("organizador-1");
+        assertThat(evento.sectores()).extracting(s -> s.nombre()).containsExactly("Platea");
+    }
+
+    @Test
+    void sinOrganizadorElEventoSeLeeConOrganizadorNulo() {
+        servidor.responder(200, """
+                {"eventoId":"evento-1","nombre":"Recital","fechaInicio":"2026-12-01T21:00:00Z",
+                 "estado":"publicado","sectores":[]}""");
+
+        assertThat(cliente.obtenerEvento("evento-1").orElseThrow().organizadorId()).isNull();
+    }
 }

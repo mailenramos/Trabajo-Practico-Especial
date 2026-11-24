@@ -27,6 +27,20 @@ public interface ReservasCliente {
      */
     void liberarPorDevolucion(String reservaId, String devolucionId, LugarDevuelto lugar);
 
+    /**
+     * Inventario actual del evento ({@code GET /disponibilidad/eventos/{eventoId}}), para el
+     * reporte de ocupación. Vacío si el evento no tiene inventario (404).
+     */
+    Optional<Disponibilidad> obtenerDisponibilidad(String eventoId);
+
+    record Disponibilidad(String eventoId, List<SectorDisponibilidad> sectores) {
+    }
+
+    /** Por sector: capacidad total, lugares vendidos y reservados (retenidos hasta su liberación). */
+    record SectorDisponibilidad(String sectorId, Integer capacidadTotal, Integer cantidadVendida,
+                                Integer cantidadReservada) {
+    }
+
     /** Un lugar numerado (fila y número) o una unidad de un sector no numerado. */
     record LugarDevuelto(String sectorId, Integer fila, Integer numero) {
         public boolean numerado() {

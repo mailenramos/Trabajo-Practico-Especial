@@ -105,6 +105,8 @@ tags:
     description: Aviso de Eventos (MS1) cuando un evento cambia de fecha, horario o lugar
   - name: Recomendaciones (interno)
     description: Consultas sobre compras confirmadas para Gestión de preferencias y recomendaciones (MS8)
+  - name: Reportes
+    description: Reportes comerciales de un evento para su organizador titular o un administrador (solo lectura)
 security:
   - bearerAuth: []
 paths:
@@ -1047,6 +1049,186 @@ paths:
                   fechaHora: debe venir al menos uno de fechaHora, lugar o ciudad
         '403': { $ref: '#/components/responses/ServicioNoAutorizado' }
 
+  /reportes/eventos/{eventoId}/ventas:
+    get:
+      tags: [Reportes]
+      summary: Reporte de ventas de un evento (organizador titular o administrador)
+      description: |
+        Solo compras CONFIRMADAS (con las entradas emitidas): cantidad de compras, entradas
+        vendidas históricas e importe vendido con los precios guardados al momento de cada compra,
+        en total y por sector. Las devoluciones no restan (ver el reporte de devoluciones). Las
+        compras cobradas cuya emisión no terminó se informan aparte en `comprasConEmisionIncompleta`.
+        Los sectores son los que informa Eventos (en su orden) más los que aparezcan en compras y
+        Eventos ya no tenga. Se calcula al momento; no se guarda nada.
+      parameters:
+        - $ref: '#/components/parameters/EventoId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRolesReportes'
+      responses:
+        '200':
+          description: Reporte de ventas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteVentas' }
+              example:
+                eventoId: evento-1
+                eventoNombre: Recital de prueba
+                estadoEvento: publicado
+                generadoEn: '2026-11-23T12:00:00Z'
+                hayOperacionesPendientes: true
+                totales: { comprasConfirmadas: 2, entradasVendidas: 8, importeVendido: 102002.00 }
+                sectores:
+                  - { sectorId: platea, sectorNombre: Platea, entradasVendidas: 4, importeVendido: 70000.00 }
+                  - { sectorId: campo, sectorNombre: Campo, entradasVendidas: 4, importeVendido: 32002.00 }
+                comprasConEmisionIncompleta: { cantidad: 1, importe: 46001.00 }
+        '401': { $ref: '#/components/responses/NoIdentificado' }
+        '403': { $ref: '#/components/responses/SinAccesoAReportes' }
+        '404': { $ref: '#/components/responses/EventoNoEncontrado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
+  /reportes/eventos/{eventoId}/devoluciones:
+    get:
+      tags: [Reportes]
+      summary: Reporte de devoluciones de un evento (organizador titular o administrador)
+      description: |
+        Por sector y total: entradas vendidas históricas (compras CONFIRMADAS), entradas devueltas
+        (entradas distintas con la baja completada), separadas por origen —`DEVOLUCION` (solicitud
+        aprobada con la entrada devuelta) y `CANCELACION_EVENTO` (entradas de un reintegro por
+        cancelación que salió bien)—, entradas netas (vendidas − devueltas) y el importe histórico
+        de las devueltas. Las devoluciones en curso (pendientes, o aprobadas sin la entrada
+        devuelta) se informan aparte y no restan.
+      parameters:
+        - $ref: '#/components/parameters/EventoId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRolesReportes'
+      responses:
+        '200':
+          description: Reporte de devoluciones
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteDevoluciones' }
+              example:
+                eventoId: evento-1
+                eventoNombre: Recital de prueba
+                estadoEvento: cancelado
+                generadoEn: '2026-11-23T12:00:00Z'
+                hayOperacionesPendientes: true
+                totales:
+                  entradasVendidas: 8
+                  entradasDevueltas: 5
+                  devueltasPorDevolucion: 1
+                  devueltasPorCancelacion: 4
+                  entradasNetas: 3
+                  importeDevuelto: 61001.00
+                  importeDevueltoPorDevolucion: 15000.00
+                  importeDevueltoPorCancelacion: 46001.00
+                sectores:
+                  - sectorId: platea
+                    sectorNombre: Platea
+                    entradasVendidas: 4
+                    entradasDevueltas: 3
+                    devueltasPorDevolucion: 1
+                    devueltasPorCancelacion: 2
+                    entradasNetas: 1
+                    importeDevuelto: 45000.00
+                    importeDevueltoPorDevolucion: 15000.00
+                    importeDevueltoPorCancelacion: 30000.00
+                  - sectorId: campo
+                    sectorNombre: Campo
+                    entradasVendidas: 4
+                    entradasDevueltas: 2
+                    devueltasPorDevolucion: 0
+                    devueltasPorCancelacion: 2
+                    entradasNetas: 2
+                    importeDevuelto: 16001.00
+                    importeDevueltoPorDevolucion: 0.00
+                    importeDevueltoPorCancelacion: 16001.00
+                devolucionesEnCurso: { cantidad: 1, importe: 8000.50 }
+        '401': { $ref: '#/components/responses/NoIdentificado' }
+        '403': { $ref: '#/components/responses/SinAccesoAReportes' }
+        '404': { $ref: '#/components/responses/EventoNoEncontrado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
+  /reportes/eventos/{eventoId}/recaudacion:
+    get:
+      tags: [Reportes]
+      summary: Reporte de recaudación de un evento (organizador titular o administrador)
+      description: |
+        Por sector y total: recaudación bruta (precios históricos de las entradas de compras
+        CONFIRMADAS), reintegros EXITOSOS de esas compras y recaudación neta (bruta − reintegros
+        exitosos). El reintegro de una devolución se atribuye al sector de la entrada devuelta; el
+        de una cancelación, al sector de cada entrada incluida según su precio. Aparte:
+        `pendientesDeReconciliacion` (reintegros PENDIENTES o FALLIDOS de compras confirmadas, que
+        no se descuentan) y `comprasNoConfirmadas` (lo cobrado en compras pendientes o fallidas y lo
+        ya reintegrado de ellas, que no forma parte de la bruta ni de la neta).
+      parameters:
+        - $ref: '#/components/parameters/EventoId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRolesReportes'
+      responses:
+        '200':
+          description: Reporte de recaudación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteRecaudacion' }
+              example:
+                eventoId: evento-1
+                eventoNombre: Recital de prueba
+                estadoEvento: publicado
+                generadoEn: '2026-11-23T12:00:00Z'
+                hayOperacionesPendientes: true
+                totales: { recaudacionBruta: 92002.00, reintegrosExitosos: 15000.00, recaudacionNeta: 77002.00 }
+                sectores:
+                  - { sectorId: platea, sectorNombre: Platea, recaudacionBruta: 60000.00, reintegrosExitosos: 15000.00, recaudacionNeta: 45000.00 }
+                  - { sectorId: campo, sectorNombre: Campo, recaudacionBruta: 32002.00, reintegrosExitosos: 0.00, recaudacionNeta: 32002.00 }
+                pendientesDeReconciliacion:
+                  reintegrosPendientes: { cantidad: 1, importe: 8000.50 }
+                  reintegrosFallidos: { cantidad: 0, importe: 0.00 }
+                comprasNoConfirmadas: { compras: 1, cobrado: 46001.00, reintegrado: 46001.00 }
+        '401': { $ref: '#/components/responses/NoIdentificado' }
+        '403': { $ref: '#/components/responses/SinAccesoAReportes' }
+        '404': { $ref: '#/components/responses/EventoNoEncontrado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
+  /reportes/eventos/{eventoId}/ocupacion:
+    get:
+      tags: [Reportes]
+      summary: Reporte de ocupación de un evento (organizador titular o administrador)
+      description: |
+        Inventario actual según Disponibilidad y reservas (`GET /disponibilidad/eventos/{eventoId}`):
+        por sector, capacidad, lugares vendidos y reservas temporales (lugares retenidos hasta su
+        liberación), y la ocupación comercial = vendidos / capacidad × 100, con 2 decimales
+        (capacidad 0 → 0.00); el total usa la suma de vendidos sobre la suma de capacidades. Las
+        reservas temporales no suman a la ocupación. En un evento cancelado muestra el estado del
+        inventario, no las entradas habilitadas. Si el evento no tiene inventario,
+        `inventarioInicializado` es falso y los totales quedan en 0. Si Disponibilidad y reservas no
+        responde, 503 sin datos parciales.
+      parameters:
+        - $ref: '#/components/parameters/EventoId'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XUserRolesReportes'
+      responses:
+        '200':
+          description: Reporte de ocupación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteOcupacion' }
+              example:
+                eventoId: evento-1
+                eventoNombre: Recital de prueba
+                estadoEvento: publicado
+                generadoEn: '2026-11-23T12:00:00Z'
+                hayOperacionesPendientes: false
+                inventarioInicializado: true
+                totales: { capacidad: 400, vendidos: 100, reservasTemporales: 5, porcentajeOcupacion: 25.00 }
+                sectores:
+                  - { sectorId: platea, sectorNombre: Platea, capacidad: 100, vendidos: 40, reservasTemporales: 5, porcentajeOcupacion: 40.00 }
+                  - { sectorId: campo, sectorNombre: Campo, capacidad: 300, vendidos: 60, reservasTemporales: 0, porcentajeOcupacion: 20.00 }
+        '401': { $ref: '#/components/responses/NoIdentificado' }
+        '403': { $ref: '#/components/responses/SinAccesoAReportes' }
+        '404': { $ref: '#/components/responses/EventoNoEncontrado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1101,6 +1283,22 @@ components:
       description: Roles del usuario separados por coma; debe incluir el rol de administrador (ADMIN por defecto), aunque tenga otros. Sin él, 403 SOLO_ADMINISTRADOR
       schema: { type: string }
       example: CLIENTE,ADMIN
+    XUserRolesReportes:
+      name: X-User-Roles
+      in: header
+      required: false
+      description: |
+        Roles del usuario separados por coma; debe incluir ORGANIZADOR (configurable en
+        `compras.rol-organizador`) o el de administrador. Sin ninguno, 403 SIN_PERMISO_REPORTES. Un
+        organizador solo ve los eventos cuyo `organizadorId` (según Eventos) es su `X-User-Id`.
+      schema: { type: string }
+      example: ORGANIZADOR
+    EventoId:
+      name: eventoId
+      in: path
+      required: true
+      schema: { type: string }
+      example: evento-1
 
   schemas:
     IniciarCompraPedido:
@@ -1296,6 +1494,134 @@ components:
         compraId: { type: string, format: uuid }
         estado: { type: string, enum: [EN_CURSO] }
         mensaje: { type: string }
+    EncabezadoReporte:
+      type: object
+      required: [eventoId, eventoNombre, estadoEvento, generadoEn, hayOperacionesPendientes]
+      properties:
+        eventoId: { type: string }
+        eventoNombre: { type: string }
+        estadoEvento: { type: string, description: Estado según Eventos (borrador, publicado, agotado, cancelado, finalizado) }
+        generadoEn: { type: string, format: date-time }
+        hayOperacionesPendientes:
+          type: boolean
+          description: |
+            Verdadero si el evento tiene compras PENDIENTES que ya tienen pago (cobradas sin
+            confirmar), devoluciones en curso o reintegros PENDIENTES o FALLIDOS. Una compra
+            PENDIENTE sin pago no cuenta.
+    CantidadImporte:
+      type: object
+      properties:
+        cantidad: { type: integer, format: int64 }
+        importe: { type: number }
+    ReporteVentas:
+      allOf:
+        - $ref: '#/components/schemas/EncabezadoReporte'
+        - type: object
+          properties:
+            totales:
+              type: object
+              properties:
+                comprasConfirmadas: { type: integer, format: int64 }
+                entradasVendidas: { type: integer, format: int64 }
+                importeVendido: { type: number }
+            sectores:
+              type: array
+              items:
+                type: object
+                properties:
+                  sectorId: { type: string }
+                  sectorNombre: { type: string, nullable: true }
+                  entradasVendidas: { type: integer, format: int64 }
+                  importeVendido: { type: number }
+            comprasConEmisionIncompleta:
+              allOf: [{ $ref: '#/components/schemas/CantidadImporte' }]
+              description: Compras PENDIENTES ya cobradas cuya emisión no terminó (no son ventas)
+    CantidadesDeDevolucion:
+      type: object
+      properties:
+        entradasVendidas: { type: integer, format: int64 }
+        entradasDevueltas: { type: integer, format: int64, description: Suma de los dos orígenes (no se solapan) }
+        devueltasPorDevolucion: { type: integer, format: int64 }
+        devueltasPorCancelacion: { type: integer, format: int64 }
+        entradasNetas: { type: integer, format: int64 }
+        importeDevuelto: { type: number }
+        importeDevueltoPorDevolucion: { type: number }
+        importeDevueltoPorCancelacion: { type: number }
+    ReporteDevoluciones:
+      allOf:
+        - $ref: '#/components/schemas/EncabezadoReporte'
+        - type: object
+          properties:
+            totales: { $ref: '#/components/schemas/CantidadesDeDevolucion' }
+            sectores:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    properties:
+                      sectorId: { type: string }
+                      sectorNombre: { type: string, nullable: true }
+                  - $ref: '#/components/schemas/CantidadesDeDevolucion'
+            devolucionesEnCurso:
+              allOf: [{ $ref: '#/components/schemas/CantidadImporte' }]
+              description: Solicitudes pendientes o aprobadas sin la entrada devuelta (no restan)
+    MontosDeRecaudacion:
+      type: object
+      properties:
+        recaudacionBruta: { type: number }
+        reintegrosExitosos: { type: number }
+        recaudacionNeta: { type: number }
+    ReporteRecaudacion:
+      allOf:
+        - $ref: '#/components/schemas/EncabezadoReporte'
+        - type: object
+          properties:
+            totales: { $ref: '#/components/schemas/MontosDeRecaudacion' }
+            sectores:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    properties:
+                      sectorId: { type: string }
+                      sectorNombre: { type: string, nullable: true }
+                  - $ref: '#/components/schemas/MontosDeRecaudacion'
+            pendientesDeReconciliacion:
+              type: object
+              description: Reintegros de compras confirmadas que todavía no salieron bien (no se descuentan)
+              properties:
+                reintegrosPendientes: { $ref: '#/components/schemas/CantidadImporte' }
+                reintegrosFallidos: { $ref: '#/components/schemas/CantidadImporte' }
+            comprasNoConfirmadas:
+              type: object
+              description: Compras cobradas que no llegaron a confirmarse (pendientes o fallidas)
+              properties:
+                compras: { type: integer, format: int64 }
+                cobrado: { type: number }
+                reintegrado: { type: number, description: Reintegros EXITOSOS de esas compras }
+    Ocupacion:
+      type: object
+      properties:
+        capacidad: { type: integer }
+        vendidos: { type: integer }
+        reservasTemporales: { type: integer }
+        porcentajeOcupacion: { type: number, description: vendidos / capacidad × 100, con 2 decimales }
+    ReporteOcupacion:
+      allOf:
+        - $ref: '#/components/schemas/EncabezadoReporte'
+        - type: object
+          properties:
+            inventarioInicializado: { type: boolean, description: Falso si Disponibilidad y reservas no tiene inventario del evento }
+            totales: { $ref: '#/components/schemas/Ocupacion' }
+            sectores:
+              type: array
+              items:
+                allOf:
+                  - type: object
+                    properties:
+                      sectorId: { type: string }
+                      sectorNombre: { type: string, nullable: true, description: Nombre según Eventos }
+                  - $ref: '#/components/schemas/Ocupacion'
     Error:
       type: object
       required: [timestamp, status, error, mensaje]
@@ -1439,6 +1765,36 @@ components:
             status: 503
             error: SERVICIO_NO_DISPONIBLE
             mensaje: El servicio de Pagos no está disponible. Intente de nuevo más tarde
+    SinAccesoAReportes:
+      description: Sin rol de organizador ni administrador, o el organizador no es el titular del evento
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            sinRol:
+              summary: El usuario no es organizador ni administrador (no se consulta a Eventos)
+              value:
+                timestamp: '2026-11-23T12:00:00Z'
+                status: 403
+                error: SIN_PERMISO_REPORTES
+                mensaje: Los reportes los consulta el organizador del evento o un administrador
+            eventoAjeno:
+              summary: El evento es de otro organizador
+              value:
+                timestamp: '2026-11-23T12:00:00Z'
+                status: 403
+                error: EVENTO_AJENO
+                mensaje: El evento pertenece a otro organizador
+    EventoNoEncontrado:
+      description: Eventos no conoce el evento
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            timestamp: '2026-11-23T12:00:00Z'
+            status: 404
+            error: EVENTO_NO_ENCONTRADO
+            mensaje: No existe el evento evento-9
 
   examples:
     CompraPendiente:

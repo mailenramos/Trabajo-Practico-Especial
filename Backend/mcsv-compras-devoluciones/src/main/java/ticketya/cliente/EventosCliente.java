@@ -11,12 +11,21 @@ public interface EventosCliente {
     /** Devuelve el evento en cualquier estado, o vacío si no existe. */
     Optional<Evento> obtenerEvento(String eventoId);
 
-    /** {@code tipo} (RECITAL, TEATRO, ...) puede venir vacío: Eventos todavía no confirmó el campo. */
+    /**
+     * {@code tipo} (RECITAL, TEATRO, ...) puede venir vacío: Eventos todavía no confirmó el campo.
+     * {@code organizadorId} es el titular del evento (Entrega 2, para los reportes); si no viene,
+     * ningún organizador es titular y solo un administrador accede a los reportes.
+     */
     record Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores,
-                  String tipo) {
+                  String tipo, String organizadorId) {
 
         public Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores) {
-            this(eventoId, nombre, fechaInicio, estado, sectores, null);
+            this(eventoId, nombre, fechaInicio, estado, sectores, null, null);
+        }
+
+        public Evento(String eventoId, String nombre, Instant fechaInicio, String estado, List<Sector> sectores,
+                      String tipo) {
+            this(eventoId, nombre, fechaInicio, estado, sectores, tipo, null);
         }
 
         public Optional<Sector> sector(String sectorId) {

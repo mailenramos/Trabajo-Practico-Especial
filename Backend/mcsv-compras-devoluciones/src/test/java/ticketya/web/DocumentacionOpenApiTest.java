@@ -127,6 +127,31 @@ class DocumentacionOpenApiTest extends PruebaIntegracion {
         assertThat((List<Object>) cancelacion.get("security")).isEmpty();
     }
 
+    /** Reportes para organizadores: GET con bearer heredado, roles de reportes y sus cinco respuestas. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void documentaLosReportesParaOrganizadores() throws Exception {
+        Map<String, Object> doc;
+        try (InputStream in = getClass().getResourceAsStream("/static/openapi.yaml")) {
+            doc = new Yaml().load(in);
+        }
+        Map<String, Map<String, Object>> paths = (Map<String, Map<String, Object>>) doc.get("paths");
+        for (String reporte : List.of("ventas", "devoluciones", "recaudacion", "ocupacion")) {
+            String ruta = "/reportes/eventos/{eventoId}/" + reporte;
+            assertThat(paths).as(ruta).containsKey(ruta);
+            Map<String, Object> get = (Map<String, Object>) paths.get(ruta).get("get");
+            assertThat(get).as(ruta).isNotNull().doesNotContainKey("security");
+            assertThat((List<String>) get.get("tags")).containsExactly("Reportes");
+            assertThat((Map<Object, Object>) get.get("responses")).as(ruta)
+                    .containsKeys("200", "401", "403", "404", "503");
+            assertThat(get.get("parameters").toString())
+                    .contains("#/components/parameters/EventoId", "#/components/parameters/XUserRolesReportes");
+        }
+        Map<String, Object> respuestas = (Map<String, Object>) ((Map<String, Object>) doc.get("components")).get("responses");
+        assertThat(respuestas.get("SinAccesoAReportes").toString()).contains("SIN_PERMISO_REPORTES", "EVENTO_AJENO");
+        assertThat(respuestas.get("EventoNoEncontrado").toString()).contains("EVENTO_NO_ENCONTRADO");
+    }
+
     @SuppressWarnings("unchecked")
     private static void juntarReferencias(Object nodo, List<String> referencias) {
         if (nodo instanceof Map<?, ?> mapa) {

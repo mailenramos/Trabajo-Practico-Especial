@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "cc1be9ed-f5be-42eb-a6fc-106fdddd2a6d",
     "name": "TicketYa - MS3 Compras y devoluciones",
-    "description": "TicketYa - MS3 Compras y devoluciones (Entrega 2).\n\nLas rutas de usuario van por el API Gateway ({{gatewayUrl}}, puerto 8086) con JWT; las /internal/** y /eventos-cancelados van directo a MS3 ({{comprasUrl}}, puerto 8083).\n\nCómo usarla: levantar el sistema con Docker Compose (README de la raíz), importar la colección y el environment 'TicketYa - MS3 local', completar servicioToken (el SERVICIO_TOKEN del .env) y correr la colección completa con el Runner, en orden. Los usuarios de prueba requieren USUARIOS_DATOS_PRUEBA=true.\n\nCada request manda X-Correlation-Id (pm-<hora>-<n>): buscalo en los logs para seguir el pedido entre servicios.",
+    "description": "TicketYa - MS3 Compras y devoluciones (Entrega 2).\n\nLas rutas de usuario van por el API Gateway ({{gatewayUrl}}, puerto 8086) con JWT; las /internal/** y /eventos-cancelados van directo a MS3 ({{comprasUrl}}, puerto 8083).\n\nCómo usarla: levantar el sistema con Docker Compose (README de la raíz), importar la colección y el environment 'TicketYa - MS3 local', completar servicioToken (el SERVICIO_TOKEN del .env) y correr la colección completa con el Runner, en orden. Los usuarios de prueba requieren USUARIOS_DATOS_PRUEBA=true.\n\nCada request manda X-Correlation-Id (pm-<hora>-<n>): buscalo en los logs para seguir el pedido entre servicios.\n\nLa carpeta 07 (reportes para organizadores) va al final y requiere el fragmento del Gateway aplicado (docs/gateway-reportes-ms3.md).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1956,6 +1956,767 @@
         }
       ],
       "description": "Casos que tienen que fallar de una forma conocida. Las dos últimas llaman directo a MS3."
+    },
+    {
+      "name": "07 - Reportes (organizador y admin)",
+      "description": "Reportes para organizadores de MS3, por el API Gateway ({{gatewayUrl}}).\n\nREQUIERE el fragmento del Gateway aplicado (ruta ms3-reportes y matcher de seguridad, ver docs/gateway-reportes-ms3.md); sin él, el Gateway responde 404 en estas rutas.\n\nUsa el evento y los datos de las carpetas 01 a 04 (correrla después de ellas). Para el caso del organizador ajeno registra un usuario nuevo, le asigna ORGANIZADOR como ADMIN y crea un evento con él, reutilizando el lugar de la carpeta 01.",
+      "item": [
+        {
+          "name": "Registrar organizador ajeno (público)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/registro",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Organizador\",\n  \"apellido\": \"Ajeno\",\n  \"correo\": \"organizador2-{{$timestamp}}@ticketya.test\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "description": "Usuario nuevo en cada corrida (correo único con {{$timestamp}}). El registro lo deja como CLIENTE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda usuarioIdOrganizador2 y organizador2Email\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.id, \"id presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"usuarioIdOrganizador2\", j.id);",
+                  "  pm.collectionVariables.set(\"organizador2Email\", j.correo);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Asignar rol ORGANIZADOR al organizador ajeno (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/usuarios/{{usuarioIdOrganizador2}}/roles",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{usuarioIdOrganizador2}}",
+                "roles"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\n    \"ORGANIZADOR\"\n  ]\n}"
+            },
+            "description": "Reemplaza los roles del usuario. Rigen desde su próximo inicio de sesión."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Queda con el rol ORGANIZADOR\", function () { pm.expect(pm.response.json().roles).to.include(\"ORGANIZADOR\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login organizador ajeno",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/auth/login",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{organizador2Email}}\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Guarda el JWT en tokenOrganizador2\", function () {",
+                  "  const v = pm.response.json().token;",
+                  "  pm.expect(v, \"token presente en la respuesta\").to.be.ok;",
+                  "  pm.collectionVariables.set(\"tokenOrganizador2\", v);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear evento del organizador ajeno (ORGANIZADOR 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayUrl}}/eventos",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "eventos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador2}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Evento ajeno Postman {{$timestamp}}\",\n  \"descripcion\": \"Evento de otro organizador\",\n  \"tipo\": \"MUSICA\",\n  \"participantes\": [\n    \"Banda de Prueba\"\n  ],\n  \"fechaHora\": \"{{fechaEvento}}\",\n  \"lugarId\": \"{{lugarId}}\",\n  \"limiteEntradasPorCliente\": 4\n}"
+            },
+            "description": "Reutiliza el lugar de la carpeta 01. Queda en borrador: alcanza para probar la titularidad."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('fechaEvento')) {",
+                  "  pm.collectionVariables.set('fechaEvento', new Date(Date.now() + 120 * 24 * 3600 * 1000).toISOString().replace(/\\.\\d{3}Z$/, 'Z'));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test(\"Guarda eventoIdAjeno, del organizador ajeno\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.id, \"id presente en la respuesta\").to.be.ok;",
+                  "  pm.expect(j.organizadorId).to.eql(pm.collectionVariables.get(\"usuarioIdOrganizador2\"));",
+                  "  pm.collectionVariables.set(\"eventoIdAjeno\", j.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ventas (ORGANIZADOR titular)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/ventas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "ventas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Ventas confirmadas de la carpeta 02\", function () {",
+                  "  const t = pm.response.json().totales;",
+                  "  pm.expect(t.comprasConfirmadas).to.be.at.least(1);",
+                  "  pm.expect(t.entradasVendidas).to.be.at.least(1);",
+                  "  pm.expect(t.importeVendido).to.be.a(\"number\");",
+                  "  pm.expect(pm.response.json().comprasConEmisionIncompleta.cantidad).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Devoluciones (ORGANIZADOR titular)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/devoluciones",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "devoluciones"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Netas = vendidas - devueltas, con las devueltas por origen\", function () {",
+                  "  const t = pm.response.json().totales;",
+                  "  pm.expect(t.entradasDevueltas).to.eql(t.devueltasPorDevolucion + t.devueltasPorCancelacion);",
+                  "  pm.expect(t.entradasNetas).to.eql(t.entradasVendidas - t.entradasDevueltas);",
+                  "  pm.expect(pm.response.json().devolucionesEnCurso.cantidad).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recaudación (ORGANIZADOR titular)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/recaudacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "recaudacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Neta = bruta - reintegros exitosos\", function () {",
+                  "  const t = pm.response.json().totales;",
+                  "  pm.expect(t.recaudacionNeta).to.be.closeTo(t.recaudacionBruta - t.reintegrosExitosos, 0.001);",
+                  "  const r = pm.response.json().pendientesDeReconciliacion;",
+                  "  pm.expect(r.reintegrosPendientes.cantidad).to.be.a(\"number\");",
+                  "  pm.expect(r.reintegrosFallidos.cantidad).to.be.a(\"number\");",
+                  "  pm.expect(pm.response.json().comprasNoConfirmadas.cobrado).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ocupación (ORGANIZADOR titular)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/ocupacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "ocupacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Ocupación con el inventario de Disponibilidad y reservas\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.inventarioInicializado).to.eql(true);",
+                  "  pm.expect(j.totales.capacidad).to.be.above(0);",
+                  "  const esperado = Math.round(j.totales.vendidos * 10000 / j.totales.capacidad) / 100;",
+                  "  pm.expect(j.totales.porcentajeOcupacion).to.be.closeTo(esperado, 0.011);",
+                  "  pm.expect(j.totales.reservasTemporales).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ventas (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/ventas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "ventas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Devoluciones (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/devoluciones",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "devoluciones"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recaudación (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/recaudacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "recaudacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ocupación (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/ocupacion",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "ocupacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Encabezado común del reporte\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoId\"));",
+                  "  pm.expect(j.eventoNombre).to.be.a(\"string\");",
+                  "  pm.expect(j.estadoEvento).to.be.a(\"string\");",
+                  "  pm.expect(j.generadoEn).to.be.a(\"string\");",
+                  "  pm.expect(j.hayOperacionesPendientes).to.be.a(\"boolean\");",
+                  "  pm.expect(j.sectores).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ventas de un evento ajeno (ORGANIZADOR titular de otro evento)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoIdAjeno}}/ventas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoIdAjeno}}",
+                "ventas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "El evento es del organizador ajeno: MS3 verifica la titularidad contra Eventos y responde 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error EVENTO_AJENO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"EVENTO_AJENO\"); });",
+                  "pm.test(\"No muestra datos del evento\", function () { pm.expect(pm.response.json().eventoNombre).to.be.undefined; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ventas de su propio evento (organizador ajeno)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoIdAjeno}}/ventas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoIdAjeno}}",
+                "ventas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOrganizador2}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.be.oneOf([200]); });",
+                  "pm.test(\"Su evento, sin ventas\", function () {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.eventoId).to.eql(pm.collectionVariables.get(\"eventoIdAjeno\"));",
+                  "  pm.expect(j.totales.comprasConfirmadas).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reporte como CLIENTE (rol insuficiente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/reportes/eventos/{{eventoId}}/ventas",
+              "host": [
+                "{{gatewayUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "eventos",
+                "{{eventoId}}",
+                "ventas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Lo corta el Gateway por rol. Si llegara a MS3, respondería 403 SIN_PERMISO_REPORTES."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Error ACCESO_DENEGADO (HTTP 403)\", function () { pm.response.to.have.status(403); pm.expect(pm.response.json().error).to.eql(\"ACCESO_DENEGADO\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "event": [
@@ -2068,6 +2829,22 @@
     },
     {
       "key": "reintegroId",
+      "value": ""
+    },
+    {
+      "key": "organizador2Email",
+      "value": ""
+    },
+    {
+      "key": "usuarioIdOrganizador2",
+      "value": ""
+    },
+    {
+      "key": "tokenOrganizador2",
+      "value": ""
+    },
+    {
+      "key": "eventoIdAjeno",
       "value": ""
     }
   ],

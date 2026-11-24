@@ -72,4 +72,33 @@ public interface SolicitudDevolucionRepository extends JpaRepository<SolicitudDe
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update SolicitudDevolucion s set s.eventoFechaInicio = :fechaInicio where s.eventoId = :eventoId")
     int actualizarFechaDelEvento(@Param("eventoId") String eventoId, @Param("fechaInicio") Instant fechaInicio);
+
+    // ------------------------------------------------------------------ reportes
+
+    /** Devoluciones en curso del evento: PENDIENTES, o APROBADAS cuya entrada todavía no quedó devuelta. */
+    @Query("""
+            select count(s) from SolicitudDevolucion s
+            where s.eventoId = :eventoId
+              and (s.estado = ticketya.modelo.EstadoSolicitud.PENDIENTE
+                   or (s.estado = ticketya.modelo.EstadoSolicitud.APROBADA and s.entradaDevuelta = false))""")
+    long contarEnCurso(@Param("eventoId") String eventoId);
+
+    /** Devoluciones en curso del evento: cantidad e importe. */
+    @Query("""
+            select new ticketya.repositorio.CantidadEImporte(count(s), sum(s.monto))
+            from SolicitudDevolucion s
+            where s.eventoId = :eventoId
+              and (s.estado = ticketya.modelo.EstadoSolicitud.PENDIENTE
+                   or (s.estado = ticketya.modelo.EstadoSolicitud.APROBADA and s.entradaDevuelta = false))""")
+    CantidadEImporte enCurso(@Param("eventoId") String eventoId);
+
+    /** Entradas distintas devueltas por una devolución completada (aprobada con la entrada devuelta), por sector. */
+    @Query("""
+            select new ticketya.repositorio.TotalPorSector(s.sectorId, max(s.sectorNombre), count(distinct s.entradaId), sum(s.monto))
+            from SolicitudDevolucion s
+            where s.eventoId = :eventoId and s.estado = ticketya.modelo.EstadoSolicitud.APROBADA
+              and s.entradaDevuelta = true
+            group by s.sectorId
+            order by s.sectorId""")
+    List<TotalPorSector> devueltasPorSector(@Param("eventoId") String eventoId);
 }
