@@ -50,6 +50,7 @@ public class ReservasFalso implements ReservasCliente {
 
     public void reiniciar() {
         reservas.clear();
+        disponibilidades.clear();
         liberadasPorDevolucion.clear();
         pedidosDeLiberacionPorDevolucion.set(0);
         confirmaciones.set(0);
@@ -115,6 +116,19 @@ public class ReservasFalso implements ReservasCliente {
     public Map<String, LugarDevuelto> liberadasPorDevolucion() { return liberadasPorDevolucion; }
 
     public int pedidosDeLiberacionPorDevolucion() { return pedidosDeLiberacionPorDevolucion.get(); }
+
+    private final Map<String, Disponibilidad> disponibilidades = new ConcurrentHashMap<>();
+
+    /** Inventario que devuelve la consulta de disponibilidad del evento. */
+    public void definirDisponibilidad(Disponibilidad disponibilidad) {
+        disponibilidades.put(disponibilidad.eventoId(), disponibilidad);
+    }
+
+    @Override
+    public Optional<Disponibilidad> obtenerDisponibilidad(String eventoId) {
+        verificarDisponible();
+        return Optional.ofNullable(disponibilidades.get(eventoId));
+    }
 
     private void verificarDisponible() {
         if (caido) {

@@ -113,4 +113,43 @@ public interface CompraRepository extends JpaRepository<Compra, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Compra c set c.eventoFechaInicio = :fechaInicio where c.eventoId = :eventoId")
     int actualizarFechaDelEvento(@Param("eventoId") String eventoId, @Param("fechaInicio") Instant fechaInicio);
+
+    // ------------------------------------------------------------------ reportes
+
+    /**
+     * Compras PENDIENTES del evento que ya tienen pago (cobradas con la emisión sin terminar). Una
+     * PENDIENTE sin pago es una compra iniciada que no se cobró: no es una operación pendiente.
+     */
+    @Query("""
+            select count(c) from Compra c
+            where c.eventoId = :eventoId and c.estado = ticketya.modelo.EstadoCompra.PENDIENTE
+              and c.pagoId is not null""")
+    long contarCobradasSinConfirmar(@Param("eventoId") String eventoId);
+
+    /** Ventas: entradas e importe histórico por sector, solo de compras CONFIRMADAS del evento. */
+    @Query("""
+            select new ticketya.repositorio.TotalPorSector(d.sectorId, max(d.sectorNombre), count(d), sum(d.precioUnitario))
+            from Compra c join c.detalle d
+            where c.eventoId = :eventoId and c.estado = ticketya.modelo.EstadoCompra.CONFIRMADA
+            group by d.sectorId
+            order by d.sectorId""")
+    List<TotalPorSector> ventasPorSector(@Param("eventoId") String eventoId);
+
+    long countByEventoIdAndEstado(String eventoId, EstadoCompra estado);
+
+    /** Compras PENDIENTES con pago (cobradas con la emisión sin terminar): cantidad e importe. */
+    @Query("""
+            select new ticketya.repositorio.CantidadEImporte(count(c), sum(c.total))
+            from Compra c
+            where c.eventoId = :eventoId and c.estado = ticketya.modelo.EstadoCompra.PENDIENTE
+              and c.pagoId is not null""")
+    CantidadEImporte cobradasSinConfirmar(@Param("eventoId") String eventoId);
+
+    /** Compras cobradas que no están CONFIRMADAS (pendientes o fallidas): cantidad e importe cobrado. */
+    @Query("""
+            select new ticketya.repositorio.CantidadEImporte(count(c), sum(c.total))
+            from Compra c
+            where c.eventoId = :eventoId and c.estado <> ticketya.modelo.EstadoCompra.CONFIRMADA
+              and c.pagoId is not null""")
+    CantidadEImporte cobradasNoConfirmadas(@Param("eventoId") String eventoId);
 }

@@ -3,7 +3,9 @@ package ticketya.cliente.rest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ticketya.cliente.ReservasCliente.Disponibilidad;
 import ticketya.cliente.ReservasCliente.LugarDevuelto;
+import ticketya.cliente.ReservasCliente.SectorDisponibilidad;
 import ticketya.cliente.ServicioExternoException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -90,6 +92,39 @@ class ReservasClienteRestTest {
         servidor.responder(409, "{\"error\":\"DEVOLUCION_CONFLICTO\"}");
 
         assertThatThrownBy(() -> cliente.liberarPorDevolucion("r-1", "dev-1", new LugarDevuelto("platea", 10, 1)))
+                .isInstanceOf(ServicioExternoException.class);
+    }
+
+    @Test
+    void consultaLaDisponibilidadDelEventoConVendidosYReservadosPorSector() {
+        servidor.responder(200, """
+                {"eventoId":"evento-1","sectores":[
+                  {"sectorId":"platea","tipo":"NUMERADO","capacidadTotal":100,"cantidadDisponible":55,
+                   "cantidadReservada":5,"cantidadVendida":40,"asientosDisponibles":[{"fila":1,"numero":1}]},
+                  {"sectorId":"campo","tipo":"NO_NUMERADO","capacidadTotal":300,"cantidadDisponible":240,
+                   "cantidadReservada":0,"cantidadVendida":60}]}""");
+
+        Disponibilidad d = cliente.obtenerDisponibilidad("evento-1").orElseThrow();
+
+        assertThat(servidor.metodo).isEqualTo("GET");
+        assertThat(servidor.ruta).isEqualTo("/disponibilidad/eventos/evento-1");
+        assertThat(d.sectores()).containsExactly(
+                new SectorDisponibilidad("platea", 100, 40, 5),
+                new SectorDisponibilidad("campo", 300, 60, 0));
+    }
+
+    @Test
+    void unEventoSinInventarioDevuelveVacio() {
+        servidor.responder(404, "{\"error\":\"EVENTO_NO_ENCONTRADO\"}");
+
+        assertThat(cliente.obtenerDisponibilidad("evento-1")).isEmpty();
+    }
+
+    @Test
+    void unaFallaAlConsultarLaDisponibilidadEsServicioNoDisponible() {
+        servidor.responder(500, "{}");
+
+        assertThatThrownBy(() -> cliente.obtenerDisponibilidad("evento-1"))
                 .isInstanceOf(ServicioExternoException.class);
     }
 }

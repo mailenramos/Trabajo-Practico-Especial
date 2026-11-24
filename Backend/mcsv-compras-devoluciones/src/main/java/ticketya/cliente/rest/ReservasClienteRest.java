@@ -29,6 +29,15 @@ public class ReservasClienteRest extends ClienteRest implements ReservasCliente 
                 (status, e) -> status.value() == 404 ? Optional.empty() : null);
     }
 
+    /** GET /disponibilidad/eventos/{eventoId}: 404 es "sin inventario"; otra falla, del servicio. */
+    @Override
+    public Optional<Disponibilidad> obtenerDisponibilidad(String eventoId) {
+        return llamar("obtenerDisponibilidad",
+                () -> Optional.ofNullable(http.get().uri("/disponibilidad/eventos/{id}", eventoId)
+                        .retrieve().body(Disponibilidad.class)),
+                (status, e) -> status.value() == 404 ? Optional.empty() : null);
+    }
+
     @Override
     public void confirmarVenta(String reservaId) {
         llamar("confirmarVenta", () -> {
