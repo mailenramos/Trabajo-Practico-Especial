@@ -85,6 +85,7 @@ Sin token, una ruta protegida responde `401 NO_AUTENTICADO`. Un token vencido, c
 | Reservar, comprar, pagar y solicitar devoluciones | `CLIENTE` |
 | Consultar compras/devoluciones | `CLIENTE`, `ADMIN` |
 | Aprobar/rechazar devoluciones y operar reintegros | `ADMIN` |
+| Consultar reportes de un evento (`GET /reportes/eventos/{eventoId}/{reporte}`) | `ORGANIZADOR`, `ADMIN` (MS3 verifica además que el organizador sea el titular del evento) |
 | Consultar entradas | `CLIENTE`, `ADMIN` |
 | Validar el QR de una entrada (`POST /eventos/{id}/ingresos`) | `PERSONAL_ACCESO`, `ADMIN` (MS5 verifica además la asignación al evento) |
 
@@ -100,7 +101,7 @@ El Gateway define una lista explícita de paths y métodos permitidos y reenvía
 |---|---|
 | Eventos/Lugares (MS1) | `GET, POST /lugares`; `GET /lugares/{id}`; `GET, POST /lugares/{id}/sectores`; `GET, POST /eventos`; `GET, PUT /eventos/{eventoId}`; `POST, GET /eventos/{eventoId}/personal-acceso`; `DELETE /eventos/{eventoId}/personal-acceso/{usuarioId}`; `PUT /eventos/{eventoId}/sectores/{sectorId}/precio`; `PUT /eventos/{eventoId}/limite-entradas-por-cliente`; `PUT /eventos/{eventoId}/publicar`; `PUT /eventos/{eventoId}/venta/suspender`; `PUT /eventos/{eventoId}/venta/reactivar`; `PUT /eventos/{eventoId}/cancelar`. |
 | Disponibilidad/Reservas (MS2) | `POST /disponibilidad/eventos/{eventoId}/reservas`. |
-| Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`. |
+| Compras/Devoluciones (MS3) | `GET, POST /compras`; `GET /compras/{compraId}`; `POST /compras/{compraId}/pago`; `GET, POST /devoluciones`; `GET /devoluciones/{devolucionId}`; `POST /devoluciones/{devolucionId}/aprobacion`; `POST /devoluciones/{devolucionId}/rechazo`; `GET /reintegros`; `POST /reintegros/{reintegroId}/reintento`; `GET /reportes/eventos/{eventoId}/{reporte}` (`ventas`, `devoluciones`, `recaudacion`, `ocupacion`). |
 | Entradas (MS5) | `GET /entradas`; `GET /entradas/{id}`; `POST /eventos/{eventoId}/ingresos`. |
 | Usuarios (MS6) | `POST /auth/registro`; `POST /auth/login`; `GET, PUT /usuarios/me`; `GET /usuarios`; `GET /usuarios/{id}`; `PUT /usuarios/{id}/roles`; `PUT /usuarios/{id}/estado`. |
 | Fila virtual (MS7) | `POST /filas/eventos/{eventoId}/ingresos`; `GET /filas/eventos/{eventoId}/mi-turno`; `GET /filas/eventos/{eventoId}`; `PUT /filas/eventos/{eventoId}/configuracion`; `PUT /filas/eventos/{eventoId}/estado`. |
