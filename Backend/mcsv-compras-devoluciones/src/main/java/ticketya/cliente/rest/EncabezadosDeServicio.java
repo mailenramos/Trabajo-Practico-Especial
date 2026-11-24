@@ -4,19 +4,14 @@ import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
-import ticketya.web.CorrelacionFilter;
 
 import java.io.IOException;
-import java.util.UUID;
 
 /**
- * Agrega a cada llamada a otro servicio los encabezados de identificación:
- * <ul>
- *   <li>{@code X-Service-Token} con el token compartido (SERVICIO_TOKEN). Sin token configurado
- *       no se envía: el otro servicio responde 403, que se trata como una falla técnica.</li>
- *   <li>{@code X-Correlation-Id}: el del pedido en curso (el del Gateway) o, si la llamada nace de
- *       una tarea programada o de otro hilo, uno nuevo.</li>
- * </ul>
+ * Agrega a cada llamada a otro servicio {@code X-Service-Token} con el token compartido
+ * (SERVICIO_TOKEN). Sin token configurado no se envía: el otro servicio responde 403, que se trata
+ * como una falla técnica. ({@code X-Correlation-Id} lo agrega {@link PropagacionDeCorrelacion} en
+ * todos los clientes.)
  */
 class EncabezadosDeServicio implements ClientHttpRequestInterceptor {
 
@@ -38,9 +33,6 @@ class EncabezadosDeServicio implements ClientHttpRequestInterceptor {
         if (token != null) {
             pedido.getHeaders().set(ENCABEZADO_TOKEN, token);
         }
-        String correlacion = CorrelacionFilter.actual();
-        pedido.getHeaders().set(CorrelacionFilter.ENCABEZADO,
-                correlacion != null ? correlacion : UUID.randomUUID().toString());
         return ejecucion.execute(pedido, cuerpo);
     }
 }
