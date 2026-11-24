@@ -130,6 +130,11 @@ spring:
               predicates:
                 - Path=/reintegros/{reintegroId}/reintento
                 - Method=POST
+            - id: ms3-reportes
+              uri: ${gateway.services.ms3-url:${MS3_URL:http://localhost:8083}}
+              predicates:
+                - Path=/reportes/eventos/{eventoId}/{reporte}
+                - Method=GET
             - id: ms6-auth
               uri: ${gateway.services.ms6-url:${MS6_URL:http://localhost:8087}}
               predicates:

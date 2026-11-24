@@ -257,6 +257,8 @@ class ApiGatewayIntegrationTests {
                 new RouteCase("POST", "/devoluciones/devolucion-1/rechazo", MS3, "ADMIN"),
                 new RouteCase("GET", "/reintegros", MS3, "ADMIN"),
                 new RouteCase("POST", "/reintegros/reintegro-1/reintento", MS3, "ADMIN"),
+                new RouteCase("GET", "/reportes/eventos/evento-1/ventas", MS3, "ORGANIZADOR"),
+                new RouteCase("GET", "/reportes/eventos/evento-1/ocupacion", MS3, "ADMIN"),
                 new RouteCase("GET", "/entradas", MS5, "CLIENTE"),
                 new RouteCase("GET", "/entradas/entrada-1", MS5, "CLIENTE"),
                 new RouteCase("POST", "/auth/registro", MS6, "CLIENTE"),
@@ -499,6 +501,50 @@ class ApiGatewayIntegrationTests {
         }
         assertNull(MS6.poll());
         assertNull(MS8.poll());
+    }
+
+    @Test
+    @Order(18)
+    void routesOrganizerReportsToMs3ForOrganizersAndAdmins() throws Exception {
+        for (String reporte : List.of("ventas", "devoluciones", "recaudacion", "ocupacion")) {
+            String path = "/reportes/eventos/evento-1/" + reporte;
+
+            MS3.clear();
+            HttpResponse<String> organizador = sendAs("GET", path, null, "ORGANIZADOR", "organizador-1");
+            assertEquals(200, organizador.statusCode(), "ORGANIZADOR " + path);
+            CapturedRequest forwarded = MS3.take();
+            assertEquals("GET", forwarded.method());
+            assertEquals(path, forwarded.path());
+            assertEquals("organizador-1", forwarded.header("X-User-Id"));
+            assertEquals("ORGANIZADOR", forwarded.header("X-User-Roles"));
+            assertNull(MS3.poll(), "El Gateway no debe reenviar la solicitud más de una vez");
+
+            HttpResponse<String> admin = sendAs("GET", path, null, "ADMIN", "admin-1");
+            assertEquals(200, admin.statusCode(), "ADMIN " + path);
+            assertEquals("admin-1", MS3.take().header("X-User-Id"));
+
+            HttpResponse<String> cliente = sendAs("GET", path, null, "CLIENTE", "cliente-1");
+            assertEquals(403, cliente.statusCode(), "CLIENTE " + path);
+            assertTrue(cliente.body().contains("ACCESO_DENEGADO"));
+
+            HttpResponse<String> sinToken = send("GET", path, null);
+            assertEquals(401, sinToken.statusCode(), "sin token " + path);
+            assertTrue(sinToken.body().contains("NO_AUTENTICADO"));
+
+            assertNull(MS3.poll(), "CLIENTE y sin token no llegan a MS3");
+        }
+    }
+
+    @Test
+    @Order(19)
+    void doesNotPublishOtherReportPathsOrMethods() throws Exception {
+        String token = "Bearer " + token("admin-1", "ADMIN");
+        // Un solo segmento después del evento, solo GET
+        assertNotPublished("GET", "/reportes/eventos/evento-1/ventas/detalle", null, "Authorization", token);
+        assertNotPublished("GET", "/reportes/eventos/evento-1", null, "Authorization", token);
+        assertNotPublished("POST", "/reportes/eventos/evento-1/ventas", "{}",
+                "Authorization", token, "Content-Type", "application/json");
+        assertNull(MS3.poll());
     }
 
     private HttpResponse<String> send(String method, String path, String body, String... headers) throws Exception {

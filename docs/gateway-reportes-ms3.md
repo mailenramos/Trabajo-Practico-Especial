@@ -1,8 +1,8 @@
 # API Gateway: rutas de reportes de MS3 (Compras y devoluciones)
 
-Fragmento para el dueño del API Gateway. MS3 ya expone los cuatro reportes para organizadores
-(cambio OpenSpec `reportes-organizadores`); falta que el Gateway los enrute y los proteja. No hay
-que cambiar nada más en el Gateway.
+MS3 expone los cuatro reportes para organizadores (cambio OpenSpec `reportes-organizadores`). Este
+fragmento ya está aplicado en `Backend/APIGateWay` (ruta `ms3-reportes` y matcher de seguridad, con
+tests en `ApiGatewayIntegrationTests`); se conserva como referencia de lo que se agregó.
 
 ## Endpoints de MS3
 
