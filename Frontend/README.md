@@ -36,7 +36,7 @@ Cada pedido envía `Authorization: Bearer <token>`. La aplicación ya no envía 
 - El token se guarda en `localStorage` (clave `ticketya.sesion`), así la sesión sobrevive a una recarga. Para una demo académica es suficiente; en producción convendría una cookie `HttpOnly` para reducir el riesgo ante XSS.
 - La sesión se cierra al presionar **Cerrar sesión**, cuando vence el token (una hora por defecto) o si el Gateway responde `401`. En esos casos se vuelve al login con un aviso.
 - La barra superior muestra el nombre (de `GET /usuarios/me`) y los roles del token.
-- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE`. Los demás roles pueden explorar eventos.
+- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE` y **Panel admin** solo para `ADMIN`. Los demás roles pueden explorar eventos.
 
 La consulta pública de eventos no exige token en el Gateway, pero mientras MS1 siga exigiendo encabezados de identidad, la aplicación pide iniciar sesión antes de buscar.
 
@@ -54,7 +54,16 @@ El código de la sesión está en `src/session.js` (estado, decodificación del 
 
 ### Mis compras y devoluciones
 
-La pantalla usa `GET /compras`, `GET /devoluciones` y `POST /devoluciones` (MS3 por el Gateway). Cada compra muestra su estado, total y lugares. La devolución es **por entrada**: el botón **Pedir devolución** pide una confirmación con el monto y envía `{ entradaId }`. El estado de cada entrada se ve en la misma fila: pendiente de revisión, aprobada (con su reintegro) o rechazada con el motivo, y una rechazada se puede pedir de nuevo. La devolución se acepta hasta 72 horas antes del evento; la pantalla deshabilita el botón fuera de plazo, pero MS3 valida todas las reglas y su mensaje de error se muestra tal cual. Aprobar o rechazar es una tarea del administrador y todavía no tiene pantalla.
+La pantalla usa `GET /compras`, `GET /devoluciones` y `POST /devoluciones` (MS3 por el Gateway). Cada compra muestra su estado, total y lugares. La devolución es **por entrada**: el botón **Pedir devolución** pide una confirmación con el monto y envía `{ entradaId }`. El estado de cada entrada se ve en la misma fila: pendiente de revisión, aprobada (con su reintegro) o rechazada con el motivo, y una rechazada se puede pedir de nuevo. La devolución se acepta hasta 72 horas antes del evento; la pantalla deshabilita el botón fuera de plazo, pero MS3 valida todas las reglas y su mensaje de error se muestra tal cual. Aprobar o rechazar es una tarea del administrador (ver el panel de abajo).
+
+### Panel admin
+
+Solo para el rol `ADMIN` (`src/PanelAdmin.vue`), con dos secciones que usan MS3 por el Gateway:
+
+- **Devoluciones** (`GET /devoluciones?estado=`): filtros Pendientes (por defecto), Aprobadas, Rechazadas y Todas. En una pendiente, **Aprobar y reintegrar** llama a `POST /devoluciones/{id}/aprobacion` (MS3 libera el lugar, pide el reintegro a MS4 y marca la entrada como devuelta). **Rechazar** pide un motivo obligatorio de hasta 255 caracteres y llama a `POST /devoluciones/{id}/rechazo`; el cliente lo ve en Mis compras. Una aprobada con un paso pendiente muestra qué falta, el último error y un botón **Reintentar**.
+- **Reintegros** (`GET /reintegros?estado=`): lista con origen, monto, intentos y último error. En los que no están exitosos, **Reintentar reintegro** llama a `POST /reintegros/{id}/reintento`.
+
+Cada resolución dispara los mails de MS9 al cliente, que se ven en Mailpit (`http://localhost:8025`). El panel todavía no administra usuarios ni roles (`/usuarios` de MS6).
 
 La reserva tiene una vigencia limitada. La compra y el pago son acciones separadas y solo se ejecutan al presionar sus botones.
 

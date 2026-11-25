@@ -4,12 +4,14 @@ import QRCode from 'qrcode'
 import { apiRequest, gatewayUrl } from './api'
 import LoginView from './LoginView.vue'
 import MisCompras from './MisCompras.vue'
+import PanelAdmin from './PanelAdmin.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
 // Comprar es una operación de CLIENTE; consultar entradas, de CLIENTE o ADMIN (reglas del Gateway y de MS5).
 const canBuy = computed(() => hasRole('CLIENTE'))
 const canSeeTickets = computed(() => hasRole('CLIENTE') || hasRole('ADMIN'))
+const isAdmin = computed(() => hasRole('ADMIN'))
 const displayName = computed(() => session.value?.nombre || session.value?.email || '')
 const roleLabels = computed(() => (session.value?.roles || []).map((role) => ROLE_LABELS[role] || role).join(' · '))
 const activeTab = ref('eventos')
@@ -501,6 +503,7 @@ onMounted(async () => {
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
         <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
+        <button v-if="isAdmin" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">Panel admin</button>
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
@@ -754,6 +757,8 @@ onMounted(async () => {
       </section>
 
       <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
+
+      <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 
       <section v-else class="tickets-page">
         <div class="tickets-heading">
