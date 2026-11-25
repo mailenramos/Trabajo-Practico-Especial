@@ -6,6 +6,7 @@ import LoginView from './LoginView.vue'
 import MisCompras from './MisCompras.vue'
 import PanelAdmin from './PanelAdmin.vue'
 import PanelOrganizador from './PanelOrganizador.vue'
+import ControlAcceso from './ControlAcceso.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
@@ -14,6 +15,7 @@ const canBuy = computed(() => hasRole('CLIENTE'))
 const canSeeTickets = computed(() => hasRole('CLIENTE') || hasRole('ADMIN'))
 const isAdmin = computed(() => hasRole('ADMIN'))
 const isOrganizer = computed(() => hasRole('ORGANIZADOR'))
+const canValidate = computed(() => hasRole('PERSONAL_ACCESO') || hasRole('ADMIN'))
 const displayName = computed(() => session.value?.nombre || session.value?.email || '')
 const roleLabels = computed(() => (session.value?.roles || []).map((role) => ROLE_LABELS[role] || role).join(' · '))
 const activeTab = ref('eventos')
@@ -506,6 +508,7 @@ onMounted(async () => {
         </button>
         <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
         <button v-if="isOrganizer" :class="{ active: activeTab === 'organizador' }" @click="activeTab = 'organizador'">Mis eventos</button>
+        <button v-if="canValidate" :class="{ active: activeTab === 'acceso' }" @click="activeTab = 'acceso'">Control de acceso</button>
         <button v-if="isAdmin" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">Panel admin</button>
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
@@ -764,6 +767,8 @@ onMounted(async () => {
       <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 
       <PanelOrganizador v-else-if="activeTab === 'organizador' && isOrganizer" />
+
+      <ControlAcceso v-else-if="activeTab === 'acceso' && canValidate" />
 
       <section v-else-if="activeTab === 'entradas' && canSeeTickets" class="tickets-page">
         <div class="tickets-heading">

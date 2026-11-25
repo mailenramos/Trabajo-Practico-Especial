@@ -36,7 +36,7 @@ Cada pedido envía `Authorization: Bearer <token>`. La aplicación ya no envía 
 - El token se guarda en `localStorage` (clave `ticketya.sesion`), así la sesión sobrevive a una recarga. Para una demo académica es suficiente; en producción convendría una cookie `HttpOnly` para reducir el riesgo ante XSS.
 - La sesión se cierra al presionar **Cerrar sesión**, cuando vence el token (una hora por defecto) o si el Gateway responde `401`. En esos casos se vuelve al login con un aviso.
 - La barra superior muestra el nombre (de `GET /usuarios/me`) y los roles del token.
-- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE`, **Mis eventos** solo para `ORGANIZADOR` y **Panel admin** solo para `ADMIN`. Los demás roles pueden explorar eventos.
+- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE`, **Mis eventos** solo para `ORGANIZADOR`, **Control de acceso** para `PERSONAL_ACCESO` o `ADMIN` y **Panel admin** solo para `ADMIN`. Los demás roles pueden explorar eventos.
 
 La consulta pública de eventos no exige token en el Gateway, pero mientras MS1 siga exigiendo encabezados de identidad, la aplicación pide iniciar sesión antes de buscar.
 
@@ -74,6 +74,16 @@ Solo para el rol `ORGANIZADOR` (`src/PanelOrganizador.vue`), con MS1 por el Gate
 - **Gestionar**: cambiar fecha y lugar (`PUT /eventos/{id}`, los clientes con entradas reciben un aviso por mail), cambiar el límite por cliente (solo en borradores, MS1 lo rechaza después de publicar) y asignar o revocar **personal de acceso** por correo (`POST`/`GET`/`DELETE .../personal-acceso`).
 
 Limitaciones: los lugares y sectores solo los crea un administrador, y MS1 no tiene un listado de borradores (la búsqueda trae solo publicados o agotados), así que los ids de los borradores creados desde esta pantalla se recuerdan en `localStorage` (`ticketya.borradores.<usuario>`) y se consultan de a uno. Suspender, reactivar y cancelar un evento son operaciones de `ADMIN` y todavía no tienen pantalla.
+
+### Control de acceso (personal de acceso)
+
+Para `PERSONAL_ACCESO` (y `ADMIN`, que registra el ingreso como excepcional) en `src/ControlAcceso.vue`, con MS5 por el Gateway:
+
+1. Elegir el evento que se controla (lista pública de `GET /eventos`; se recuerda la última elección).
+2. Escanear el QR con un lector USB (escribe el código y envía Enter) o pegar el código del QR en el campo y presionar Enter. Es el UUID `codigoQr` de la entrada.
+3. La pantalla llama a `POST /eventos/{eventoId}/ingresos` `{ codigoQr }` y muestra en grande **Ingreso válido** con sector y asiento, o el motivo del rechazo: entrada ya utilizada (con la hora del primer ingreso), de otro evento, código no reconocido, evento cerrado, entrada no vigente o personal no asignado al evento. Debajo queda el historial de las últimas 10 validaciones.
+
+MS5 verifica en cada validación que el personal tenga una asignación activa al evento (el organizador la crea desde **Mis eventos**), por eso un evento sin asignación responde `403 PERSONAL_NO_AUTORIZADO`. La lista de eventos es pública porque no existe un endpoint que devuelva solo los eventos asignados a una persona. Una entrada validada pasa a `UTILIZADA` y el cliente la ve en gris en **Mis entradas**. No hay lectura con cámara: haría falta una librería de escaneo.
 
 La reserva tiene una vigencia limitada. La compra y el pago son acciones separadas y solo se ejecutan al presionar sus botones.
 
