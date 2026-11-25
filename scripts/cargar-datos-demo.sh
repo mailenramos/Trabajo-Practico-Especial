@@ -35,12 +35,9 @@ llamar() {
   fi
 }
 
-# El admin inicial usa ADMIN_EMAIL / ADMIN_PASSWORD del .env de la raíz (o del entorno).
-RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
-env_valor() { grep -E "^$1=" "$RAIZ/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r'; }
-ADMIN_CORREO="${ADMIN_EMAIL:-$(env_valor ADMIN_EMAIL)}"
-ADMIN_CLAVE="${ADMIN_PASSWORD:-$(env_valor ADMIN_PASSWORD)}"
-[ -n "$ADMIN_CORREO" ] && [ -n "$ADMIN_CLAVE" ] || { echo "Falta ADMIN_EMAIL / ADMIN_PASSWORD (en .env o en el entorno)"; exit 1; }
+# Por defecto entra con el admin de prueba de MS6. Se puede cambiar con ADMIN_CORREO / ADMIN_CLAVE.
+ADMIN_CORREO="${ADMIN_CORREO:-admin@ticketya.test}"
+ADMIN_CLAVE="${ADMIN_CLAVE:-Prueba123}"
 
 # iniciar_sesion CORREO CLAVE -> deja el token en TOKEN
 iniciar_sesion() {
