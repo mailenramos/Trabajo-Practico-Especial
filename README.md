@@ -128,7 +128,7 @@ Con una base nueva el catálogo está vacío. `scripts/cargar-datos-demo.sh` cre
 bash scripts/cargar-datos-demo.sh
 ```
 
-El script entra como `admin@ticketya.test` (solo un admin puede crear lugares y sectores) y como `organizador@ticketya.test` para los eventos, ambos con `Prueba123`. Para que el admin de prueba exista, `ADMIN_EMAIL` del `.env` no debe ser `admin@ticketya.test`. Es repetible: omite los eventos que ya existen por nombre, aunque vuelve a crear los lugares.
+El script entra como `admin@ticketya.test` (solo un admin puede crear lugares y sectores) y como `organizador@ticketya.test` para los eventos, ambos con `Prueba123`. Para que el admin de prueba exista, `ADMIN_EMAIL` del `.env` no debe ser `admin@ticketya.test`. Es repetible: omite los eventos que ya existen por nombre y reutiliza los lugares que ya existen con el mismo nombre y dirección.
 
 > Los eventos de ejemplo del perfil `dev` de MS1 no sirven para comprar: se guardan ya publicados sin pasar por la API, y MS2 nunca recibe su disponibilidad.
 

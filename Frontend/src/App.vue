@@ -5,6 +5,7 @@ import { apiRequest, gatewayUrl } from './api'
 import LoginView from './LoginView.vue'
 import MisCompras from './MisCompras.vue'
 import PanelAdmin from './PanelAdmin.vue'
+import PanelOrganizador from './PanelOrganizador.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
@@ -12,6 +13,7 @@ const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Ad
 const canBuy = computed(() => hasRole('CLIENTE'))
 const canSeeTickets = computed(() => hasRole('CLIENTE') || hasRole('ADMIN'))
 const isAdmin = computed(() => hasRole('ADMIN'))
+const isOrganizer = computed(() => hasRole('ORGANIZADOR'))
 const displayName = computed(() => session.value?.nombre || session.value?.email || '')
 const roleLabels = computed(() => (session.value?.roles || []).map((role) => ROLE_LABELS[role] || role).join(' · '))
 const activeTab = ref('eventos')
@@ -503,6 +505,7 @@ onMounted(async () => {
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
         <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
+        <button v-if="isOrganizer" :class="{ active: activeTab === 'organizador' }" @click="activeTab = 'organizador'">Mis eventos</button>
         <button v-if="isAdmin" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">Panel admin</button>
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
@@ -518,7 +521,7 @@ onMounted(async () => {
     <LoginView v-if="!isLoggedIn" />
 
     <main v-else>
-      <section v-if="activeTab === 'eventos' || !canSeeTickets" class="events-page">
+      <section v-if="activeTab === 'eventos'" class="events-page">
         <div v-if="!selectedEvent" class="hero">
           <div class="hero-copy">
             <p class="eyebrow"><span class="live-dot"></span> VIVI LO QUE VIENE</p>
@@ -760,7 +763,9 @@ onMounted(async () => {
 
       <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 
-      <section v-else class="tickets-page">
+      <PanelOrganizador v-else-if="activeTab === 'organizador' && isOrganizer" />
+
+      <section v-else-if="activeTab === 'entradas' && canSeeTickets" class="tickets-page">
         <div class="tickets-heading">
           <div><p class="eyebrow">TUS PROXIMAS HISTORIAS</p><h1>Mis entradas<span>.</span></h1><p>Todo listo para vivirlo.</p></div>
           <button class="button button-outline" :disabled="busy !== ''" @click="loadTickets(ticketPage)">↻ Actualizar</button>

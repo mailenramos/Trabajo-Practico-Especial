@@ -36,7 +36,7 @@ Cada pedido envía `Authorization: Bearer <token>`. La aplicación ya no envía 
 - El token se guarda en `localStorage` (clave `ticketya.sesion`), así la sesión sobrevive a una recarga. Para una demo académica es suficiente; en producción convendría una cookie `HttpOnly` para reducir el riesgo ante XSS.
 - La sesión se cierra al presionar **Cerrar sesión**, cuando vence el token (una hora por defecto) o si el Gateway responde `401`. En esos casos se vuelve al login con un aviso.
 - La barra superior muestra el nombre (de `GET /usuarios/me`) y los roles del token.
-- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE` y **Panel admin** solo para `ADMIN`. Los demás roles pueden explorar eventos.
+- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE`, **Mis eventos** solo para `ORGANIZADOR` y **Panel admin** solo para `ADMIN`. Los demás roles pueden explorar eventos.
 
 La consulta pública de eventos no exige token en el Gateway, pero mientras MS1 siga exigiendo encabezados de identidad, la aplicación pide iniciar sesión antes de buscar.
 
@@ -64,6 +64,16 @@ Solo para el rol `ADMIN` (`src/PanelAdmin.vue`), con dos secciones que usan MS3 
 - **Reintegros** (`GET /reintegros?estado=`): lista con origen, monto, intentos y último error. En los que no están exitosos, **Reintentar reintegro** llama a `POST /reintegros/{id}/reintento`.
 
 Cada resolución dispara los mails de MS9 al cliente, que se ven en Mailpit (`http://localhost:8025`). El panel todavía no administra usuarios ni roles (`/usuarios` de MS6).
+
+### Mis eventos (organizador)
+
+Solo para el rol `ORGANIZADOR` (`src/PanelOrganizador.vue`), con MS1 por el Gateway:
+
+- **Lista** (`GET /eventos?organizadorId=`): los eventos propios con su estado, fecha y precio mínimo.
+- **Nuevo evento**: formulario (nombre, descripción, tipo, participantes, fecha, límite por cliente y lugar de `GET /lugares`) que hace `POST /eventos` y crea un borrador. Después se ponen los precios de cada sector (`PUT .../sectores/{sectorId}/precio`) y **Guardar precios y publicar** (`PUT .../publicar`). Publicar es lo que inicializa la disponibilidad en MS2, así que el evento queda listo para reservar y comprar.
+- **Gestionar**: cambiar fecha y lugar (`PUT /eventos/{id}`, los clientes con entradas reciben un aviso por mail), cambiar el límite por cliente (solo en borradores, MS1 lo rechaza después de publicar) y asignar o revocar **personal de acceso** por correo (`POST`/`GET`/`DELETE .../personal-acceso`).
+
+Limitaciones: los lugares y sectores solo los crea un administrador, y MS1 no tiene un listado de borradores (la búsqueda trae solo publicados o agotados), así que los ids de los borradores creados desde esta pantalla se recuerdan en `localStorage` (`ticketya.borradores.<usuario>`) y se consultan de a uno. Suspender, reactivar y cancelar un evento son operaciones de `ADMIN` y todavía no tienen pantalla.
 
 La reserva tiene una vigencia limitada. La compra y el pago son acciones separadas y solo se ejecutan al presionar sus botones.
 

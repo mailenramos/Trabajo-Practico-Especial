@@ -63,16 +63,27 @@ EXISTENTES=$(campos nombre)
 existe() { printf '%s\n' "$EXISTENTES" | grep -qxF "$1"; }
 
 # crear_lugar NOMBRE DIRECCION CIUDAD LAT LON -> LUGAR_ID
+# Si ya existe un lugar con ese nombre y dirección se reutiliza (con sus sectores) en vez de duplicarlo.
 crear_lugar() {
   TOKEN=$TOKEN_ADMIN
-  llamar POST /lugares "201" \
-    "{\"nombre\":\"$1\",\"direccion\":\"$2\",\"ciudad\":\"$3\",\"latitud\":$4,\"longitud\":$5}"
-  LUGAR_ID=$(campo id)
+  LUGAR_EXISTE=""
+  llamar GET /lugares "200" ""
+  LUGAR_ID=$(tr '{' '\n' < "$RESP" | grep "\"nombre\":\"$1\",\"direccion\":\"$2\"" | head -1 \
+    | grep -oE '"id" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [ -n "$LUGAR_ID" ]; then
+    LUGAR_EXISTE=1
+    echo "-- Lugar $1: ya existe, se reutiliza"
+  else
+    llamar POST /lugares "201" \
+      "{\"nombre\":\"$1\",\"direccion\":\"$2\",\"ciudad\":\"$3\",\"latitud\":$4,\"longitud\":$5}"
+    LUGAR_ID=$(campo id)
+  fi
   TOKEN=$TOKEN_ORG
 }
 
 # crear_sector NOMBRE TIPO FILAS ASIENTOS_POR_FILA CAPACIDAD (los que no aplican, "null")
 crear_sector() {
+  [ -n "$LUGAR_EXISTE" ] && return
   TOKEN=$TOKEN_ADMIN
   llamar POST "/lugares/$LUGAR_ID/sectores" "201" \
     "{\"nombre\":\"$1\",\"tipo\":\"$2\",\"filas\":$3,\"asientosPorFila\":$4,\"capacidad\":$5}"
