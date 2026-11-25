@@ -36,7 +36,7 @@ Cada pedido envía `Authorization: Bearer <token>`. La aplicación ya no envía 
 - El token se guarda en `localStorage` (clave `ticketya.sesion`), así la sesión sobrevive a una recarga. Para una demo académica es suficiente; en producción convendría una cookie `HttpOnly` para reducir el riesgo ante XSS.
 - La sesión se cierra al presionar **Cerrar sesión**, cuando vence el token (una hora por defecto) o si el Gateway responde `401`. En esos casos se vuelve al login con un aviso.
 - La barra superior muestra el nombre (de `GET /usuarios/me`) y los roles del token.
-- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. Los demás roles pueden explorar eventos.
+- Según los roles: comprar requiere `CLIENTE`, y **Mis entradas** se muestra para `CLIENTE` o `ADMIN`. **Mis compras** se muestra solo para `CLIENTE`. Los demás roles pueden explorar eventos.
 
 La consulta pública de eventos no exige token en el Gateway, pero mientras MS1 siga exigiendo encabezados de identidad, la aplicación pide iniciar sesión antes de buscar.
 
@@ -50,6 +50,11 @@ El código de la sesión está en `src/session.js` (estado, decodificación del 
 4. Iniciar la compra usando esa reserva.
 5. Confirmar el pago simulado; MS4 no realiza un cobro real.
 6. Consultar las entradas emitidas desde la seccion **Mis entradas**.
+7. Revisar el historial en **Mis compras** (`src/MisCompras.vue`) y pedir la devolución de una entrada.
+
+### Mis compras y devoluciones
+
+La pantalla usa `GET /compras`, `GET /devoluciones` y `POST /devoluciones` (MS3 por el Gateway). Cada compra muestra su estado, total y lugares. La devolución es **por entrada**: el botón **Pedir devolución** pide una confirmación con el monto y envía `{ entradaId }`. El estado de cada entrada se ve en la misma fila: pendiente de revisión, aprobada (con su reintegro) o rechazada con el motivo, y una rechazada se puede pedir de nuevo. La devolución se acepta hasta 72 horas antes del evento; la pantalla deshabilita el botón fuera de plazo, pero MS3 valida todas las reglas y su mensaje de error se muestra tal cual. Aprobar o rechazar es una tarea del administrador y todavía no tiene pantalla.
 
 La reserva tiene una vigencia limitada. La compra y el pago son acciones separadas y solo se ejecutan al presionar sus botones.
 

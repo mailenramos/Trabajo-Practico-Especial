@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { apiRequest, gatewayUrl } from './api'
 import LoginView from './LoginView.vue'
+import MisCompras from './MisCompras.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
@@ -499,6 +500,7 @@ onMounted(async () => {
           Mis entradas
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
+        <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
@@ -750,6 +752,8 @@ onMounted(async () => {
           </div>
         </section>
       </section>
+
+      <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
 
       <section v-else class="tickets-page">
         <div class="tickets-heading">
