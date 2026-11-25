@@ -3,12 +3,21 @@ import { computed, onMounted, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { apiRequest, gatewayUrl } from './api'
 import LoginView from './LoginView.vue'
+import MisCompras from './MisCompras.vue'
+import PanelAdmin from './PanelAdmin.vue'
+import PanelOrganizador from './PanelOrganizador.vue'
+import ControlAcceso from './ControlAcceso.vue'
+import ParaVos from './ParaVos.vue'
+import FilaVirtual from './FilaVirtual.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
 // Comprar es una operación de CLIENTE; consultar entradas, de CLIENTE o ADMIN (reglas del Gateway y de MS5).
 const canBuy = computed(() => hasRole('CLIENTE'))
 const canSeeTickets = computed(() => hasRole('CLIENTE') || hasRole('ADMIN'))
+const isAdmin = computed(() => hasRole('ADMIN'))
+const isOrganizer = computed(() => hasRole('ORGANIZADOR'))
+const canValidate = computed(() => hasRole('PERSONAL_ACCESO') || hasRole('ADMIN'))
 const displayName = computed(() => session.value?.nombre || session.value?.email || '')
 const roleLabels = computed(() => (session.value?.roles || []).map((role) => ROLE_LABELS[role] || role).join(' · '))
 const activeTab = ref('eventos')
@@ -22,6 +31,8 @@ const selectedSeats = ref([])
 const generalQuantity = ref(1)
 const reservation = ref(null)
 const reservationRequestId = ref('')
+// El detalle público del evento no indica si tiene fila virtual: se detecta cuando MS2 rechaza la reserva.
+const queueRequired = ref(false)
 const purchase = ref(null)
 const paymentKey = ref('')
 const paymentMethod = ref('CREDIT_CARD')
@@ -156,6 +167,7 @@ async function openEvent(event) {
   busy.value = 'detail'
   try {
     selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(event.id)}`)
+    queueRequired.value = false
     selectedSectorId.value = ''
     selectedSeats.value = []
     generalQuantity.value = 1
@@ -208,6 +220,7 @@ async function refreshEventAvailability(eventId) {
 
 function closeEvent() {
   selectedEvent.value = null
+  queueRequired.value = false
   selectedSectorId.value = ''
   selectedSeats.value = []
   generalQuantity.value = 1
@@ -281,10 +294,27 @@ async function reservePlaces() {
     }
     successMessage.value = ''
   } catch (error) {
-    reportError(error)
+    if (error.status === 409 && /MS7|fila|turno/i.test(error.message)) {
+      // El evento tiene fila virtual activa y el cliente no tiene un turno habilitado.
+      queueRequired.value = true
+      errorMessage.value = 'Este evento tiene fila virtual: entrá a la fila y reservá cuando tu turno esté habilitado.'
+    } else {
+      reportError(error)
+    }
   } finally {
     busy.value = ''
   }
+}
+
+/** Un turno de la fila quedó habilitado: se limpia el aviso de error y se invita a reservar. */
+function onQueueEnabled() {
+  errorMessage.value = ''
+  successMessage.value = 'Tu turno está habilitado: elegí tus lugares y reservá antes de que venza.'
+}
+
+/** Desde "Para vos": abre el evento recomendado en el catálogo. */
+async function openRecommended(eventId) {
+  await openEvent({ id: eventId })
 }
 
 async function startPurchase() {
@@ -499,6 +529,11 @@ onMounted(async () => {
           Mis entradas
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
+        <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
+        <button v-if="canBuy" :class="{ active: activeTab === 'paravos' }" @click="activeTab = 'paravos'">Para vos</button>
+        <button v-if="isOrganizer" :class="{ active: activeTab === 'organizador' }" @click="activeTab = 'organizador'">Mis eventos</button>
+        <button v-if="canValidate" :class="{ active: activeTab === 'acceso' }" @click="activeTab = 'acceso'">Control de acceso</button>
+        <button v-if="isAdmin" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">Panel admin</button>
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
@@ -513,7 +548,7 @@ onMounted(async () => {
     <LoginView v-if="!isLoggedIn" />
 
     <main v-else>
-      <section v-if="activeTab === 'eventos' || !canSeeTickets" class="events-page">
+      <section v-if="activeTab === 'eventos'" class="events-page">
         <div v-if="!selectedEvent" class="hero">
           <div class="hero-copy">
             <p class="eyebrow"><span class="live-dot"></span> VIVI LO QUE VIENE</p>
@@ -640,6 +675,12 @@ onMounted(async () => {
               <span class="notice-icon">✓</span><span>{{ successMessage }}</span>
               <button class="notice-close" aria-label="Cerrar" @click="successMessage = ''">×</button>
             </div>
+            <FilaVirtual
+              v-if="canBuy && !reservation && !selectedEvent.ventaSuspendida"
+              :event-id="selectedEvent.id"
+              :required="queueRequired"
+              @enabled="onQueueEnabled"
+            />
             <div v-if="selectedEvent.ventaSuspendida" class="notice notice-error">La venta de este evento esta suspendida.</div>
             <div v-else-if="!reservation" class="booking-layout">
               <div class="sector-list">
@@ -751,7 +792,17 @@ onMounted(async () => {
         </section>
       </section>
 
-      <section v-else class="tickets-page">
+      <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
+
+      <ParaVos v-else-if="activeTab === 'paravos' && canBuy" @open-event="openRecommended" />
+
+      <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
+
+      <PanelOrganizador v-else-if="activeTab === 'organizador' && isOrganizer" />
+
+      <ControlAcceso v-else-if="activeTab === 'acceso' && canValidate" />
+
+      <section v-else-if="activeTab === 'entradas' && canSeeTickets" class="tickets-page">
         <div class="tickets-heading">
           <div><p class="eyebrow">TUS PROXIMAS HISTORIAS</p><h1>Mis entradas<span>.</span></h1><p>Todo listo para vivirlo.</p></div>
           <button class="button button-outline" :disabled="busy !== ''" @click="loadTickets(ticketPage)">↻ Actualizar</button>

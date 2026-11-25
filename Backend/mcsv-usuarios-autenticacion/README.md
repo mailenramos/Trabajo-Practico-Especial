@@ -71,7 +71,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 | `JWT_SECRET` | Obligatoria | Secreto HS256 compartido con el Gateway (≥ 32 bytes UTF-8). |
 | `JWT_ISSUER` | `ticketya-usuarios` | Claim `iss`; el Gateway exige el mismo valor. |
 | `JWT_EXPIRATION` | `PT1H` | Vigencia del token (duración ISO-8601). |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Obligatorias | Administrador inicial. Se crea solo si no hay ningún ADMIN activo; no se duplica en reinicios. Si el correo ya existe, se le agrega el rol ADMIN sin cambiar su contraseña. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Obligatorias | Administrador inicial. Se crea solo si no hay ningún ADMIN activo; no se duplica en reinicios. Si el correo ya existe, se le agrega el rol ADMIN sin cambiar su contraseña. No uses `admin@ticketya.test` (correo del admin de prueba): si el admin inicial lo ocupa, el usuario de prueba no se crea y `Prueba123` no funciona para ese correo. |
 | `ADMIN_NOMBRE` / `ADMIN_APELLIDO` | `Administrador` / `TicketYa` | Datos del administrador inicial. |
 | `USUARIOS_DATOS_PRUEBA` | `true` | Crea un usuario de prueba por rol (ver abajo). Poner `false` fuera de desarrollo. |
 | `SERVICIO_TOKEN` | vacío (obligatoria en Docker) | Token compartido entre servicios. Si está configurado, `/internal/**` exige `X-Service-Token` con ese valor (`401 SERVICIO_NO_AUTENTICADO`). Vacío = sin validación (solo desarrollo local). |
