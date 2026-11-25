@@ -73,6 +73,18 @@ class PagosClienteRestTest {
     }
 
     @Test
+    void leeElIdDelPagoCuandoPagosLoLlamaId() {
+        // PaymentResponse de Pagos (MS4) identifica el pago como "id", no como "paymentId"
+        servidor.responder(201, """
+                {"id":"p-9","purchaseId":"compra-1","amount":46001.00,"paymentMethod":"CREDIT_CARD","status":"APROBADO"}
+                """);
+
+        Pago pago = cliente.cobrar("clave-cobro-1", "compra-1", new BigDecimal("46001.00"), "CREDIT_CARD");
+
+        assertThat(pago.paymentId()).isEqualTo("p-9");
+    }
+
+    @Test
     void unConflictoEnElCobroEsUnConflictoDePagos() {
         servidor.responder(409, "{\"error\":\"IDEMPOTENCIA_CONFLICTO\"}");
 

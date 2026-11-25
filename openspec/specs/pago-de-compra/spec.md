@@ -18,6 +18,11 @@ compra en estado confirmada.
 - **AND** pide la confirmación de la venta al servicio de disponibilidad y reservas
 - **AND** la compra queda confirmada
 
+#### Scenario: Identificador del pago según el contrato de Pagos
+- **WHEN** el servicio de pagos responde el cobro con el identificador del pago en el campo `id`
+- **THEN** el sistema guarda ese valor como identificador del pago de la compra
+- **AND** una compra confirmada nunca queda sin identificador de pago, que es lo que permite pedir devoluciones y reintegros
+
 #### Scenario: Emisión de entradas
 - **WHEN** la venta queda confirmada
 - **THEN** el sistema pide al servicio de entradas emitir una entrada por cada lugar comprado

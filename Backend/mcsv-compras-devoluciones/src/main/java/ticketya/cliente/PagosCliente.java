@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 /**
  * Servicio 4 (pagos). Los nombres de campos (en inglés) y de estados (en español)
  * respetan el contrato acordado con Pagos.
@@ -41,7 +43,8 @@ public interface PagosCliente {
 
     enum EstadoReintegroPagos { EXITOSO, FALLIDO }
 
-    record Pago(String paymentId, String purchaseId, BigDecimal amount, EstadoPago status,
+    /** Pagos identifica el pago como "id" (PaymentResponse); "paymentId" se acepta por compatibilidad. */
+    record Pago(@JsonAlias("id") String paymentId, String purchaseId, BigDecimal amount, EstadoPago status,
                 String paymentMethod) {
     }
 

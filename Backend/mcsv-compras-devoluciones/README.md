@@ -62,6 +62,8 @@ Otras propiedades útiles (con su valor por defecto):
 | `servicios.pagos.rutas.reintento-reintegro` | Ruta de Pagos para reintentar un reintegro fallido | `/internal/reintegros/{refundId}/reintentar` |
 | `servicios.pagos.rutas.consulta-reintegro` | Ruta de Pagos para consultar un reintegro | `/internal/reintegros/{refundId}` |
 
+Contrato con Pagos: el cobro y la lista de pagos responden el identificador del pago como `id` (`PaymentResponse` de MS4); MS3 también acepta `paymentId`. Ese valor se guarda en `compras.pago_id`, y sin él no se pueden pedir devoluciones. Las compras confirmadas antes de esta corrección quedaron con `pago_id` vacío y no se pueden devolver.
+
 Las rutas de Pagos deben empezar con `/` (si no, el servicio no arranca) y conservar su única variable entre llaves; el nombre de la variable no importa, se reemplaza por posición.
 
 ## Cómo ejecutarlo
