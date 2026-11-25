@@ -7,6 +7,8 @@ import MisCompras from './MisCompras.vue'
 import PanelAdmin from './PanelAdmin.vue'
 import PanelOrganizador from './PanelOrganizador.vue'
 import ControlAcceso from './ControlAcceso.vue'
+import ParaVos from './ParaVos.vue'
+import FilaVirtual from './FilaVirtual.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
 const ROLE_LABELS = { CLIENTE: 'Cliente', ORGANIZADOR: 'Organizador', ADMIN: 'Admin', PERSONAL_ACCESO: 'Personal de acceso' }
@@ -29,6 +31,8 @@ const selectedSeats = ref([])
 const generalQuantity = ref(1)
 const reservation = ref(null)
 const reservationRequestId = ref('')
+// El detalle público del evento no indica si tiene fila virtual: se detecta cuando MS2 rechaza la reserva.
+const queueRequired = ref(false)
 const purchase = ref(null)
 const paymentKey = ref('')
 const paymentMethod = ref('CREDIT_CARD')
@@ -163,6 +167,7 @@ async function openEvent(event) {
   busy.value = 'detail'
   try {
     selectedEvent.value = await apiRequest(`/eventos/${encodeURIComponent(event.id)}`)
+    queueRequired.value = false
     selectedSectorId.value = ''
     selectedSeats.value = []
     generalQuantity.value = 1
@@ -215,6 +220,7 @@ async function refreshEventAvailability(eventId) {
 
 function closeEvent() {
   selectedEvent.value = null
+  queueRequired.value = false
   selectedSectorId.value = ''
   selectedSeats.value = []
   generalQuantity.value = 1
@@ -288,10 +294,27 @@ async function reservePlaces() {
     }
     successMessage.value = ''
   } catch (error) {
-    reportError(error)
+    if (error.status === 409 && /MS7|fila|turno/i.test(error.message)) {
+      // El evento tiene fila virtual activa y el cliente no tiene un turno habilitado.
+      queueRequired.value = true
+      errorMessage.value = 'Este evento tiene fila virtual: entrá a la fila y reservá cuando tu turno esté habilitado.'
+    } else {
+      reportError(error)
+    }
   } finally {
     busy.value = ''
   }
+}
+
+/** Un turno de la fila quedó habilitado: se limpia el aviso de error y se invita a reservar. */
+function onQueueEnabled() {
+  errorMessage.value = ''
+  successMessage.value = 'Tu turno está habilitado: elegí tus lugares y reservá antes de que venza.'
+}
+
+/** Desde "Para vos": abre el evento recomendado en el catálogo. */
+async function openRecommended(eventId) {
+  await openEvent({ id: eventId })
 }
 
 async function startPurchase() {
@@ -507,6 +530,7 @@ onMounted(async () => {
           <span v-if="tickets.length" class="nav-count">{{ tickets.length }}</span>
         </button>
         <button v-if="canBuy" :class="{ active: activeTab === 'compras' }" @click="activeTab = 'compras'">Mis compras</button>
+        <button v-if="canBuy" :class="{ active: activeTab === 'paravos' }" @click="activeTab = 'paravos'">Para vos</button>
         <button v-if="isOrganizer" :class="{ active: activeTab === 'organizador' }" @click="activeTab = 'organizador'">Mis eventos</button>
         <button v-if="canValidate" :class="{ active: activeTab === 'acceso' }" @click="activeTab = 'acceso'">Control de acceso</button>
         <button v-if="isAdmin" :class="{ active: activeTab === 'admin' }" @click="activeTab = 'admin'">Panel admin</button>
@@ -651,6 +675,12 @@ onMounted(async () => {
               <span class="notice-icon">✓</span><span>{{ successMessage }}</span>
               <button class="notice-close" aria-label="Cerrar" @click="successMessage = ''">×</button>
             </div>
+            <FilaVirtual
+              v-if="canBuy && !reservation && !selectedEvent.ventaSuspendida"
+              :event-id="selectedEvent.id"
+              :required="queueRequired"
+              @enabled="onQueueEnabled"
+            />
             <div v-if="selectedEvent.ventaSuspendida" class="notice notice-error">La venta de este evento esta suspendida.</div>
             <div v-else-if="!reservation" class="booking-layout">
               <div class="sector-list">
@@ -763,6 +793,8 @@ onMounted(async () => {
       </section>
 
       <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
+
+      <ParaVos v-else-if="activeTab === 'paravos' && canBuy" @open-event="openRecommended" />
 
       <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 

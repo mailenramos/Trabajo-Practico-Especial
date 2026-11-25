@@ -32,6 +32,12 @@ const limit = ref('')
 const editWhen = ref('')
 const editVenue = ref('')
 const staffEmail = ref('')
+// Fila virtual (MS7): null = sin consultar, 'none' = el evento todavía no tiene fila configurada.
+const queue = ref(null)
+const queueCupo = ref(10)
+const queueMinutes = ref(10)
+const QUEUE_STATE_LABELS = { ACTIVA: 'Activa', PAUSADA: 'Pausada', DESACTIVADA: 'Desactivada' }
+const canQueue = computed(() => ['publicado', 'agotado'].includes(detail.value?.estado))
 
 const storageKey = computed(() => `ticketya.borradores.${session.value?.userId}`)
 const isDraft = computed(() => detail.value?.estado === 'borrador')
@@ -196,9 +202,11 @@ async function openEvent(id) {
     editWhen.value = toLocalInput(detail.value.fechaHora)
     editVenue.value = detail.value.lugar?.id || ''
     staff.value = []
+    queue.value = null
     view.value = 'detail'
     loadVenues()
     loadStaff()
+    loadQueue()
   } catch (error) {
     reportError(error, 'No se pudo abrir el evento.')
   } finally {
@@ -220,6 +228,50 @@ async function loadStaff() {
   }
 }
 
+async function loadQueue() {
+  if (!canQueue.value) return
+  try {
+    queue.value = await apiRequest(`/filas/eventos/${encodeURIComponent(detail.value.id)}`)
+    queueCupo.value = queue.value.cupo
+    queueMinutes.value = queue.value.duracionMinutos
+  } catch (error) {
+    if (error.status === 404) queue.value = 'none'
+    else reportError(error, 'No se pudo consultar la fila virtual.')
+  }
+}
+
+async function saveQueueConfig() {
+  busy.value = 'queue-config'
+  clearNotices()
+  try {
+    await apiRequest(`/filas/eventos/${encodeURIComponent(detail.value.id)}/configuracion`, {
+      method: 'PUT', body: JSON.stringify({ cupo: Number(queueCupo.value), duracionMinutos: Number(queueMinutes.value) }),
+    })
+    await loadQueue()
+    successMessage.value = 'Fila configurada. Activala para que los clientes tengan que hacer fila.'
+  } catch (error) {
+    reportError(error, 'No se pudo configurar la fila.')
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function setQueueState(state) {
+  busy.value = `queue-${state}`
+  clearNotices()
+  try {
+    await apiRequest(`/filas/eventos/${encodeURIComponent(detail.value.id)}/estado`, {
+      method: 'PUT', body: JSON.stringify({ estado: state }),
+    })
+    await loadQueue()
+    successMessage.value = `Fila ${QUEUE_STATE_LABELS[state].toLowerCase()}.`
+  } catch (error) {
+    reportError(error, 'No se pudo cambiar el estado de la fila.')
+  } finally {
+    busy.value = ''
+  }
+}
+
 async function savePricesAndPublish() {
   if (!pricesValid.value) return
   busy.value = 'publish'
@@ -233,6 +285,7 @@ async function savePricesAndPublish() {
     }
     await apiRequest(`/eventos/${id}/publicar`, { method: 'PUT' })
     await refreshDetail()
+    loadQueue()
     successMessage.value = 'Evento publicado: ya se puede reservar y comprar.'
   } catch (error) {
     reportError(error, 'No se pudo publicar el evento.')
@@ -476,6 +529,29 @@ onMounted(loadEvents)
         </ul>
         <p v-else class="org-hint">Todavía no asignaste personal de acceso a este evento.</p>
       </div>
+
+      <div v-if="canQueue" class="org-panel">
+        <p class="eyebrow">FILA VIRTUAL</p>
+        <p v-if="queue === 'none'" class="org-hint">Este evento todavía no tiene fila. Configurala (cupo y duración del turno) y activala para ordenar la compra cuando haya mucha demanda.</p>
+        <p v-else-if="queue" class="org-queue-state">
+          <span class="org-status" :class="queue.estado === 'ACTIVA' ? 'org-publicado' : queue.estado === 'PAUSADA' ? 'org-borrador' : 'org-cancelado'"><i></i>{{ QUEUE_STATE_LABELS[queue.estado] || queue.estado }}</span>
+          <span>{{ queue.cantidadEsperando }} esperando · {{ queue.cantidadHabilitados }} habilitados</span>
+          <small v-if="queue.cancelado">Evento cancelado: la fila no se puede reactivar.</small>
+        </p>
+        <div class="org-grid">
+          <label class="org-field"><span class="field-caption">CUPO (clientes habilitados a la vez)</span><input v-model="queueCupo" type="number" min="1" /></label>
+          <label class="org-field"><span class="field-caption">DURACIÓN DEL TURNO (minutos)</span><input v-model="queueMinutes" type="number" min="1" /></label>
+        </div>
+        <div class="org-actions">
+          <button class="button button-outline" :disabled="Boolean(busy) || !(Number(queueCupo) >= 1) || !(Number(queueMinutes) >= 1)" @click="saveQueueConfig">{{ busy === 'queue-config' ? 'Guardando...' : 'Guardar configuración' }}</button>
+          <template v-if="queue && queue !== 'none' && !queue.cancelado">
+            <button v-if="queue.estado !== 'ACTIVA'" class="button button-green" :disabled="Boolean(busy)" @click="setQueueState('ACTIVA')">{{ busy === 'queue-ACTIVA' ? 'Activando...' : 'Activar fila' }}</button>
+            <button v-if="queue.estado === 'ACTIVA'" class="button button-outline" :disabled="Boolean(busy)" @click="setQueueState('PAUSADA')">Pausar</button>
+            <button v-if="queue.estado !== 'DESACTIVADA'" class="button button-outline" :disabled="Boolean(busy)" @click="setQueueState('DESACTIVADA')">Desactivar</button>
+          </template>
+        </div>
+        <p class="org-hint">Con la fila activa, los clientes solo pueden reservar cuando su turno está habilitado. Desactivarla invalida los turnos que esperan.</p>
+      </div>
     </template>
   </section>
 </template>
@@ -515,6 +591,8 @@ onMounted(loadEvents)
 .org-staff li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .org-staff small { display: block; color: var(--muted); font-size: 12px; }
 .org-staff strong { word-break: break-all; font-size: 12px; }
+.org-queue-state { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 0; font-size: 13px; }
+.org-queue-state small { color: var(--muted); }
 @media (max-width: 640px) {
   .org-grid, .org-limit, .org-staff-form { grid-template-columns: 1fr; }
   .org-card, .org-sector { flex-direction: column; align-items: flex-start; }
