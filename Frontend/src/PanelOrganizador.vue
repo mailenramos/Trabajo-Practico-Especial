@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { apiRequest } from './api'
 import { session } from './session'
+import ReportesEvento from './ReportesEvento.vue'
 
 // Panel del organizador (rol ORGANIZADOR). Usa MS1 por el Gateway:
 //   GET /eventos?organizadorId= · GET /eventos/{id} · GET /lugares · POST /eventos
@@ -529,6 +530,8 @@ onMounted(loadEvents)
         </ul>
         <p v-else class="org-hint">Todavía no asignaste personal de acceso a este evento.</p>
       </div>
+
+      <ReportesEvento v-if="!isDraft" :event-id="detail.id" />
 
       <div v-if="canQueue" class="org-panel">
         <p class="eyebrow">FILA VIRTUAL</p>

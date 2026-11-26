@@ -71,7 +71,19 @@ Solo para el rol `ADMIN` (`src/PanelAdmin.vue`), con dos secciones que usan MS3 
 - **Devoluciones** (`GET /devoluciones?estado=`): filtros Pendientes (por defecto), Aprobadas, Rechazadas y Todas. En una pendiente, **Aprobar y reintegrar** llama a `POST /devoluciones/{id}/aprobacion` (MS3 libera el lugar, pide el reintegro a MS4 y marca la entrada como devuelta). **Rechazar** pide un motivo obligatorio de hasta 255 caracteres y llama a `POST /devoluciones/{id}/rechazo`; el cliente lo ve en Mis compras. Una aprobada con un paso pendiente muestra qué falta, el último error y un botón **Reintentar**.
 - **Reintegros** (`GET /reintegros?estado=`): lista con origen, monto, intentos y último error. En los que no están exitosos, **Reintentar reintegro** llama a `POST /reintegros/{id}/reintento`.
 
-Cada resolución dispara los mails de MS9 al cliente, que se ven en Mailpit (`http://localhost:8025`). El panel todavía no administra usuarios ni roles (`/usuarios` de MS6).
+Cada resolución dispara los mails de MS9 al cliente, que se ven en Mailpit (`http://localhost:8025`).
+
+Además tiene tres secciones de gestión:
+
+- **Eventos** (`src/AdminEventos.vue`, MS1): lista los publicados y agotados, con **Suspender venta** / **Reactivar venta** (`PUT /eventos/{id}/venta/suspender` y `.../reactivar`) y **Cancelar evento** (`PUT /eventos/{id}/cancelar`, motivo opcional), que pide confirmación porque es definitivo y reintegra las entradas vendidas. Un evento cancelado deja de aparecer en la búsqueda.
+- **Usuarios** (`src/AdminUsuarios.vue`, MS6): lista paginada con filtros por correo y rol (`GET /usuarios`), cambio de roles (`PUT /usuarios/{id}/roles`, al menos uno; rige desde el próximo login) y activar o desactivar (`PUT /usuarios/{id}/estado`). Un administrador no puede desactivarse a sí mismo.
+- **Lugares** (`src/AdminLugares.vue`, MS1): lista los lugares con sus sectores, crea lugares (`POST /lugares`, con ciudad, latitud y longitud) y les agrega sectores numerados (filas y asientos por fila) o sin numerar (capacidad) (`POST /lugares/{id}/sectores`). La API no permite editar ni borrar.
+
+### Mi perfil
+
+Se abre tocando el nombre en la barra superior (`src/MiPerfil.vue`, todos los roles). Muestra `GET /usuarios/me` y permite cambiar nombre y apellido (`PUT /usuarios/me`). El correo no se edita y los roles los cambia un administrador.
+
+Los estilos compartidos de estas pantallas están en `src/panel.css`.
 
 ### Mis eventos (organizador)
 
@@ -83,7 +95,9 @@ Solo para el rol `ORGANIZADOR` (`src/PanelOrganizador.vue`), con MS1 por el Gate
 
 - **Fila virtual** (solo en eventos publicados o agotados): muestra el estado de la fila (`GET /filas/eventos/{id}`, `404` si todavía no existe), permite guardar el cupo y la duración del turno (`PUT .../configuracion`) y **Activar**, **Pausar** o **Desactivar** la fila (`PUT .../estado`). Es lo que hace que los clientes tengan que hacer fila para reservar.
 
-Limitaciones: los lugares y sectores solo los crea un administrador, y MS1 no tiene un listado de borradores (la búsqueda trae solo publicados o agotados), así que los ids de los borradores creados desde esta pantalla se recuerdan en `localStorage` (`ticketya.borradores.<usuario>`) y se consultan de a uno. Suspender, reactivar y cancelar un evento son operaciones de `ADMIN` y todavía no tienen pantalla.
+- **Reportes** (eventos que ya no son borrador, `src/ReportesEvento.vue`, MS3): ventas, devoluciones, recaudación y ocupación (`GET /reportes/eventos/{id}/{reporte}`), con totales y detalle por sector.
+
+Limitaciones: los lugares y sectores solo los crea un administrador (desde Panel admin → Lugares), y MS1 no tiene un listado de borradores (la búsqueda trae solo publicados o agotados), así que los ids de los borradores creados desde esta pantalla se recuerdan en `localStorage` (`ticketya.borradores.<usuario>`) y se consultan de a uno. Suspender, reactivar y cancelar un evento son operaciones de `ADMIN` (Panel admin → Eventos).
 
 ### Control de acceso (personal de acceso)
 

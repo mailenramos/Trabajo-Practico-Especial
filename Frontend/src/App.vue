@@ -8,6 +8,7 @@ import PanelAdmin from './PanelAdmin.vue'
 import PanelOrganizador from './PanelOrganizador.vue'
 import ControlAcceso from './ControlAcceso.vue'
 import ParaVos from './ParaVos.vue'
+import MiPerfil from './MiPerfil.vue'
 import FilaVirtual from './FilaVirtual.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
@@ -537,10 +538,10 @@ onMounted(async () => {
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
-        <span class="identity-text">
-          <strong>{{ displayName }}</strong>
+        <button class="identity-text identity-profile" type="button" title="Ver y editar mi perfil" @click="activeTab = 'perfil'">
+          <strong>{{ displayName }} <span aria-hidden="true">✎</span></strong>
           <small>{{ roleLabels }}</small>
-        </span>
+        </button>
         <button class="logout-button" type="button" @click="logout">Cerrar sesión</button>
       </div>
     </header>
@@ -795,6 +796,8 @@ onMounted(async () => {
       <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
 
       <ParaVos v-else-if="activeTab === 'paravos' && canBuy" @open-event="openRecommended" />
+
+      <MiPerfil v-else-if="activeTab === 'perfil'" />
 
       <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 
