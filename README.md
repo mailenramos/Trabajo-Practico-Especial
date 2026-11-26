@@ -132,6 +132,26 @@ El script entra como `admin@ticketya.test` (solo un admin puede crear lugares y 
 
 > Los eventos de ejemplo del perfil `dev` de MS1 no sirven para comprar: se guardan ya publicados sin pasar por la API, y MS2 nunca recibe su disponibilidad.
 
+### Prueba de concurrencia: un lugar se vende una sola vez
+
+`scripts/prueba-concurrencia.sh` lo demuestra en vivo por el Gateway, con todo en `healthy` y los datos de demo cargados. Desde Git Bash:
+
+```sh
+bash scripts/prueba-concurrencia.sh        # 10 pedidos simultáneos
+N=25 bash scripts/prueba-concurrencia.sh
+```
+
+1. N clientes piden **el mismo asiento a la vez**: uno recibe `201` y el resto `409` (lo resuelve MS2, Reservas). El ganador compra y paga, y MS5 emite una sola entrada.
+2. El QR de esa entrada se presenta **N veces a la vez** en la puerta: un `201` y el resto `409 ENTRADA_YA_UTILIZADA` (lo resuelve MS5, Entradas).
+
+Termina con código 0 solo si hubo exactamente un éxito en cada parte. Cada corrida crea su propio evento "Prueba concurrencia <hora>" (se puede sacar del catálogo desde Panel admin → Eventos) y reutiliza las cuentas `concurrenciaN@ticketya.test`. Los pedidos llevan `X-Correlation-Id` `conc-<hora>-...` para seguirlos en Grafana.
+
+En MS5 la garantía está en la base: el índice único `uk_entrada_lugar_ocupado` impide dos entradas `VIGENTE` o `UTILIZADA` para el mismo asiento, `id_compra` único hace idempotente la emisión, y el ingreso pasa la entrada de `VIGENTE` a `UTILIZADA` con una actualización condicional, así que de varias validaciones simultáneas gana una. Sus tests de concurrencia, contra PostgreSQL real con Testcontainers (requieren Docker), se corren desde `Backend/msvc-entradas`:
+
+```sh
+./mvnw -Dtest='*ConcurrencyIntegrationTest' test
+```
+
 ### Logs y trazabilidad
 
 Todos los servicios escriben sus logs en la consola con el `X-Correlation-Id` del pedido. El Gateway lo genera si el cliente no lo envía y los servicios lo propagan en sus llamadas a otros servicios. Alloy recolecta los logs de los contenedores (excepto las bases), Loki los guarda siete días y Grafana los muestra. En el dashboard **TicketYa - Logs** se filtra por servicio, nivel o texto: buscar un `correlationId` muestra el recorrido de un pedido por todos los servicios. El script de prueba usa IDs `pc-<hora>-<paso>` para facilitar esa búsqueda.
