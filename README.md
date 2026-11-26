@@ -120,6 +120,18 @@ bash scripts/prueba-conjunta.sh
 
 Cada paso muestra su código HTTP y se detiene ante el primer resultado inesperado. Al terminar, en Mailpit tienen que aparecer para `cliente@ticketya.test` los correos de entradas disponibles, compra confirmada y cambios en el evento (el último puede tardar uno o dos minutos).
 
+### Datos de demostración para la interfaz
+
+Con una base nueva el catálogo está vacío. `scripts/cargar-datos-demo.sh` crea por el Gateway 2 lugares con sectores (numerado y general) y 4 eventos (teatro, música, rock y deporte), les pone precio y los publica. Publicar es lo que inicializa la disponibilidad en MS2, por eso quedan listos para reservar y comprar desde la interfaz. Desde Git Bash, con todo en `healthy`:
+
+```sh
+bash scripts/cargar-datos-demo.sh
+```
+
+El script entra como `admin@ticketya.test` (solo un admin puede crear lugares y sectores) y como `organizador@ticketya.test` para los eventos, ambos con `Prueba123`. Para que el admin de prueba exista, `ADMIN_EMAIL` del `.env` no debe ser `admin@ticketya.test`. Es repetible: omite los eventos que ya existen por nombre y reutiliza los lugares que ya existen con el mismo nombre y dirección.
+
+> Los eventos de ejemplo del perfil `dev` de MS1 no sirven para comprar: se guardan ya publicados sin pasar por la API, y MS2 nunca recibe su disponibilidad.
+
 ### Logs y trazabilidad
 
 Todos los servicios escriben sus logs en la consola con el `X-Correlation-Id` del pedido. El Gateway lo genera si el cliente no lo envía y los servicios lo propagan en sus llamadas a otros servicios. Alloy recolecta los logs de los contenedores (excepto las bases), Loki los guarda siete días y Grafana los muestra. En el dashboard **TicketYa - Logs** se filtra por servicio, nivel o texto: buscar un `correlationId` muestra el recorrido de un pedido por todos los servicios. El script de prueba usa IDs `pc-<hora>-<paso>` para facilitar esa búsqueda.
