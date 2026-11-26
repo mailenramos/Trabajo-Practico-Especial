@@ -1,0 +1,50 @@
+/* Estilos compartidos por las pantallas de gestión (eventos, usuarios, lugares, reportes y perfil). */
+.px-card { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; padding: 20px 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: 0 7px 22px rgb(22 39 29 / 4%); }
+.px-card .eyebrow { margin: 0; }
+.px-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.px-row h3 { margin: 6px 0 4px; font-size: 18px; }
+.px-muted { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.px-row small { display: block; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.px-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.px-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.px-wide { grid-column: 1 / -1; }
+.px-field { display: flex; flex-direction: column; gap: 6px; }
+.px-field input, .px-field select, .px-field textarea { width: 100%; padding: 10px 12px; border: 1px solid #dfe5dc; border-radius: 8px; background: white; font: inherit; font-size: 13px; }
+.px-badge { display: inline-flex; align-items: center; gap: 6px; color: #42633e; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.px-badge::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ''; }
+.px-warn { color: #9a7a1f; }
+.px-bad { color: #914634; }
+.px-off { color: #7a827d; }
+.px-danger { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid #f1c5bb; border-radius: 10px; background: #fff6f3; color: #8a3524; font-size: 13px; line-height: 1.6; }
+.px-danger p { margin: 0; }
+.px-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.px-chip { padding: 4px 11px; border-radius: 14px; background: #f1f4ed; color: #3f4e45; font-size: 12px; font-weight: 600; }
+.px-checks { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+.px-checks label { display: inline-flex; align-items: center; gap: 7px; }
+.px-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.px-tabs button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); color: #4b5a52; font-size: 12px; font-weight: 600; }
+.px-tabs button.active { border-color: var(--green-dark); background: var(--green-dark); color: white; }
+.px-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.px-stat { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.px-stat small { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.px-stat strong { font-size: 19px; font-variant-numeric: tabular-nums; }
+.px-table-wrap { overflow-x: auto; }
+.px-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.px-table th, .px-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.px-table th:first-child, .px-table td:first-child { text-align: left; }
+.px-table th { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+@media (max-width: 640px) {
+  .px-grid { grid-template-columns: 1fr; }
+  .px-row { flex-direction: column; }
+}
+
+/* Nombre del usuario en la barra: abre "Mi perfil". */
+.identity-profile { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.identity-profile:hover strong { text-decoration: underline; }
+
+/* Con varias pestañas, en ventanas medianas la navegación pasa a su propia fila para no cortar "Cerrar sesión". */
+@media (max-width: 1180px) {
+  .topbar { flex-wrap: wrap; height: auto; padding-top: 10px; }
+  .topbar .main-nav { order: 3; width: 100%; height: auto; flex-wrap: wrap; justify-content: center; gap: 4px 26px; }
+  .topbar .main-nav button { min-height: 46px; white-space: nowrap; font-size: 14px; }
+}

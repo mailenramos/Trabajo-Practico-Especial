@@ -1,6 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { apiRequest } from './api'
+import AdminEventos from './AdminEventos.vue'
+import AdminUsuarios from './AdminUsuarios.vue'
+import AdminLugares from './AdminLugares.vue'
+
+// Devoluciones y reintegros viven en este componente; el resto de las secciones, en las suyas.
+const SECTIONS = [
+  { value: 'devoluciones', label: 'Devoluciones' },
+  { value: 'reintegros', label: 'Reintegros' },
+  { value: 'eventos', label: 'Eventos' },
+  { value: 'usuarios', label: 'Usuarios' },
+  { value: 'lugares', label: 'Lugares' },
+]
+const OWN_SECTIONS = ['devoluciones', 'reintegros']
 
 // Panel de administración (rol ADMIN). Usa MS3 por el Gateway:
 //   GET /devoluciones?estado= · POST /devoluciones/{id}/aprobacion · POST /devoluciones/{id}/rechazo { motivo }
@@ -74,6 +87,7 @@ async function loadReimbursements() {
 }
 
 async function load() {
+  if (!OWN_SECTIONS.includes(section.value)) return
   loading.value = true
   errorMessage.value = ''
   try {
@@ -89,6 +103,7 @@ function switchSection(next) {
   section.value = next
   rejecting.value = ''
   successMessage.value = ''
+  errorMessage.value = ''
   load()
 }
 
@@ -160,14 +175,14 @@ onMounted(load)
       <div>
         <p class="eyebrow">ADMINISTRACIÓN</p>
         <h1>Panel admin<span>.</span></h1>
-        <p>Resolvé devoluciones y reintegros de los clientes.</p>
+        <p>Devoluciones, reintegros, eventos, usuarios y lugares.</p>
       </div>
-      <button class="button button-outline" :disabled="loading" @click="load">↻ Actualizar</button>
+      <button v-if="OWN_SECTIONS.includes(section)" class="button button-outline" :disabled="loading" @click="load">↻ Actualizar</button>
     </div>
 
     <div class="admin-tabs" role="tablist">
-      <button role="tab" :aria-selected="section === 'devoluciones'" :class="{ active: section === 'devoluciones' }" @click="switchSection('devoluciones')">Devoluciones</button>
-      <button role="tab" :aria-selected="section === 'reintegros'" :class="{ active: section === 'reintegros' }" @click="switchSection('reintegros')">Reintegros</button>
+      <button v-for="item in SECTIONS" :key="item.value" role="tab" :aria-selected="section === item.value"
+        :class="{ active: section === item.value }" @click="switchSection(item.value)">{{ item.label }}</button>
     </div>
 
     <div v-if="errorMessage" class="notice notice-error" role="alert">
@@ -239,6 +254,10 @@ onMounted(load)
         </article>
       </div>
     </template>
+
+    <AdminEventos v-else-if="section === 'eventos'" />
+    <AdminUsuarios v-else-if="section === 'usuarios'" />
+    <AdminLugares v-else-if="section === 'lugares'" />
 
     <!-- Reintegros -->
     <template v-else>

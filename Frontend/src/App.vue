@@ -8,6 +8,7 @@ import PanelAdmin from './PanelAdmin.vue'
 import PanelOrganizador from './PanelOrganizador.vue'
 import ControlAcceso from './ControlAcceso.vue'
 import ParaVos from './ParaVos.vue'
+import MiPerfil from './MiPerfil.vue'
 import FilaVirtual from './FilaVirtual.vue'
 import { endSession, hasRole, isLoggedIn, session, setProfileName } from './session'
 
@@ -78,6 +79,19 @@ const seatGridSeats = computed(() => {
 
   return states
 })
+// Los asientos se dibujan agrupados: cada fila del sector ocupa su propia línea.
+const seatRows = computed(() => {
+  const rows = new Map()
+  for (const seat of seatGridSeats.value) {
+    if (!rows.has(seat.fila)) rows.set(seat.fila, [])
+    rows.get(seat.fila).push(seat)
+  }
+  return [...rows.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([fila, seats]) => ({ fila, seats: [...seats].sort((a, b) => a.numero - b.numero) }))
+})
+const seatsPerRow = computed(() => selectedSector.value?.asientosPorFila
+  || Math.max(1, ...seatRows.value.map((row) => row.seats.length)))
 const isNumbered = computed(() => selectedSector.value?.tipo === 'NUMERADO')
 const selectionCount = computed(() => isNumbered.value ? selectedSeats.value.length : Number(generalQuantity.value || 0))
 const reservationSeatLabels = computed(() => selectedSeats.value.map((seat) => {
@@ -537,10 +551,10 @@ onMounted(async () => {
       </nav>
       <div v-if="isLoggedIn" class="identity-control" aria-label="Usuario con sesión iniciada">
         <span class="identity-dot"></span>
-        <span class="identity-text">
-          <strong>{{ displayName }}</strong>
+        <button class="identity-text identity-profile" type="button" title="Ver y editar mi perfil" @click="activeTab = 'perfil'">
+          <strong>{{ displayName }} <span aria-hidden="true">✎</span></strong>
           <small>{{ roleLabels }}</small>
-        </span>
+        </button>
         <button class="logout-button" type="button" @click="logout">Cerrar sesión</button>
       </div>
     </header>
@@ -710,19 +724,28 @@ onMounted(async () => {
                 </div>
                 <template v-else-if="isNumbered">
                   <div class="stage-label">ESCENARIO</div>
-                  <div v-if="seatGridSeats.length" class="seat-grid">
-                    <button
-                      v-for="seat in seatGridSeats"
-                      :key="`${seat.fila}-${seat.numero}`"
-                      class="seat"
-                      :class="{ selected: isSeatSelected(seat), unavailable: seat.estado !== 'LIBRE' }"
-                      :aria-label="`Fila ${seat.fila}, asiento ${seat.numero}${seat.estado !== 'LIBRE' ? `, ${seat.estado === 'RESERVADO' ? 'reservado temporalmente' : seat.estado === 'VENDIDO' ? 'vendido' : 'no disponible'}` : ''}`"
-                      :title="`Fila ${seat.fila} · Asiento ${seat.numero}${seat.estado !== 'LIBRE' ? ` · ${seat.estado === 'RESERVADO' ? 'Reservado temporalmente' : seat.estado === 'VENDIDO' ? 'Vendido' : 'No disponible'}` : ''}`"
-                      :disabled="Boolean(reservation) || (seat.estado && seat.estado !== 'LIBRE')"
-                      @click="toggleSeat(seat)"
+                  <div v-if="seatRows.length" class="seat-map">
+                    <div
+                      v-for="row in seatRows"
+                      :key="row.fila"
+                      class="seat-row"
+                      :style="{ gridTemplateColumns: `46px repeat(${seatsPerRow}, minmax(26px, 36px))` }"
                     >
-                      {{ seat.numero }}
-                    </button>
+                      <span class="seat-row-label">Fila {{ row.fila }}</span>
+                      <button
+                        v-for="seat in row.seats"
+                        :key="`${seat.fila}-${seat.numero}`"
+                        class="seat"
+                        :style="{ gridColumn: seat.numero + 1 }"
+                        :class="{ selected: isSeatSelected(seat), unavailable: seat.estado !== 'LIBRE' }"
+                        :aria-label="`Fila ${seat.fila}, asiento ${seat.numero}${seat.estado !== 'LIBRE' ? `, ${seat.estado === 'RESERVADO' ? 'reservado temporalmente' : seat.estado === 'VENDIDO' ? 'vendido' : 'no disponible'}` : ''}`"
+                        :title="`Fila ${seat.fila} · Asiento ${seat.numero}${seat.estado !== 'LIBRE' ? ` · ${seat.estado === 'RESERVADO' ? 'Reservado temporalmente' : seat.estado === 'VENDIDO' ? 'Vendido' : 'No disponible'}` : ''}`"
+                        :disabled="Boolean(reservation) || (seat.estado && seat.estado !== 'LIBRE')"
+                        @click="toggleSeat(seat)"
+                      >
+                        {{ seat.numero }}
+                      </button>
+                    </div>
                   </div>
                   <p v-else class="muted-copy">No hay asientos disponibles en este sector.</p>
                   <div class="seat-legend"><span><i class="legend-free"></i>Disponible</span><span><i class="legend-selected"></i>Tu seleccion</span><span><i class="legend-reserved"></i>Reservado</span></div>
@@ -795,6 +818,8 @@ onMounted(async () => {
       <MisCompras v-else-if="activeTab === 'compras' && canBuy" />
 
       <ParaVos v-else-if="activeTab === 'paravos' && canBuy" @open-event="openRecommended" />
+
+      <MiPerfil v-else-if="activeTab === 'perfil'" />
 
       <PanelAdmin v-else-if="activeTab === 'admin' && isAdmin" />
 
