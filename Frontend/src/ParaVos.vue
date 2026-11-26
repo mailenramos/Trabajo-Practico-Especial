@@ -30,6 +30,29 @@ const successMessage = ref('')
 const dirty = computed(() => JSON.stringify(prefs.value) !== saved.value)
 const hasPrefs = computed(() => Object.values(prefs.value).some((list) => list.length))
 
+const normalize = (value) => String(value || '').trim().toLowerCase()
+
+// MS8 devuelve solo el puntaje. Los motivos por preferencias se deducen con sus mismas reglas
+// (artista +5, tipo +3, ciudad +2) sobre las preferencias guardadas; el resto del puntaje son las
+// señales del historial de compras (tipo ya comprado y eventos relacionados), que no se detallan.
+const explained = computed(() => {
+  const stored = JSON.parse(saved.value)
+  const asSet = (list) => new Set(list.map(normalize))
+  const artists = asSet(stored.artistas)
+  const types = asSet(stored.tiposEvento)
+  const cities = asSet(stored.ciudades)
+  return recommendations.value.map((rec) => {
+    const reasons = []
+    const artist = (rec.participantes || []).find((name) => artists.has(normalize(name)))
+    if (artist) reasons.push({ text: `Toca o participa ${artist}`, points: 5 })
+    if (types.has(normalize(rec.tipo))) reasons.push({ text: 'Tu tipo de evento', points: 3 })
+    if (cities.has(normalize(rec.ciudad))) reasons.push({ text: 'En tu ciudad', points: 2 })
+    const history = rec.puntuacion - reasons.reduce((sum, reason) => sum + reason.points, 0)
+    if (history > 0) reasons.push({ text: 'Por tus compras', points: history, history: true })
+    return { ...rec, reasons }
+  })
+})
+
 function formatDate(value) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -190,12 +213,18 @@ onMounted(() => {
         <h3>Todavía no tenemos recomendaciones</h3>
         <p>Cuando haya eventos publicados que coincidan con tus preferencias, aparecen acá.</p>
       </div>
-      <ul v-else class="fy-recs">
-        <li v-for="rec in recommendations" :key="rec.eventoId">
+      <p v-if="recommendations.length" class="fy-hint">Ordenados por afinidad: suman tus preferencias (artista 5, tipo 3, ciudad 2) y tu historial de compras. Por eso puede aparecer un tipo de evento que no elegiste.</p>
+      <ul v-if="recommendations.length" class="fy-recs">
+        <li v-for="rec in explained" :key="rec.eventoId">
           <div>
             <strong>{{ rec.nombre }}</strong>
             <small>{{ rec.tipo }} · {{ rec.ciudad }} · {{ formatDate(rec.fechaHora) }}</small>
             <small v-if="rec.participantes?.length">{{ rec.participantes.join(' · ') }}</small>
+            <div class="fy-reasons">
+              <span v-for="reason in rec.reasons" :key="reason.text" class="fy-reason" :class="{ 'fy-reason-history': reason.history }">
+                {{ reason.text }} <b>+{{ reason.points }}</b>
+              </span>
+            </div>
           </div>
           <div class="fy-rec-side">
             <span class="fy-score" :title="'Puntaje de afinidad con tus preferencias'">Afinidad {{ rec.puntuacion }}</span>
@@ -223,6 +252,9 @@ onMounted(() => {
 .fy-recs strong { display: block; font-size: 17px; }
 .fy-recs small { display: block; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .fy-rec-side { display: flex; align-items: center; gap: 14px; flex: none; }
+.fy-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.fy-reason { padding: 3px 9px; border-radius: 12px; background: #eaf5d3; color: #2f5233; font-size: 11px; font-weight: 600; }
+.fy-reason-history { background: #eef0f6; color: #47507a; }
 .fy-score { padding: 4px 10px; border-radius: 12px; background: #f3f5f0; color: #4b5a52; font-size: 11px; font-weight: 700; }
 @media (max-width: 640px) {
   .fy-recs li, .fy-rec-side { flex-direction: column; align-items: flex-start; }
